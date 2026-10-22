@@ -16,6 +16,9 @@ const norm = (s: string) =>
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 
+/** The key an artist name is cached and counted under: lowercase, no accents or punctuation. */
+export const nameKey = norm;
+
 /** Same artist name, ignoring case, accents and punctuation ("sombr" = "Sombr", "Beyoncé" = "Beyonce"). */
 export const sameName = (a: string, b: string) => norm(a) === norm(b);
 
