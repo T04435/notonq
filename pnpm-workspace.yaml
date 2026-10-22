@@ -1,7 +1,9 @@
 packages:
   - "packages/*"
 allowBuilds:
+  "@google/genai": false
   esbuild: true
+  protobufjs: false
   sharp: false
   simple-git-hooks: false
   unrs-resolver: false
