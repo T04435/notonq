@@ -3,12 +3,13 @@
 // Qloo knows; the best of those stand in for the missing artist, weighted by how similar they are.
 import type { QlooEntity } from "@/server/qloo/client";
 
-export type Candidate = { name: string; mbid: string; match: number; source: string };
+export type Similar = { name: string; mbid: string; match: number; source: string };
 
 export type StandIn = {
   entityId: string;
   name: string;
-  mbid: string;
+  /** Set when the stand-in was resolved by MusicBrainz ID; Deezer stand-ins are resolved by exact name instead. */
+  mbid?: string;
   weight: number;
   source: string;
   popularity?: number;
@@ -24,7 +25,7 @@ export function externalOf(e: QlooEntity, ns: string): Record<string, unknown>[]
 
 const toNum = (v: unknown) => (v === undefined || v === null || v === "" || Number.isNaN(Number(v)) ? undefined : Number(v));
 
-export function pickStandIns(candidates: Candidate[], qlooEntities: QlooEntity[], take = 5): StandIn[] {
+export function pickStandIns(candidates: Similar[], qlooEntities: QlooEntity[], take = 5): StandIn[] {
   const byMbid = new Map<string, QlooEntity>();
   // /entities returns several rows for one MBID (research/05); keep the most popular row per MBID.
   for (const e of qlooEntities) {
@@ -56,6 +57,6 @@ export function pickStandIns(candidates: Candidate[], qlooEntities: QlooEntity[]
 }
 
 /** Candidates worth one batch lookup: those with an MBID, best matches first, no duplicates, capped for the URL. */
-export function lookupBatch(candidates: Candidate[], max = 25): string[] {
+export function lookupBatch(candidates: Similar[], max = 25): string[] {
   return [...new Set(candidates.toSorted((a, b) => b.match - a.match).map((c) => c.mbid.toLowerCase()))].slice(0, max);
 }

@@ -25,4 +25,14 @@ export async function similarArtists(artist: string, apiKey: string, { fetch: f,
   return (list ?? []).map((a) => ({ name: a.name, mbid: a.mbid || undefined, match: Number(a.match) || 0, url: a.url }));
 }
 
+export type LfSearchHit = { name: string; listeners: number; mbid?: string; url: string };
+
+/** Last.fm's own artist search: catches tiny artists with a handful of listeners. */
+export async function searchArtists(artist: string, apiKey: string, { fetch: f, limit = 6 }: { fetch?: Fetch; limit?: number } = {}): Promise<LfSearchHit[]> {
+  const res = await getJson(`${BASE}?${new URLSearchParams({ method: "artist.search", artist, api_key: apiKey, format: "json", limit: String(limit) })}`, { fetch: f });
+  const list = (res.json as { results?: { artistmatches?: { artist?: { name: string; listeners?: string; mbid?: string; url: string }[] } } } | null)?.results
+    ?.artistmatches?.artist;
+  return (list ?? []).map((a) => ({ name: a.name, listeners: Number(a.listeners) || 0, mbid: a.mbid || undefined, url: a.url }));
+}
+
 export const lastfmArtistUrl = (name: string) => `https://www.last.fm/music/${encodeURIComponent(name).replace(/%20/g, "+")}`;

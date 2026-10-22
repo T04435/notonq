@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleCheckIcon, CircleXIcon, DatabaseIcon, SearchIcon } from "lucide-react";
+import { CircleCheckIcon, CircleXIcon, DatabaseIcon, SearchIcon, UserIcon } from "lucide-react";
 import { useState } from "react";
 import { CodeBlock, CodeBlockCopyButton } from "@/components/ai-elements/code-block";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
@@ -11,10 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Spinner } from "@/components/ui/spinner";
 import { Trace, TraceDescription, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { demandText } from "@/lib/demand";
+import type { Candidate } from "@/server/engine/candidates";
 import type { PlaygroundView } from "@/server/playground";
 import type { Provenance } from "@/server/provenance";
 
@@ -26,14 +27,14 @@ export function Playground() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
 
-  async function run(artist: string) {
+  async function run(artist: string, opts: { candidate?: string; choose?: boolean } = {}) {
     const q = artist.trim();
     if (!q) return;
     setName(q);
     setLoading(q);
     setError(null);
     try {
-      const res = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: q }) });
+      const res = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: q, ...opts }) });
       const body = await res.json().catch(() => ({ error: `The server answered HTTP ${res.status} without details.` }));
       if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
       setView(body as PlaygroundView);
@@ -100,12 +101,12 @@ export function Playground() {
         </Empty>
       )}
 
-      {!loading && view && <Result view={view} />}
+      {!loading && view && <Result view={view} onChoose={(key) => void run(view.query, { candidate: key })} onShowAll={() => void run(view.query, { choose: true })} />}
     </div>
   );
 }
 
-function Result({ view }: { view: PlaygroundView }) {
+function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose: (key: string) => void; onShowAll: () => void }) {
   const p = view.notonq.provenance ?? {};
   const e = view.entity;
   const ext = e?.properties.external;
@@ -141,7 +142,10 @@ function Result({ view }: { view: PlaygroundView }) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              NotOnQ <Badge variant="secondary">{view.notonq.served_by}</Badge>
+              NotOnQ{" "}
+              <Badge variant="secondary">
+                {view.servedBy === "needs_choice" ? "needs your choice" : view.servedBy === "fallback" && !e ? "nothing found yet" : view.notonq.served_by}
+              </Badge>
               {view.notonq.cache?.hit && <Badge variant="outline">cache</Badge>}
             </CardTitle>
             <CardDescription>
@@ -170,6 +174,21 @@ function Result({ view }: { view: PlaygroundView }) {
         </Card>
       </div>
 
+      {view.servedBy === "needs_choice" && <Candidates candidates={view.candidates} onChoose={onChoose} />}
+
+      {e && view.notonq.confidence === "low" && (
+        <Alert>
+          <AlertTitle>Low confidence</AlertTitle>
+          <AlertDescription>No MusicBrainz record: this artist is known only to {[...new Set(Object.values(p).flat().map((s) => s.source))].filter((s) => ["lastfm", "deezer"].includes(s)).join(" and ") || "small sources"}, and was chosen from the matches.</AlertDescription>
+        </Alert>
+      )}
+
+      {view.servedBy === "fallback" && (
+        <Button variant="link" className="w-fit px-0" onClick={onShowAll}>
+          Not this artist? See every match
+        </Button>
+      )}
+
       {e && (
         <ItemGroup className="rounded-md border">
           <Field title="Description" sources={p["properties.short_description"]}>
@@ -186,6 +205,9 @@ function Result({ view }: { view: PlaygroundView }) {
           </Field>
           <Field title="Last.fm listeners" sources={p["properties.external.lastfm"]}>
             {ext?.lastfm?.listeners?.toLocaleString("en")}
+          </Field>
+          <Field title="Deezer fans" sources={p["properties.external.deezer"]}>
+            {ext?.deezer?.fans?.toLocaleString("en")}
           </Field>
           <Field title="Popularity (derived)" sources={p.popularity}>
             {e.popularity !== undefined && view.notonq.popularity
@@ -240,6 +262,58 @@ function Result({ view }: { view: PlaygroundView }) {
       </div>
       <p className="text-xs text-muted-foreground">Looked up in {(view.ms / 1000).toFixed(1)} s.</p>
     </div>
+  );
+}
+
+function Candidates({ candidates, onChoose }: { candidates: Candidate[]; onChoose: (key: string) => void }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Which artist do you mean?</CardTitle>
+        <CardDescription>No source has one clear match. Pick one and NotOnQ fills it from that artist&apos;s records.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ItemGroup>
+          {candidates.map((c) => (
+            <Item key={c.key} variant="outline" size="sm">
+              <ItemMedia variant="image">
+                {c.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- remote source image
+                  <img src={c.image} alt="" />
+                ) : (
+                  <UserIcon />
+                )}
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>
+                  {c.name}
+                  {c.exact && <Badge variant="secondary">exact name</Badge>}
+                </ItemTitle>
+                <ItemDescription>
+                  {[c.type, c.disambiguation, c.country, c.listeners !== undefined && `${c.listeners.toLocaleString("en")} Last.fm listeners`, c.fans !== undefined && `${c.fans.toLocaleString("en")} Deezer fans`]
+                    .filter(Boolean)
+                    .join(" · ") || "No details"}
+                  {" · "}
+                  {c.links.map((l, i) => (
+                    <span key={l.url}>
+                      {i > 0 && ", "}
+                      <a href={l.url} target="_blank" rel="noreferrer" className="underline">
+                        {l.source}
+                      </a>
+                    </span>
+                  ))}
+                </ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <Button size="sm" onClick={() => onChoose(c.key)}>
+                  Use this one
+                </Button>
+              </ItemActions>
+            </Item>
+          ))}
+        </ItemGroup>
+      </CardContent>
+    </Card>
   );
 }
 

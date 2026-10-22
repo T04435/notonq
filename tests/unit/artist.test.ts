@@ -7,6 +7,10 @@ const NEW = mbid(99);
 
 const openData: [string, (u: URL) => Response][] = [
   [
+    `musicbrainz.org/ws/2/artist/${NEW}`,
+    () => json(200, { id: NEW, name: "Newact", country: "US", disambiguation: "indie band", aliases: [{ name: "New Act" }], tags: [{ name: "indie pop", count: 3 }] }),
+  ],
+  [
     "musicbrainz.org/ws/2/artist",
     () =>
       json(200, {

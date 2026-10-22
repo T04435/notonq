@@ -20,6 +20,7 @@ export const LICENCES = {
   wikipedia: "CC-BY-SA-4.0",
   pageviews: "CC0-1.0",
   lastfm: "Last.fm API terms (non-commercial, attribution)",
+  deezer: "Deezer API terms (non-commercial)",
   qloo: "Qloo API terms",
   notonq: "derived by NotOnQ",
 } as const;

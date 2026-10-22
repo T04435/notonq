@@ -1,5 +1,5 @@
 // Typed queries over the schema. Every function takes the Sql handle so tests run on an in-memory PGlite.
-import type { FallbackEntity } from "@/server/engine/artist";
+import type { Confidence, FallbackEntity } from "@/server/engine/artist";
 import type { PopularityFit } from "@/server/engine/popularity";
 import type { StandIn } from "@/server/engine/standins";
 import type { ProvenanceMap } from "@/server/provenance";
@@ -14,6 +14,8 @@ export type StoredFallback = {
   spotifyId?: string;
   gapKind: "G1" | "G2";
   qlooEntityId?: string;
+  candidateKey?: string;
+  confidence?: Confidence;
   entity: FallbackEntity | null;
   provenance: ProvenanceMap;
   standIns: StandIn[];
@@ -38,6 +40,8 @@ function toFallback(r: Row): StoredFallback {
     spotifyId: (r.spotify_id as string) ?? undefined,
     gapKind: r.gap_kind as "G1" | "G2",
     qlooEntityId: (r.qloo_entity_id as string) ?? undefined,
+    candidateKey: (r.candidate_key as string) ?? undefined,
+    confidence: (r.confidence as Confidence) ?? undefined,
     entity: json(r.entity, null),
     provenance: json(r.provenance, {}),
     standIns: json(r.stand_ins, []),
@@ -49,24 +53,26 @@ function toFallback(r: Row): StoredFallback {
   };
 }
 
-export async function findFallback(sql: Sql, by: { nameKey?: string; id?: string; qlooEntityId?: string; mbid?: string }) {
+export async function findFallback(sql: Sql, by: { nameKey?: string; id?: string; qlooEntityId?: string; mbid?: string; candidateKey?: string }) {
   const [col, val] = by.id
     ? ["id", by.id]
+    : by.candidateKey
+      ? ["candidate_key", by.candidateKey]
     : by.qlooEntityId
       ? ["qloo_entity_id", by.qlooEntityId]
       : by.mbid
         ? ["mbid", by.mbid.toLowerCase()]
         : ["name_key", by.nameKey];
-  const rows = await sql(`SELECT * FROM fallback_entities WHERE ${col} = $1 LIMIT 1`, [val]);
+  const rows = await sql(`SELECT * FROM fallback_entities WHERE ${col} = $1 ORDER BY refreshed_at DESC LIMIT 1`, [val]);
   return rows[0] ? toFallback(rows[0]) : null;
 }
 
 export async function saveFallback(sql: Sql, f: Omit<StoredFallback, "createdAt" | "refreshedAt" | "resolvedByQlooAt">) {
   const rows = await sql(
-    `INSERT INTO fallback_entities (id, name_key, name, mbid, qid, spotify_id, gap_kind, qloo_entity_id, entity, provenance, stand_ins, popularity, unavailable)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-     ON CONFLICT (name_key) DO UPDATE SET
-       id = EXCLUDED.id, name = EXCLUDED.name, mbid = EXCLUDED.mbid, qid = EXCLUDED.qid, spotify_id = EXCLUDED.spotify_id,
+    `INSERT INTO fallback_entities (id, name_key, name, mbid, qid, spotify_id, gap_kind, qloo_entity_id, entity, provenance, stand_ins, popularity, unavailable, candidate_key, confidence)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+     ON CONFLICT (id) DO UPDATE SET
+       name_key = EXCLUDED.name_key, name = EXCLUDED.name, candidate_key = EXCLUDED.candidate_key, confidence = EXCLUDED.confidence, mbid = EXCLUDED.mbid, qid = EXCLUDED.qid, spotify_id = EXCLUDED.spotify_id,
        gap_kind = EXCLUDED.gap_kind, qloo_entity_id = EXCLUDED.qloo_entity_id, entity = EXCLUDED.entity,
        provenance = EXCLUDED.provenance, stand_ins = EXCLUDED.stand_ins, popularity = EXCLUDED.popularity,
        unavailable = EXCLUDED.unavailable, refreshed_at = now()
@@ -80,11 +86,13 @@ export async function saveFallback(sql: Sql, f: Omit<StoredFallback, "createdAt"
       f.spotifyId ?? null,
       f.gapKind,
       f.qlooEntityId ?? null,
-      JSON.stringify(f.entity),
+      f.entity ? JSON.stringify(f.entity) : null,
       JSON.stringify(f.provenance),
       JSON.stringify(f.standIns),
       f.popularity ? JSON.stringify(f.popularity) : null,
       JSON.stringify(f.unavailable),
+      f.candidateKey ?? null,
+      f.confidence ?? null,
     ],
   );
   return toFallback(rows[0]);
@@ -96,9 +104,10 @@ export async function markResolvedByQloo(sql: Sql, id: string, qlooEntityId: str
 
 export type RequestLog = {
   nameKey: string;
+  query?: string;
   entityId?: string;
   endpoint: string;
-  servedBy: "qloo" | "fallback" | "mixed";
+  servedBy: "qloo" | "fallback" | "mixed" | "needs_choice";
   gapKind?: string;
   callerHash: string;
   appLabel?: string;
@@ -107,8 +116,8 @@ export type RequestLog = {
 
 export async function logRequest(sql: Sql, r: RequestLog) {
   await sql(
-    `INSERT INTO requests (name_key, entity_id, endpoint, served_by, gap_kind, caller_hash, app_label, cache_hit) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [r.nameKey, r.entityId ?? null, r.endpoint, r.servedBy, r.gapKind ?? null, r.callerHash, r.appLabel ?? null, r.cacheHit],
+    `INSERT INTO requests (name_key, query, entity_id, endpoint, served_by, gap_kind, caller_hash, app_label, cache_hit) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [r.nameKey, r.query ?? null, r.entityId ?? null, r.endpoint, r.servedBy, r.gapKind ?? null, r.callerHash, r.appLabel ?? null, r.cacheHit],
   );
 }
 
@@ -124,40 +133,49 @@ export async function demandFor(sql: Sql, nameKey: string): Promise<Demand> {
 }
 
 export type QueueRow = {
-  id: string;
-  name: string;
+  nameKey: string;
+  query: string;
+  name?: string;
+  entityId?: string;
   mbid?: string;
   qid?: string;
   spotifyId?: string;
-  gapKind: string;
-  qlooEntityId?: string;
+  confidence?: Confidence;
+  gapKind?: string;
   standIns: StandIn[];
   requests: number;
   callers: number;
   apps: number;
+  askedToChoose: boolean;
   lastRequested?: string;
   firstSeen: string;
   resolvedByQlooAt?: string;
 };
 
-/** The import queue: missing artists ranked by distinct callers, then requests, then recency. */
+/** The import queue: every name Qloo had a gap for, ranked by distinct callers, then requests, then recency, with
+ * the entity NotOnQ filled for it (if any). Names nobody could fill are kept: demand without data is the point. */
 export async function importQueue(sql: Sql, limit = 50): Promise<QueueRow[]> {
   const rows = await sql(
-    `SELECT * FROM import_queue ORDER BY resolved_by_qloo_at IS NOT NULL, callers DESC, requests DESC, last_requested DESC NULLS LAST LIMIT $1`,
+    `SELECT q.*, f.name, f.mbid, f.qid, f.spotify_id, f.confidence, f.stand_ins, f.resolved_by_qloo_at, f.entity IS NOT NULL AS filled
+     FROM import_queue q LEFT JOIN fallback_entities f ON f.id = q.entity_id
+     ORDER BY f.resolved_by_qloo_at IS NOT NULL, q.callers DESC, q.requests DESC, q.last_requested DESC LIMIT $1`,
     [limit],
   );
   return rows.map((r) => ({
-    id: String(r.id),
-    name: String(r.name),
+    nameKey: String(r.name_key),
+    query: String(r.query ?? r.name_key),
+    name: r.filled ? ((r.name as string) ?? undefined) : undefined,
+    entityId: r.filled ? ((r.entity_id as string) ?? undefined) : undefined,
     mbid: (r.mbid as string) ?? undefined,
     qid: (r.qid as string) ?? undefined,
     spotifyId: (r.spotify_id as string) ?? undefined,
-    gapKind: String(r.gap_kind),
-    qlooEntityId: (r.qloo_entity_id as string) ?? undefined,
+    confidence: (r.confidence as Confidence) ?? undefined,
+    gapKind: (r.gap_kind as string) ?? undefined,
     standIns: json(r.stand_ins, []),
     requests: Number(r.requests),
     callers: Number(r.callers),
     apps: Number(r.apps),
+    askedToChoose: Boolean(r.asked_to_choose),
     lastRequested: iso(r.last_requested),
     firstSeen: iso(r.first_seen)!,
     resolvedByQlooAt: iso(r.resolved_by_qloo_at),
@@ -166,7 +184,7 @@ export async function importQueue(sql: Sql, limit = 50): Promise<QueueRow[]> {
 
 export async function totals(sql: Sql) {
   const [r] = await sql(
-    `SELECT (SELECT count(*)::int FROM fallback_entities) AS entities,
+    `SELECT (SELECT count(DISTINCT name_key)::int FROM requests WHERE served_by <> 'qloo') AS entities,
             (SELECT count(*)::int FROM requests WHERE served_by <> 'qloo') AS gap_requests,
             (SELECT count(*)::int FROM requests WHERE served_by <> 'qloo' AND cache_hit) AS cache_hits,
             (SELECT count(DISTINCT caller_hash)::int FROM requests) AS callers`,

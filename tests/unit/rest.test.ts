@@ -8,6 +8,7 @@ const NEW = mbid(99);
 const NOT_IN_GRAPH = { errors: [{ message: "All of the provided signal.interests.entities were invalid.", path: "signal.interests.entities" }] };
 
 const openData: [string, (u: URL) => Response][] = [
+  [`musicbrainz.org/ws/2/artist/${NEW}`, () => json(200, { id: NEW, name: "Newact", country: "US" })],
   ["musicbrainz.org/ws/2/artist", () => json(200, { artists: [{ id: NEW, name: "Newact", score: 100, country: "US" }] })],
   ["query.wikidata.org", () => json(200, { results: { bindings: [] } })],
   ["method=artist.getinfo", () => json(200, { artist: { stats: { listeners: "1000" } } })],

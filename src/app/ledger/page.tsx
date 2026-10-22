@@ -57,9 +57,19 @@ async function Queue() {
         </TableHeader>
         <TableBody>
           {rows.map((r) => (
-            <TableRow key={r.id}>
+            <TableRow key={r.nameKey}>
               <TableCell className="font-medium">
-                {r.name}
+                {r.name ?? r.query}
+                {!r.entityId && (
+                  <Badge variant="outline" className="ml-2">
+                    {r.askedToChoose ? "awaiting a choice" : "nothing found yet"}
+                  </Badge>
+                )}
+                {r.confidence === "low" && (
+                  <Badge variant="outline" className="ml-2">
+                    low confidence
+                  </Badge>
+                )}
                 {r.resolvedByQlooAt && (
                   <Badge variant="secondary" className="ml-2">
                     now in Qloo
@@ -67,7 +77,7 @@ async function Queue() {
                 )}
               </TableCell>
               <TableCell>
-                <Badge variant="outline">{r.gapKind === "G2" ? "not in taste graph" : "unknown"}</Badge>
+                <Badge variant="outline">{r.gapKind === "G2" ? "not in taste graph" : "unknown to Qloo"}</Badge>
               </TableCell>
               <TableCell className="text-right">{r.callers}</TableCell>
               <TableCell className="text-right">{r.requests}</TableCell>

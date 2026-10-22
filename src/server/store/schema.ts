@@ -1,16 +1,17 @@
-// The whole schema, applied idempotently on first use (one small app, no migration tool needed yet).
+// The whole schema, applied idempotently on first use (one small app, no migration tool needed yet). Statements are
+// separated by ";\n" because the Neon HTTP driver runs one at a time.
 // What is never stored: Qloo responses outside the per-key cache, caller keys (hash only), end-user identifiers.
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS fallback_entities (
-  id               text PRIMARY KEY,           -- notonq:mbid:<uuid>, or notonq:name:<key> when MusicBrainz has nothing
-  name_key         text NOT NULL UNIQUE,       -- normalised name the artist was asked for
+  id               text PRIMARY KEY,           -- notonq:mbid:<uuid> | notonq:dz:<id> | notonq:lf:<slug> | notonq:name:<slug> (nothing found)
+  name_key         text NOT NULL,              -- normalised name it was asked for (one name can be several artists)
   name             text NOT NULL,
   mbid             text,
   qid              text,
   spotify_id       text,
   gap_kind         text NOT NULL,              -- G1 | G2
   qloo_entity_id   text,                       -- set for G2 (Qloo knows the ID) or once Qloo adds the artist
-  entity           jsonb,                      -- Qloo-shaped entity built from our own (open) data only
+  entity           jsonb,                      -- Qloo-shaped entity built from our own (open) data only; null = nothing found
   provenance       jsonb NOT NULL DEFAULT '{}',
   stand_ins        jsonb NOT NULL DEFAULT '[]',
   popularity       jsonb,
@@ -19,6 +20,10 @@ CREATE TABLE IF NOT EXISTS fallback_entities (
   refreshed_at     timestamptz NOT NULL DEFAULT now(),
   resolved_by_qloo_at timestamptz
 );
+ALTER TABLE fallback_entities DROP CONSTRAINT IF EXISTS fallback_entities_name_key_key;
+ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS candidate_key text;
+ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS confidence text;
+CREATE INDEX IF NOT EXISTS fallback_entities_name_key ON fallback_entities (name_key, refreshed_at DESC);
 CREATE INDEX IF NOT EXISTS fallback_entities_mbid ON fallback_entities (mbid);
 CREATE INDEX IF NOT EXISTS fallback_entities_qloo ON fallback_entities (qloo_entity_id);
 
@@ -27,13 +32,14 @@ CREATE TABLE IF NOT EXISTS requests (
   name_key     text NOT NULL,
   entity_id    text,
   endpoint     text NOT NULL,                  -- playground | /search | /entities | /v2/insights | mcp
-  served_by    text NOT NULL,                  -- qloo | fallback | mixed
+  served_by    text NOT NULL,                  -- qloo | fallback | mixed | needs_choice
   gap_kind     text,
   caller_hash  text NOT NULL,
   app_label    text,
   cache_hit    boolean NOT NULL DEFAULT false,
   created_at   timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS query text;
 CREATE INDEX IF NOT EXISTS requests_name_key ON requests (name_key);
 
 CREATE TABLE IF NOT EXISTS qloo_cache (
@@ -45,15 +51,19 @@ CREATE TABLE IF NOT EXISTS qloo_cache (
   PRIMARY KEY (caller_hash, req_hash)
 );
 
-CREATE OR REPLACE VIEW import_queue AS
-SELECT f.id, f.name, f.mbid, f.qid, f.spotify_id, f.gap_kind, f.qloo_entity_id, f.stand_ins,
-       count(r.id)                     AS requests,
-       count(DISTINCT r.caller_hash)   AS callers,
-       count(DISTINCT r.app_label)     AS apps,
-       max(r.created_at)               AS last_requested,
-       f.created_at                    AS first_seen,
-       f.resolved_by_qloo_at
-FROM fallback_entities f
-LEFT JOIN requests r ON r.name_key = f.name_key AND r.served_by <> 'qloo'
-GROUP BY f.id;
+DROP VIEW IF EXISTS import_queue;
+CREATE VIEW import_queue AS
+SELECT r.name_key,
+       max(r.query)                                                               AS query,
+       count(*)                                                                   AS requests,
+       count(DISTINCT r.caller_hash)                                              AS callers,
+       count(DISTINCT r.app_label)                                                AS apps,
+       max(r.created_at)                                                          AS last_requested,
+       min(r.created_at)                                                          AS first_seen,
+       (array_agg(r.gap_kind ORDER BY r.created_at DESC))[1]                      AS gap_kind,
+       (array_agg(r.entity_id ORDER BY r.created_at DESC) FILTER (WHERE r.entity_id IS NOT NULL))[1] AS entity_id,
+       bool_or(r.served_by = 'needs_choice')                                      AS asked_to_choose
+FROM requests r
+WHERE r.served_by <> 'qloo'
+GROUP BY r.name_key
 `;

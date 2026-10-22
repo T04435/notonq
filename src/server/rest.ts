@@ -1,5 +1,6 @@
 // Drop-in REST: the same paths and parameters as Qloo under /q/*. Qloo answers first, with the caller's own key; the
 // fallback is added beside Qloo's response only where Qloo had a gap. Anything NotOnQ doesn't handle passes through.
+import type { ResolveOptions } from "@/server/engine/artist";
 import type { Fetch } from "@/server/http";
 import { ARTIST, entitiesOf, qlooClient, qlooMessage } from "@/server/qloo/client";
 import { cachedQloo } from "@/server/qloo/cached";
@@ -28,8 +29,11 @@ export async function handleRest(req: RestRequest, deps: RestDeps): Promise<Rest
   const qloo = cachedQloo(qlooClient({ apiKey: req.apiKey, baseUrl: deps.baseUrl, fetch: deps.fetch }), deps.sql, callerHash);
   const ctx: Ctx = { sql: deps.sql, qloo, lastfmKey: req.lastfmKey, callerHash, appLabel: req.appLabel, endpoint: `/${req.path}`, fetch: deps.fetch };
   const path = req.path.replace(/^\/+|\/+$/g, "");
+  // notonq.* parameters steer NotOnQ only; Qloo never sees them.
+  const options = { candidateKey: req.params["notonq.candidate"] || undefined, choose: req.params["notonq.choose"] === "1" };
+  req = { ...req, params: Object.fromEntries(Object.entries(req.params).filter(([k]) => !k.startsWith("notonq."))) };
 
-  if (path === "search" && req.params.query && isArtistOnly(req.params.types)) return search(req, ctx);
+  if (path === "search" && req.params.query && isArtistOnly(req.params.types)) return search(req, ctx, options);
   if (path === "entities" && (req.params.entity_ids ?? "").split(",").some((id) => NOTONQ_ID.test(id))) return entities(req, ctx);
   if (path === "v2/insights") return insights(req, ctx);
 
@@ -39,15 +43,17 @@ export async function handleRest(req: RestRequest, deps: RestDeps): Promise<Rest
 
 const isArtistOnly = (types?: string) => !!types && types.split(",").every((t) => t.trim() === ARTIST);
 
-async function search(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
+async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Promise<RestResponse> {
   const res = await ctx.qloo.get("/search", req.params);
   const outcome = res.status === 404 || res.ok ? readSearch(req.params.query, res) : null;
   if (!outcome || "found" in outcome) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
 
-  const l = await lookupArtist(req.params.query, ctx);
+  const l = await lookupArtist(req.params.query, ctx, options);
   if (l.servedBy === "qloo") return { status: res.status, body: res.json, servedBy: "qloo" };
   const qlooResults = res.ok ? entitiesOf(res.json) : [];
   const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { success: true };
+  // Ambiguous: return Qloo's own answer untouched, plus the candidates to choose from.
+  if (l.servedBy === "needs_choice") return { status: 200, body: { ...base, results: qlooResults, notonq: blockFor(l) }, servedBy: "fallback" };
   return {
     status: l.fallback.entity ? 200 : res.status,
     body: {

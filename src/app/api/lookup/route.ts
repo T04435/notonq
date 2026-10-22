@@ -5,7 +5,11 @@ import { QlooUnavailable } from "@/server/qloo/gap";
 import { db } from "@/server/store/db";
 
 // The playground's own endpoint: our keys, so it is rate-limited per IP (BotID and a WAF rule join it on Vercel).
-const Body = z.object({ name: z.string().trim().min(1).max(100) });
+const Body = z.object({
+  name: z.string().trim().min(1).max(100),
+  candidate: z.string().max(120).optional(),
+  choose: z.boolean().optional(),
+});
 const WINDOW_MS = 60 * 60 * 1000;
 const LIMIT = 30;
 const hits = new Map<string, number[]>();
@@ -32,7 +36,7 @@ export async function POST(request: Request) {
       lastfmKey: env.LASTFM_API_KEY,
       baseUrl: env.QLOO_BASE_URL,
       salt: env.NOTONQ_SALT,
-    });
+    }, { candidateKey: parsed.data.candidate, choose: parsed.data.choose });
     return Response.json(view, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     if (e instanceof QlooUnavailable) return Response.json({ error: `Qloo didn't answer (HTTP ${e.res.status}). Try again in a moment.` }, { status: 502 });
