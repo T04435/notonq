@@ -30,6 +30,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/ledger" className="text-muted-foreground hover:text-foreground">
               Import queue
             </Link>
+            <Link href="/proof" className="text-muted-foreground hover:text-foreground">
+              Proof
+            </Link>
             <Link href="/docs" className="text-muted-foreground hover:text-foreground">
               Use it
             </Link>
