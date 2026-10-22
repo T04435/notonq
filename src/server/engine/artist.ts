@@ -153,7 +153,7 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
     entity.properties.external.lastfm = { listeners: info.listeners, scrobbles: info.playcount };
     cite(provenance, "properties.external.lastfm", {
       source: "lastfm",
-      record: info.url ?? lastfm.lastfmArtistUrl(name),
+      record: info?.url ?? lastfm.lastfmArtistUrl(name),
       licence: LICENCES.lastfm,
       method: "copied",
     });
@@ -165,10 +165,10 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
     entity.popularity = popularity.value;
     cite(provenance, "popularity", {
       source: "notonq",
-      record: `stand-ins: ${standIns.map((s) => s.entityId).join(",")}`,
+      record: info?.url ?? lastfm.lastfmArtistUrl(name),
       licence: LICENCES.notonq,
       method: "derived",
-      note: `log10(Last.fm listeners) → Qloo popularity, fitted on ${popularity.n} stand-ins, rmse ${popularity.rmse}`,
+      note: `log10(Last.fm listeners) → Qloo popularity, fitted on ${popularity.n} stand-ins (${standIns.map((s) => s.name).join(", ")}), rmse ${popularity.rmse}`,
     });
   } else unavailable.push("popularity");
 
