@@ -14,26 +14,39 @@ import { cite, LICENCES, type ProvenanceMap } from "@/server/provenance";
 import { ARTIST, entitiesOf, type QlooClient, type QlooEntity } from "@/server/qloo/client";
 import { type Gap, readInsights, readSearch, sameName } from "@/server/qloo/gap";
 
-/** A Qloo-shaped artist entity built only from our own (open) data. */
+/** NotOnQ's own values and keys carry this prefix; everything else is exactly what Qloo would put there. */
+export const NS = "notonq:";
+
+/** One artist, field for field the shape Qloo's /search and /entities return (live, 15–23 Oct 2026), built only from
+ * our own (open) data. Values NotOnQ mints (entity and tag IDs) and keys Qloo doesn't have start with "notonq:". */
 export type FallbackEntity = {
-  entity_id: string;
   name: string;
+  entity_id: string;
   types: [typeof ARTIST];
+  properties: {
+    akas: { value: string; languages: string[] }[];
+    external: {
+      facebook?: { id: string };
+      instagram?: { id: string };
+      lastfm?: { id: string; listeners: number; scrobbles?: number };
+      musicbrainz?: { id: string };
+      spotify?: { id: string };
+      twitter?: { id: string };
+      wikidata?: { id: string };
+      "notonq:deezer"?: { id: number; fans: number };
+    };
+    image?: { url: string };
+    short_description?: string;
+  };
   popularity?: number;
   disambiguation?: string;
-  properties: {
-    short_description?: string;
-    akas?: { value: string; languages: string[] }[];
-    image?: { url: string };
-    external: {
-      musicbrainz?: { id: string };
-      wikidata?: { id: string };
-      spotify?: { id: string };
-      lastfm?: { listeners?: number; scrobbles?: number };
-      deezer?: { id: number; fans: number };
-    };
-  };
-  tags: { name: string; type: "urn:tag:genre:music"; source: string }[];
+  tags: { name: string; tag_id: string; type: "urn:tag:genre"; value: string }[];
+};
+
+/** A genre as a Qloo-shaped tag. The ID is ours (prefixed), never passed off as one of Qloo's tag IDs. */
+export const genreTag = (name: string): FallbackEntity["tags"][number] => {
+  const id = `${NS}urn:tag:genre:${slug(name).replace(/-/g, "_")}`;
+  return { name, tag_id: id, type: "urn:tag:genre", value: id };
 };
 
 /** high: a MusicBrainz record. low: only Last.fm and/or Deezer know the artist. */
@@ -111,7 +124,7 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
     entity_id: idForKey(artist ? `mb:${artist.mbid}` : anchor.deezerId ? `dz:${anchor.deezerId}` : `lf:${slug(lfName)}`),
     name: displayName,
     types: [ARTIST],
-    properties: { external: {} },
+    properties: { akas: [], external: {} },
     tags: [],
   };
 
@@ -134,17 +147,19 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
   }
 
   if (dz) {
-    entity.properties.external.deezer = { id: dz.id, fans: dz.fans };
-    cite(provenance, "properties.external.deezer", { source: "deezer", record: dz.link, licence: LICENCES.deezer, method: "copied" });
+    entity.properties.external["notonq:deezer"] = { id: dz.id, fans: dz.fans };
+    cite(provenance, "properties.external.notonq:deezer", { source: "deezer", record: dz.link, licence: LICENCES.deezer, method: "copied" });
   }
 
   if (wiki) {
     const wdCite = (path: string) => cite(provenance, path, { source: "wikidata", record: wiki.record, licence: LICENCES.wikidata, method: "copied" });
     entity.properties.external.wikidata = { id: wiki.qid };
     wdCite("properties.external.wikidata");
-    if (wiki.spotifyId) {
-      entity.properties.external.spotify = { id: wiki.spotifyId };
-      wdCite("properties.external.spotify");
+    for (const ns of ["spotify", "facebook", "instagram", "twitter"] as const) {
+      const id = wiki.ids[ns];
+      if (!id) continue;
+      entity.properties.external[ns] = { id };
+      wdCite(`properties.external.${ns}`);
     }
   } else unavailable.push("properties.external.wikidata");
 
@@ -162,16 +177,16 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
   } else unavailable.push("properties.short_description");
 
   if (wiki?.genres.length) {
-    entity.tags = wiki.genres.map((g) => ({ name: g, type: "urn:tag:genre:music" as const, source: "wikidata" }));
+    entity.tags = wiki.genres.map(genreTag);
     cite(provenance, "tags", { source: "wikidata", record: wiki.record, licence: LICENCES.wikidata, method: "copied" });
   } else if (artist?.tags.length) {
     // MusicBrainz tags are supplementary data (CC BY-NC-SA): fine for this non-commercial tool, labelled as such.
-    entity.tags = artist.tags.map((g) => ({ name: g, type: "urn:tag:genre:music" as const, source: "musicbrainz" }));
+    entity.tags = artist.tags.map(genreTag);
     cite(provenance, "tags", { source: "musicbrainz", record: artist.record, licence: "CC-BY-NC-SA-3.0", method: "copied" });
   } else unavailable.push("tags");
 
   if (info?.listeners !== undefined) {
-    entity.properties.external.lastfm = { listeners: info.listeners, scrobbles: info.playcount };
+    entity.properties.external.lastfm = { id: info.name ?? lfName, listeners: info.listeners, scrobbles: info.playcount };
     cite(provenance, "properties.external.lastfm", { source: "lastfm", record: info.url ?? lastfm.lastfmArtistUrl(lfName), licence: LICENCES.lastfm, method: "copied" });
   }
 

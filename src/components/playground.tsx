@@ -195,7 +195,7 @@ function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose:
             {e.properties.short_description}
           </Field>
           <Field title="Also known as" sources={p["properties.akas"]}>
-            {e.properties.akas?.map((a) => a.value).join(", ")}
+            {e.properties.akas.map((a) => a.value).join(", ")}
           </Field>
           <Field title="Genres" sources={p.tags}>
             {e.tags.map((t) => t.name).join(", ")}
@@ -206,8 +206,8 @@ function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose:
           <Field title="Last.fm listeners" sources={p["properties.external.lastfm"]}>
             {ext?.lastfm?.listeners?.toLocaleString("en")}
           </Field>
-          <Field title="Deezer fans" sources={p["properties.external.deezer"]}>
-            {ext?.deezer?.fans?.toLocaleString("en")}
+          <Field title="Deezer fans" sources={p["properties.external.notonq:deezer"]}>
+            {ext?.["notonq:deezer"]?.fans?.toLocaleString("en")}
           </Field>
           <Field title="Popularity (derived)" sources={p.popularity}>
             {e.popularity !== undefined && view.notonq.popularity

@@ -65,7 +65,7 @@ describe("small artists", () => {
     const picked = await lookupArtist("Tiny Act", ctx, { candidateKey: "lf:tiny-act" });
     if (picked.servedBy !== "fallback") throw new Error("expected a fill");
     expect(picked.fallback).toMatchObject({ id: "notonq:dz:555", confidence: "low" });
-    expect(picked.fallback.entity?.properties.external).toMatchObject({ deezer: { id: 555, fans: 2 }, lastfm: { listeners: 4 } });
+    expect(picked.fallback.entity?.properties.external).toMatchObject({ "notonq:deezer": { id: 555, fans: 2 }, lastfm: { listeners: 4 } });
     expect(picked.fallback.entity?.properties.image?.url).toBe("https://img/x.jpg");
     expect(picked.fallback.standIns).toEqual([expect.objectContaining({ entityId: qid(31), source: "deezer" })]);
     expect(picked.fallback.provenance.name[0]).toMatchObject({ source: "deezer", method: "copied" });

@@ -17,6 +17,12 @@ QLOO_BASE_URL=https://<notonq-host>/q \\
 QLOO_TRUSTED_BASE_URL=https://<notonq-host>/q \\
 qloo mcp`;
 
+const SHAPE = `// Qloo                                     // NotOnQ fallback
+"entity_id": "B8BEE72B-…",                 "entity_id": "notonq:mbid:502cf908-…",
+"tags": [{ "tag_id": "urn:tag:genre:folk",  "tags": [{ "tag_id": "notonq:urn:tag:genre:bedroom_pop",
+           "type": "urn:tag:genre", … }],             "type": "urn:tag:genre", … }],
+"external": { "lastfm": { "id", "listeners", "scrobbles" }, … }   // same, plus "notonq:deezer": { "id", "fans" }`;
+
 export default function DocsPage() {
   return (
     <section className="flex max-w-3xl flex-col gap-6">
@@ -28,6 +34,16 @@ export default function DocsPage() {
           open data, plus a <code>notonq</code> block with the gap type, the stand-ins, the cache state, the demand and a source for every value.
         </p>
         <CodeBlock code={REST} language="bash" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <h2 className="font-medium">Same shape as Qloo, 1:1</h2>
+        <p className="text-sm text-muted-foreground">
+          A filled artist has exactly the keys and types Qloo returns for an artist. Anything that is NotOnQ&apos;s rather than Qloo&apos;s starts with{" "}
+          <code>notonq:</code>: entity IDs (<code>notonq:mbid:…</code>, <code>notonq:dz:…</code>), genre tag IDs (<code>notonq:urn:tag:genre:folk</code>) and
+          keys Qloo doesn&apos;t have (<code>properties.external[&quot;notonq:deezer&quot;]</code>). Send a <code>notonq:</code> entity ID back as a signal and
+          NotOnQ swaps in its stand-ins. Qloo&apos;s own values are never prefixed or changed.
+        </p>
+        <CodeBlock code={SHAPE} language="json" />
       </div>
       <div className="flex flex-col gap-2">
         <h2 className="font-medium">With the official Qloo harness</h2>

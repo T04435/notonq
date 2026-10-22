@@ -70,7 +70,7 @@ export async function playgroundLookup(
       candidates: l.candidates,
       notonq,
       alsoLike: { names: [], via: "none", note: "Choose an artist first" },
-      dropIn: { request: dropInRequest(name), response: { success: true, results: [], notonq } },
+      dropIn: { request: dropInRequest(name), response: { results: [], notonq } },
     });
   }
 
@@ -110,7 +110,7 @@ export async function playgroundLookup(
     candidates: [],
     notonq,
     alsoLike,
-    dropIn: { request: dropInRequest(name, f.candidateKey), response: { success: true, results: f.entity ? [f.entity] : [], notonq } },
+    dropIn: { request: dropInRequest(name, f.candidateKey), response: { results: f.entity ? [f.entity] : [], notonq } },
   });
 }
 

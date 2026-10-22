@@ -4,7 +4,7 @@
 import { type Fetch, getJson } from "@/server/http";
 
 export type LfSimilar = { name: string; mbid?: string; match: number; url?: string };
-export type LfInfo = { listeners?: number; playcount?: number; url?: string };
+export type LfInfo = { name?: string; listeners?: number; playcount?: number; url?: string };
 
 const BASE = "https://ws.audioscrobbler.com/2.0/";
 const num = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : Number(v));
@@ -14,8 +14,8 @@ const call = (method: string, artist: string, apiKey: string, extra: Record<stri
 
 export async function artistInfo(artist: string, apiKey: string, { fetch: f }: { fetch?: Fetch } = {}): Promise<LfInfo | null> {
   const res = await call("artist.getinfo", artist, apiKey, {}, f);
-  const a = (res.json as { artist?: { url?: string; stats?: { listeners?: string; playcount?: string } } } | null)?.artist;
-  return a ? { listeners: num(a.stats?.listeners), playcount: num(a.stats?.playcount), url: a.url } : null;
+  const a = (res.json as { artist?: { name?: string; url?: string; stats?: { listeners?: string; playcount?: string } } } | null)?.artist;
+  return a ? { name: a.name, listeners: num(a.stats?.listeners), playcount: num(a.stats?.playcount), url: a.url } : null;
 }
 
 export async function similarArtists(artist: string, apiKey: string, { fetch: f, limit = 30 }: { fetch?: Fetch; limit?: number } = {}): Promise<LfSimilar[]> {

@@ -51,7 +51,7 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
   const l = await lookupArtist(req.params.query, ctx, options);
   if (l.servedBy === "qloo") return { status: res.status, body: res.json, servedBy: "qloo" };
   const qlooResults = res.ok ? entitiesOf(res.json) : [];
-  const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { success: true };
+  const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : {};
   // Ambiguous: return Qloo's own answer untouched, plus the candidates to choose from.
   if (l.servedBy === "needs_choice") return { status: 200, body: { ...base, results: qlooResults, notonq: blockFor(l) }, servedBy: "fallback" };
   return {
@@ -80,7 +80,7 @@ async function entities(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   }
   const results = [...found.flatMap((f) => (f.entity ? [f.entity] : [])), ...(res ? entitiesOf(res.json) : [])];
   const notonq = Object.fromEntries(await Promise.all(found.map(async (f) => [f.id, fallbackBlock(f, await demandFor(ctx.sql, f.nameKey), { hit: true })])));
-  return { status: results.length ? 200 : 404, body: { success: results.length > 0, results, notonq }, servedBy: theirs.length ? "mixed" : "fallback" };
+  return { status: results.length ? 200 : 404, body: { results, notonq }, servedBy: theirs.length ? "mixed" : "fallback" };
 }
 
 async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
