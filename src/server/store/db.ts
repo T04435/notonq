@@ -29,8 +29,11 @@ async function migrate(sql: Sql) {
   for (const statement of SCHEMA.split(/;\s*\n/).map((s) => s.trim()).filter(Boolean)) await sql(statement);
 }
 
+/** Neon in deployed builds. Locally the embedded PGlite, even if `vercel env pull` wrote the production DATABASE_URL
+ * into .env.local (learnings: env pull points local at prod), unless NOTONQ_USE_NEON=1 asks for Neon on purpose. */
 export function db(databaseUrl = process.env.DATABASE_URL): Promise<Sql> {
-  ready ??= connect(databaseUrl && databaseUrl !== "SET_ME" ? databaseUrl : undefined).catch((e) => {
+  const useNeon = process.env.NODE_ENV === "production" || process.env.NOTONQ_USE_NEON === "1";
+  ready ??= connect(useNeon && databaseUrl && databaseUrl !== "SET_ME" ? databaseUrl : undefined).catch((e) => {
     ready = undefined;
     throw e;
   });

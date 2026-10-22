@@ -18,7 +18,7 @@ export type RestRequest = {
   appLabel?: string;
 };
 
-export type RestDeps = { sql: Sql; baseUrl: string; salt: string; fetch?: Fetch };
+export type RestDeps = { sql: Sql; baseUrl: string; salt: string; fetch?: Fetch; defer?: Ctx["defer"]; research?: Ctx["research"] };
 export type RestResponse = { status: number; body: unknown; servedBy: "qloo" | "fallback" | "mixed" };
 
 const NOTONQ_ID = /^notonq:/;
@@ -27,7 +27,7 @@ export async function handleRest(req: RestRequest, deps: RestDeps): Promise<Rest
   if (!req.apiKey) return { status: 401, body: { message: "No API key found in request" }, servedBy: "qloo" };
   const callerHash = hashCaller(req.apiKey, deps.salt);
   const qloo = cachedQloo(qlooClient({ apiKey: req.apiKey, baseUrl: deps.baseUrl, fetch: deps.fetch }), deps.sql, callerHash);
-  const ctx: Ctx = { sql: deps.sql, qloo, lastfmKey: req.lastfmKey, callerHash, appLabel: req.appLabel, endpoint: `/${req.path}`, fetch: deps.fetch };
+  const ctx: Ctx = { sql: deps.sql, qloo, lastfmKey: req.lastfmKey, callerHash, appLabel: req.appLabel, endpoint: `/${req.path}`, fetch: deps.fetch, defer: deps.defer, research: deps.research };
   const path = req.path.replace(/^\/+|\/+$/g, "");
   // notonq.* parameters steer NotOnQ only; Qloo never sees them.
   const options = { candidateKey: req.params["notonq.candidate"] || undefined, choose: req.params["notonq.choose"] === "1" };

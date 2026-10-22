@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { z } from "zod";
 import { env } from "@/server/env";
 import { playgroundLookup } from "@/server/playground";
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       lastfmKey: env.LASTFM_API_KEY,
       baseUrl: env.QLOO_BASE_URL,
       salt: env.NOTONQ_SALT,
+      defer: after,
     }, { candidateKey: parsed.data.candidate, choose: parsed.data.choose });
     return Response.json(view, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {

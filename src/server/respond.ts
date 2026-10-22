@@ -15,6 +15,7 @@ export type NotOnQBlock = {
   confidence?: StoredFallback["confidence"];
   candidates?: Candidate[];
   next?: string;
+  research?: { status: "pending" | "done" | "failed" | "skipped" | "none" };
   attribution: string[];
 };
 
@@ -23,6 +24,7 @@ const ATTRIBUTION = [
   "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
   "Small-artist matches, fan counts and pictures: Deezer",
   "Taste data: the Qloo API, for the stand-ins listed",
+  "Researched facts: the pages cited per value, each quote checked on the page",
 ];
 
 export const standInsOf = (f: StoredFallback) =>
@@ -58,6 +60,7 @@ export function fallbackBlock(
     popularity: f.popularity,
     unavailable: f.unavailable,
     confidence: f.confidence,
+    research: { status: f.researchStatus ?? "none" },
     attribution: ATTRIBUTION,
   };
 }

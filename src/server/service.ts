@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { type ResolveOptions, resolveArtist } from "@/server/engine/artist";
 import { type Candidate, idForKey, slug } from "@/server/engine/candidates";
 import type { Fetch } from "@/server/http";
+import { needsResearch, type ResearchDeps, researchEnabled, runResearch } from "@/server/research/run";
 import { entitiesOf, type QlooClient, type QlooEntity } from "@/server/qloo/client";
 import { type Gap, nameKey } from "@/server/qloo/gap";
 import type { Sql } from "@/server/store/db";
@@ -17,6 +18,10 @@ export type Ctx = {
   appLabel?: string;
   endpoint: string;
   fetch?: Fetch;
+  /** Runs a task after the response (next/server `after` in routes). Without it, research is never started. */
+  defer?: (task: () => Promise<unknown>) => void;
+  /** Research deps for tests (an injected agent); in the app, research runs when an AI Gateway credential exists. */
+  research?: Omit<ResearchDeps, "sql" | "qloo">;
 };
 
 type GapInfo = Pick<Gap, "kind"> & Partial<Gap>;
@@ -45,6 +50,7 @@ export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions 
 
   if (cached && isFresh(cached)) {
     await log(ctx, name, key, cached, true);
+    scheduleResearch(cached, ctx);
     return { servedBy: "fallback", nameKey: key, cacheHit: true, gap: { kind: cached.gapKind }, fallback: cached, demand: await demandFor(ctx.sql, key) };
   }
 
@@ -79,7 +85,14 @@ export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions 
     unavailable: r.unavailable,
   });
   await log(ctx, name, key, stored, false);
+  scheduleResearch(stored, ctx);
   return { servedBy: "fallback", nameKey: key, cacheHit: false, gap: r.gap, fallback: stored, demand: await demandFor(ctx.sql, key) };
+}
+
+/** Tier 3 in the background: only for filled entities with gaps left, once per artist, never blocking the answer. */
+function scheduleResearch(f: StoredFallback, ctx: Ctx) {
+  if (!ctx.defer || !needsResearch(f) || !(ctx.research || researchEnabled())) return;
+  ctx.defer(() => runResearch(f.id, { sql: ctx.sql, qloo: ctx.qloo, fetch: ctx.fetch, ...ctx.research }));
 }
 
 function log(ctx: Ctx, query: string, key: string, f: StoredFallback, cacheHit: boolean) {

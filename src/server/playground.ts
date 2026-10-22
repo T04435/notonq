@@ -6,9 +6,11 @@ import type { FallbackEntity, ResolveOptions } from "@/server/engine/artist";
 import type { Candidate } from "@/server/engine/candidates";
 import { ARTIST, entitiesOf, type QlooClient, qlooClient } from "@/server/qloo/client";
 import { cachedQloo } from "@/server/qloo/cached";
+import { needsResearch, researchEnabled } from "@/server/research/run";
 import { blockFor, type NotOnQBlock } from "@/server/respond";
 import type { Sql } from "@/server/store/db";
-import { hashCaller, type Lookup, lookupArtist } from "@/server/service";
+import type { StoredFallback } from "@/server/store/repo";
+import { type Ctx, hashCaller, type Lookup, lookupArtist } from "@/server/service";
 
 export type Step = { title: string; detail: string; status?: "error" | "pending" };
 
@@ -18,6 +20,8 @@ export type PlaygroundView = {
   qloo: { status: number; label: string; message?: string; summary: string; entityName?: string };
   entity: FallbackEntity | null;
   candidates: Candidate[];
+  /** The candidate this fill is anchored on, so a re-check returns the same artist. */
+  candidateKey?: string;
   notonq: NotOnQBlock;
   alsoLike: { names: string[]; via: "artist" | "stand-ins" | "none"; note?: string };
   dropIn: { request: string; response: unknown };
@@ -27,13 +31,13 @@ export type PlaygroundView = {
 
 export async function playgroundLookup(
   name: string,
-  { sql, apiKey, lastfmKey, baseUrl, salt }: { sql: Sql; apiKey: string; lastfmKey?: string; baseUrl: string; salt: string },
+  { sql, apiKey, lastfmKey, baseUrl, salt, defer }: { sql: Sql; apiKey: string; lastfmKey?: string; baseUrl: string; salt: string; defer?: Ctx["defer"] },
   opts: ResolveOptions = {},
 ): Promise<PlaygroundView> {
   const started = Date.now();
   const callerHash = hashCaller(`playground:${apiKey}`, salt);
   const qloo: QlooClient = cachedQloo(qlooClient({ apiKey, baseUrl }), sql, callerHash);
-  const l = await lookupArtist(name, { sql, qloo, lastfmKey, callerHash, appLabel: "playground", endpoint: "playground" }, opts);
+  const l = await lookupArtist(name, { sql, qloo, lastfmKey, callerHash, appLabel: "playground", endpoint: "playground", defer }, opts);
   const steps: Step[] = [];
   const done = (v: Omit<PlaygroundView, "query" | "steps" | "ms">): PlaygroundView => ({ query: name, steps, ms: Date.now() - started, ...v });
 
@@ -100,6 +104,7 @@ export async function playgroundLookup(
     };
     steps.push({ title: "Qloo via stand-ins", detail: `"Fans also like" answered by Qloo for the stand-ins` });
   }
+  if (f.entity) steps.push(researchStep(f));
   steps.push({ title: "Demand", detail: demandText(l.demand) });
 
   const notonq = blockFor(l);
@@ -108,10 +113,20 @@ export async function playgroundLookup(
     qloo: qlooCard,
     entity: f.entity,
     candidates: [],
+    candidateKey: f.candidateKey,
     notonq,
     alsoLike,
     dropIn: { request: dropInRequest(name, f.candidateKey), response: { results: f.entity ? [f.entity] : [], notonq } },
   });
+}
+
+function researchStep(f: StoredFallback): Step {
+  const researched = Object.values(f.provenance).flat().filter((p) => p.method === "researched").length;
+  if (f.researchStatus === "done") return { title: "Research", detail: researched ? `${researched} facts found on the web, each quote checked on its page` : "Nothing verifiable found on the web" };
+  if (f.researchStatus === "pending") return { title: "Research", status: "pending", detail: "Searching the web for what's still missing; quotes are checked before anything is shown" };
+  if (f.researchStatus === "failed") return { title: "Research", status: "error", detail: "The research run failed; it will not retry automatically" };
+  if (!needsResearch(f)) return { title: "Research", detail: "Not needed: open data covered every field" };
+  return researchEnabled() ? { title: "Research", status: "pending", detail: "Queued" } : { title: "Research", detail: "Off here (no AI Gateway credential)" };
 }
 
 function qlooStep(l: Exclude<Lookup, { servedBy: "qloo" }>): Step {

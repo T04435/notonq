@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleCheckIcon, CircleXIcon, DatabaseIcon, SearchIcon, UserIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CodeBlock, CodeBlockCopyButton } from "@/components/ai-elements/code-block";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { CitedValue } from "@/components/cited-value";
@@ -26,6 +26,24 @@ export function Playground() {
   const [view, setView] = useState<PlaygroundView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
+
+  // While research runs in the background, check back every 5 s (up to 2 minutes) for the filled-in result.
+  const researching = view?.notonq.research?.status === "pending";
+  useEffect(() => {
+    if (!researching || !view) return;
+    let tries = 0;
+    const timer = setInterval(async () => {
+      if (++tries > 24) return clearInterval(timer);
+      const res = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: view.query, candidate: view.candidateKey }) });
+      if (!res.ok) return;
+      const next = (await res.json()) as PlaygroundView;
+      if (next.notonq.research?.status !== "pending") {
+        clearInterval(timer);
+        setView(next);
+      }
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [researching, view]);
 
   async function run(artist: string, opts: { candidate?: string; choose?: boolean } = {}) {
     const q = artist.trim();
@@ -117,7 +135,7 @@ function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose:
       <Trace>
         {view.steps.map((s, i) => (
           <TraceLine key={i} status={s.status} className="items-start">
-            <TraceIcon className="mt-0.5">{s.status === "error" ? <CircleXIcon /> : <CircleCheckIcon />}</TraceIcon>
+            <TraceIcon className="mt-0.5">{s.status === "error" ? <CircleXIcon /> : s.status === "pending" ? <Spinner /> : <CircleCheckIcon />}</TraceIcon>
             {/* Details are sentences, so they wrap instead of truncating on narrow screens. */}
             <TraceTitle className="whitespace-normal">
               <span className="font-medium">{s.title}</span> {s.detail}

@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { env } from "@/server/env";
 import { handleRest } from "@/server/rest";
 import { db } from "@/server/store/db";
@@ -15,7 +16,7 @@ export async function GET(request: Request, ctx: RouteContext<"/q/[...path]">) {
       lastfmKey: request.headers.get("x-lastfm-key") ?? undefined,
       appLabel: request.headers.get("x-notonq-app")?.slice(0, 64) ?? undefined,
     },
-    { sql: await db(), baseUrl: env.QLOO_BASE_URL, salt: env.NOTONQ_SALT },
+    { sql: await db(), baseUrl: env.QLOO_BASE_URL, salt: env.NOTONQ_SALT, defer: after },
   );
   return Response.json(out.body, {
     status: out.status,

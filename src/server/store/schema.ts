@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS fallback_entities (
 ALTER TABLE fallback_entities DROP CONSTRAINT IF EXISTS fallback_entities_name_key_key;
 ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS candidate_key text;
 ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS confidence text;
+ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS research_status text;   -- null | pending | done | failed | skipped
+ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS research_at timestamptz;
 CREATE INDEX IF NOT EXISTS fallback_entities_name_key ON fallback_entities (name_key, refreshed_at DESC);
 CREATE INDEX IF NOT EXISTS fallback_entities_mbid ON fallback_entities (mbid);
 CREATE INDEX IF NOT EXISTS fallback_entities_qloo ON fallback_entities (qloo_entity_id);
@@ -41,6 +43,20 @@ CREATE TABLE IF NOT EXISTS requests (
 );
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS query text;
 CREATE INDEX IF NOT EXISTS requests_name_key ON requests (name_key);
+
+CREATE TABLE IF NOT EXISTS research_claims (
+  id           bigserial PRIMARY KEY,
+  entity_id    text NOT NULL,
+  field        text NOT NULL,
+  value        text NOT NULL,
+  source_url   text NOT NULL,
+  quote        text NOT NULL,
+  verified     boolean NOT NULL,
+  confidence   text,
+  reason       text,                           -- why a claim was rejected
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS research_claims_entity ON research_claims (entity_id);
 
 CREATE TABLE IF NOT EXISTS qloo_cache (
   caller_hash  text NOT NULL,

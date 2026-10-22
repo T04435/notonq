@@ -16,6 +16,8 @@ export type StoredFallback = {
   qlooEntityId?: string;
   candidateKey?: string;
   confidence?: Confidence;
+  researchStatus?: "pending" | "done" | "failed" | "skipped";
+  researchAt?: string;
   entity: FallbackEntity | null;
   provenance: ProvenanceMap;
   standIns: StandIn[];
@@ -42,6 +44,8 @@ function toFallback(r: Row): StoredFallback {
     qlooEntityId: (r.qloo_entity_id as string) ?? undefined,
     candidateKey: (r.candidate_key as string) ?? undefined,
     confidence: (r.confidence as Confidence) ?? undefined,
+    researchStatus: (r.research_status as StoredFallback["researchStatus"]) ?? undefined,
+    researchAt: iso(r.research_at),
     entity: json(r.entity, null),
     provenance: json(r.provenance, {}),
     standIns: json(r.stand_ins, []),
@@ -96,6 +100,61 @@ export async function saveFallback(sql: Sql, f: Omit<StoredFallback, "createdAt"
     ],
   );
   return toFallback(rows[0]);
+}
+
+export async function updateFill(
+  sql: Sql,
+  id: string,
+  u: Pick<StoredFallback, "entity" | "provenance" | "standIns" | "unavailable"> & { researchStatus: NonNullable<StoredFallback["researchStatus"]> },
+) {
+  await sql(
+    `UPDATE fallback_entities SET entity = $2, provenance = $3, stand_ins = $4, unavailable = $5, research_status = $6, research_at = now() WHERE id = $1`,
+    [id, u.entity ? JSON.stringify(u.entity) : null, JSON.stringify(u.provenance), JSON.stringify(u.standIns), JSON.stringify(u.unavailable), u.researchStatus],
+  );
+}
+
+/** Claim the research slot for an entity (only one run at a time); false if another run already holds it. */
+export async function startResearch(sql: Sql, id: string): Promise<boolean> {
+  const rows = await sql(`UPDATE fallback_entities SET research_status = 'pending', research_at = now() WHERE id = $1 AND research_status IS NULL RETURNING id`, [id]);
+  return rows.length > 0;
+}
+
+export async function setResearchStatus(sql: Sql, id: string, status: NonNullable<StoredFallback["researchStatus"]>) {
+  await sql(`UPDATE fallback_entities SET research_status = $2, research_at = now() WHERE id = $1`, [id, status]);
+}
+
+export async function researchRunsToday(sql: Sql): Promise<number> {
+  const [r] = await sql(`SELECT count(*)::int AS n FROM fallback_entities WHERE research_at > now() - interval '1 day' AND research_status IN ('pending','done','failed')`);
+  return Number(r?.n ?? 0);
+}
+
+export type StoredClaim = { field: string; value: string; sourceUrl: string; quote: string; verified: boolean; confidence?: string; reason?: string };
+
+export async function saveClaims(sql: Sql, entityId: string, claims: StoredClaim[]) {
+  for (const c of claims)
+    await sql(`INSERT INTO research_claims (entity_id, field, value, source_url, quote, verified, confidence, reason) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [
+      entityId,
+      c.field,
+      c.value,
+      c.sourceUrl,
+      c.quote,
+      c.verified,
+      c.confidence ?? null,
+      c.reason ?? null,
+    ]);
+}
+
+export async function claimsFor(sql: Sql, entityId: string): Promise<StoredClaim[]> {
+  const rows = await sql(`SELECT * FROM research_claims WHERE entity_id = $1 ORDER BY verified DESC, id`, [entityId]);
+  return rows.map((r) => ({
+    field: String(r.field),
+    value: String(r.value),
+    sourceUrl: String(r.source_url),
+    quote: String(r.quote),
+    verified: Boolean(r.verified),
+    confidence: (r.confidence as string) ?? undefined,
+    reason: (r.reason as string) ?? undefined,
+  }));
 }
 
 export async function markResolvedByQloo(sql: Sql, id: string, qlooEntityId: string) {
