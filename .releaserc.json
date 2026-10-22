@@ -1,0 +1,9 @@
+{
+  "branches": ["main"],
+  "tagFormat": "v${version}",
+  "plugins": [
+    ["@semantic-release/commit-analyzer", { "config": "./node_modules/conventional-changelog-conventionalcommits/src/index.js" }],
+    ["@semantic-release/release-notes-generator", { "config": "./node_modules/conventional-changelog-conventionalcommits/src/index.js" }],
+    "@semantic-release/github"
+  ]
+}

@@ -1,0 +1,74 @@
+# Production deploys only from here, and only for a releasable version: semantic-release works out the next version
+# from the Conventional Commits since the last tag, Vercel deploys it, a smoke check reads /api/version, and only then
+# is the tag and GitHub release made. No lint, test or build steps: those gates run locally before every push.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Work out the next version
+        id: version
+        run: |
+          out=$(npx semantic-release --dry-run)
+          echo "$out"
+          next=$(echo "$out" | sed -n 's/.*The next release version is \([0-9][^ ]*\).*/\1/p' | tail -1)
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          if [ -z "$next" ]; then echo "No releasable commits since the last tag: nothing to deploy."; fi
+
+      - name: Deploy to production
+        if: steps.version.outputs.next != ''
+        id: deploy
+        run: |
+          url=$(npx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" \
+            --build-env APP_VERSION=${{ steps.version.outputs.next }} --build-env APP_SHA=$GITHUB_SHA)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed $url"
+
+      # The unique deployment URL sits behind Vercel's deployment protection, so the check reads the production
+      # domain, which the --prod deploy has just been assigned to.
+      - name: Smoke check /api/version
+        if: steps.version.outputs.next != ''
+        run: |
+          want=${{ steps.version.outputs.next }}
+          for i in $(seq 1 12); do
+            got=$(curl -fsS "${{ vars.PRODUCTION_URL }}/api/version?ci=$GITHUB_RUN_ID-$i" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{console.log(JSON.parse(s).version)}catch{console.log("")}})')
+            echo "try $i: /api/version says '$got', want '$want'"
+            [ "$got" = "$want" ] && exit 0
+            sleep 10
+          done
+          echo "Production doesn't report $want: not tagging."
+          exit 1
+
+      - name: Tag and release
+        if: steps.version.outputs.next != ''
+        run: npx semantic-release
