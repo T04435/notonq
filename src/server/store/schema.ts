@@ -58,6 +58,13 @@ CREATE TABLE IF NOT EXISTS research_claims (
 );
 CREATE INDEX IF NOT EXISTS research_claims_entity ON research_claims (entity_id);
 
+CREATE TABLE IF NOT EXISTS qloo_usage (
+  caller_hash  text NOT NULL,
+  day          date NOT NULL,
+  calls        integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (caller_hash, day)
+);
+
 CREATE TABLE IF NOT EXISTS qloo_cache (
   caller_hash  text NOT NULL,
   req_hash     text NOT NULL,

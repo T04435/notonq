@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { env } from "@/server/env";
 import { playgroundLookup } from "@/server/playground";
+import { QlooBudgetExceeded } from "@/server/qloo/cached";
 import { QlooUnavailable } from "@/server/qloo/gap";
 import { db } from "@/server/store/db";
 
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
     }, { candidateKey: parsed.data.candidate, choose: parsed.data.choose });
     return Response.json(view, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
+    if (e instanceof QlooBudgetExceeded) return Response.json({ error: e.message }, { status: 429 });
     if (e instanceof QlooUnavailable) return Response.json({ error: `Qloo didn't answer (HTTP ${e.res.status}). Try again in a moment.` }, { status: 502 });
     throw e;
   }

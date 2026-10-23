@@ -251,6 +251,20 @@ export async function totals(sql: Sql) {
   return { entities: Number(r.entities), gapRequests: Number(r.gap_requests), cacheHits: Number(r.cache_hits), callers: Number(r.callers) };
 }
 
+/** Real Qloo calls made today for one caller (cache hits don't count). */
+export async function qlooCallsToday(sql: Sql, callerHash: string): Promise<number> {
+  const [r] = await sql(`SELECT calls FROM qloo_usage WHERE caller_hash = $1 AND day = current_date`, [callerHash]);
+  return Number(r?.calls ?? 0);
+}
+
+export async function countQlooCall(sql: Sql, callerHash: string) {
+  await sql(
+    `INSERT INTO qloo_usage (caller_hash, day, calls) VALUES ($1, current_date, 1)
+     ON CONFLICT (caller_hash, day) DO UPDATE SET calls = qloo_usage.calls + 1`,
+    [callerHash],
+  );
+}
+
 export async function qlooCacheGet(sql: Sql, callerHash: string, reqHash: string) {
   const [r] = await sql(`SELECT status, body FROM qloo_cache WHERE caller_hash = $1 AND req_hash = $2 AND expires_at > now()`, [callerHash, reqHash]);
   return r ? { status: Number(r.status), body: json<unknown>(r.body, null) } : null;

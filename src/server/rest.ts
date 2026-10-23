@@ -3,7 +3,7 @@
 import type { ResolveOptions } from "@/server/engine/artist";
 import type { Fetch } from "@/server/http";
 import { ARTIST, entitiesOf, qlooClient, qlooMessage } from "@/server/qloo/client";
-import { cachedQloo } from "@/server/qloo/cached";
+import { cachedQloo, QlooBudgetExceeded } from "@/server/qloo/cached";
 import { readInsights, readSearch } from "@/server/qloo/gap";
 import { blockFor, fallbackBlock, standInsOf } from "@/server/respond";
 import type { Sql } from "@/server/store/db";
@@ -33,12 +33,16 @@ export async function handleRest(req: RestRequest, deps: RestDeps): Promise<Rest
   const options = { candidateKey: req.params["notonq.candidate"] || undefined, choose: req.params["notonq.choose"] === "1" };
   req = { ...req, params: Object.fromEntries(Object.entries(req.params).filter(([k]) => !k.startsWith("notonq."))) };
 
-  if (path === "search" && req.params.query && isArtistOnly(req.params.types)) return search(req, ctx, options);
-  if (path === "entities" && (req.params.entity_ids ?? "").split(",").some((id) => NOTONQ_ID.test(id))) return entities(req, ctx);
-  if (path === "v2/insights") return insights(req, ctx);
-
-  const res = await qloo.get(`/${path}`, req.params);
-  return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+  try {
+    if (path === "search" && req.params.query && isArtistOnly(req.params.types)) return await search(req, ctx, options);
+    if (path === "entities" && (req.params.entity_ids ?? "").split(",").some((id) => NOTONQ_ID.test(id))) return await entities(req, ctx);
+    if (path === "v2/insights") return await insights(req, ctx);
+    const res = await qloo.get(`/${path}`, req.params);
+    return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+  } catch (e) {
+    if (e instanceof QlooBudgetExceeded) return { status: 429, body: { message: e.message }, servedBy: "qloo" };
+    throw e;
+  }
 }
 
 const isArtistOnly = (types?: string) => !!types && types.split(",").every((t) => t.trim() === ARTIST);
