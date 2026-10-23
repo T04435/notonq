@@ -113,6 +113,15 @@ describe("resolveArtist", () => {
     expect(out.standIns.length).toBeGreaterThan(0);
   });
 
+  it("marks a source that failed (not one that found nothing), so the fill is retried sooner", async () => {
+    const down = openData.map(([m, r]) => [m, m === "query.wikidata.org" ? () => json(503, {}) : r] as [string, (u: URL) => Response]);
+    const { fetch } = fakeFetch([["/search", () => json(404, { message: "No results" })], ...down]);
+    const out = await resolveArtist("Newact", { qloo: qlooClient({ apiKey: "k4", fetch }), lastfmKey: "lf", fetch });
+    if (out.servedBy !== "fallback") throw new Error("expected a fallback");
+    expect(out.unavailable).toContain("properties.external.wikidata (source error: Wikidata HTTP 503)");
+    expect(out.entity?.name).toBe("Newact");
+  });
+
   it("says why when there is no Last.fm key", async () => {
     const { fetch } = fakeFetch([["/search", () => json(404, { message: "No results" })], ...openData]);
     const out = await resolveArtist("Newact", { qloo: qlooClient({ apiKey: "k3", fetch }), fetch });

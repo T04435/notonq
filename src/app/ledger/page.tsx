@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
@@ -22,6 +23,7 @@ export default function LedgerPage() {
       <Suspense fallback={<Spinner />}>
         <Queue />
       </Suspense>
+      <AutoRefresh />
     </section>
   );
 }
@@ -42,7 +44,7 @@ async function Queue() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        {t.entities} missing artists · {t.gapRequests} gap requests · {t.cacheHits} served from cache · {t.callers} distinct callers
+        {t.entities} missing artists · {t.gapRequests} gap requests · {t.cacheHits} served from cache · {t.callers} distinct callers · updates live
       </p>
       <Table>
         <TableHeader>

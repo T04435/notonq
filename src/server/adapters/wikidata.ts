@@ -27,10 +27,16 @@ SELECT ?item ?article ?spotify ?facebook ?instagram ?twitter ?image (GROUP_CONCA
 
 type Binding = Record<string, { value: string } | undefined>;
 
+/** Wikidata didn't answer (timeout, rate limit, 5xx) even after a retry: not the same as "no item". */
+export class SourceError extends Error {}
+
 export async function artistByMbid(mbid: string, { fetch: f }: { fetch?: Fetch } = {}): Promise<WdArtist | null> {
   if (!/^[0-9a-f-]{36}$/i.test(mbid)) return null;
   const url = `https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(query(mbid))}`;
-  const res = await getJson(url, { fetch: f, headers: { Accept: "application/sparql-results+json" } });
+  const once = () => getJson(url, { fetch: f, headers: { Accept: "application/sparql-results+json" } });
+  const first = await once();
+  const res = first.ok ? first : await new Promise((r) => setTimeout(r, 800)).then(once);
+  if (!res.ok) throw new SourceError(`Wikidata HTTP ${res.status}`);
   const b = (res.json as { results?: { bindings?: Binding[] } } | null)?.results?.bindings?.[0];
   if (!b?.item) return null;
   const qid = b.item.value.split("/").pop()!;

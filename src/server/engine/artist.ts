@@ -14,6 +14,9 @@ import { cite, LICENCES, type ProvenanceMap } from "@/server/provenance";
 import { ARTIST, entitiesOf, type QlooClient, type QlooEntity } from "@/server/qloo/client";
 import { type Gap, readInsights, readSearch, sameName } from "@/server/qloo/gap";
 
+/** Marks an unavailable field whose source failed (not "found nothing"): such fills are retried sooner. */
+export const SOURCE_ERROR = "source error";
+
 /** NotOnQ's own values and keys carry this prefix; everything else is exactly what Qloo would put there. */
 export const NS = "notonq:";
 
@@ -130,13 +133,23 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
 
   const artist = anchor.mbid ? await mb.getArtist(anchor.mbid, { fetch: f }) : null;
   const lfName = anchor.lastfmName ?? artist?.name ?? anchor.name;
+  // A source that fails (rather than finding nothing) is noted, so the fill is retried after a day, not a week.
+  const soft = async <T>(label: string, run: () => Promise<T | null>): Promise<T | null> => {
+    try {
+      return await run();
+    } catch (e) {
+      if (!(e instanceof wd.SourceError)) throw e;
+      unavailable.push(`${label} (${SOURCE_ERROR}: ${e.message})`);
+      return null;
+    }
+  };
   const [wiki, info, similar, dz] = await Promise.all([
-    artist ? wd.artistByMbid(artist.mbid, { fetch: f }) : null,
+    artist ? soft("properties.external.wikidata", () => wd.artistByMbid(artist.mbid, { fetch: f })) : null,
     lastfmKey ? lastfm.artistInfo(lfName, lastfmKey, { fetch: f }) : null,
     lastfmKey ? lastfm.similarArtists(lfName, lastfmKey, { fetch: f }) : [],
     anchor.deezerId ? deezer.getArtist(anchor.deezerId, { fetch: f }) : null,
   ]);
-  const summary = wiki?.enwiki ? await wp.summary(wiki.enwiki, { fetch: f }) : null;
+  const summary = wiki?.enwiki ? await soft("properties.short_description", () => wp.summary(wiki.enwiki!, { fetch: f })) : null;
   const standIns = await findStandIns(lfName, similar, dz, qloo, provenance, f);
   if (!standIns.length) unavailable.push(lastfmKey || dz ? "standIns (no similar artist known to Qloo)" : "standIns (no Last.fm key)");
 
@@ -182,7 +195,7 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
       entity.properties.external[ns] = { id };
       wdCite(`properties.external.${ns}`);
     }
-  } else unavailable.push("properties.external.wikidata");
+  } else if (!unavailable.some((u) => u.startsWith("properties.external.wikidata"))) unavailable.push("properties.external.wikidata");
 
   if (wiki?.image) {
     entity.properties.image = { url: wiki.image.url };
@@ -195,7 +208,7 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
   if (summary) {
     entity.properties.short_description = summary.extract;
     cite(provenance, "properties.short_description", { source: "wikipedia", record: summary.url, licence: LICENCES.wikipedia, method: "copied" });
-  } else unavailable.push("properties.short_description");
+  } else if (!unavailable.some((u) => u.startsWith("properties.short_description"))) unavailable.push("properties.short_description");
 
   if (wiki?.genres.length) {
     entity.tags = wiki.genres.map(genreTag);

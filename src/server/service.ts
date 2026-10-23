@@ -1,7 +1,7 @@
 // The service every door uses (playground, REST, MCP): look up an artist with the cache in front, record demand,
 // hand back candidates when the name is ambiguous, and close the loop when Qloo finally knows an artist we filled in.
 import { createHash } from "node:crypto";
-import { type ResolveOptions, resolveArtist } from "@/server/engine/artist";
+import { type ResolveOptions, resolveArtist, SOURCE_ERROR } from "@/server/engine/artist";
 import { type Candidate, idForKey, slug } from "@/server/engine/candidates";
 import type { Fetch } from "@/server/http";
 import { needsResearch, type ResearchDeps, researchEnabled, runResearch } from "@/server/research/run";
@@ -32,13 +32,14 @@ export type Lookup =
   | { servedBy: "fallback"; nameKey: string; cacheHit: boolean; gap: GapInfo; fallback: StoredFallback; demand: Demand };
 
 /** Fallback data is ours (open sources), so it is shared across callers. Filled entities refresh weekly; "nothing
- * found" is retried after a day, since small artists appear in sources all the time. */
+ * found", or a fill where a source failed, is retried after a day. */
 export const FALLBACK_TTL_MS = 7 * 24 * 3600 * 1000;
 export const EMPTY_TTL_MS = 24 * 3600 * 1000;
 
 export const hashCaller = (key: string, salt: string) => createHash("sha256").update(`${salt}:${key}`).digest("hex").slice(0, 32);
 
-const isFresh = (f: StoredFallback) => !f.resolvedByQlooAt && Date.now() - Date.parse(f.refreshedAt) < (f.entity ? FALLBACK_TTL_MS : EMPTY_TTL_MS);
+const partial = (f: StoredFallback) => !f.entity || f.unavailable.some((u) => u.includes(SOURCE_ERROR));
+const isFresh = (f: StoredFallback) => !f.resolvedByQlooAt && Date.now() - Date.parse(f.refreshedAt) < (partial(f) ? EMPTY_TTL_MS : FALLBACK_TTL_MS);
 
 export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions = {}): Promise<Lookup> {
   const key = nameKey(name);

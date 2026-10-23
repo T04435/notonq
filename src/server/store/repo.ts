@@ -246,7 +246,7 @@ export async function totals(sql: Sql) {
     `SELECT (SELECT count(DISTINCT name_key)::int FROM requests WHERE served_by <> 'qloo') AS entities,
             (SELECT count(*)::int FROM requests WHERE served_by <> 'qloo') AS gap_requests,
             (SELECT count(*)::int FROM requests WHERE served_by <> 'qloo' AND cache_hit) AS cache_hits,
-            (SELECT count(DISTINCT caller_hash)::int FROM requests) AS callers`,
+            (SELECT count(DISTINCT caller_hash)::int FROM requests WHERE served_by <> 'qloo') AS callers`,
   );
   return { entities: Number(r.entities), gapRequests: Number(r.gap_requests), cacheHits: Number(r.cache_hits), callers: Number(r.callers) };
 }

@@ -1,11 +1,16 @@
 // Wikipedia summaries (CC BY-SA 4.0: shown with a link and the licence) and Wikimedia pageviews (CC0), the open
 // popularity and trending input for any artist with an English Wikipedia page.
+import { SourceError } from "@/server/adapters/wikidata";
 import { type Fetch, getJson } from "@/server/http";
 
 export type WpSummary = { extract: string; url: string };
 
 export async function summary(title: string, { fetch: f }: { fetch?: Fetch } = {}): Promise<WpSummary | null> {
-  const res = await getJson(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, { fetch: f });
+  const once = () => getJson(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, { fetch: f });
+  const first = await once();
+  // One retry on a transient failure (timeout, rate limit, 5xx); a 404 is a real "no page".
+  const res = first.ok || first.status === 404 ? first : await new Promise((r) => setTimeout(r, 800)).then(once);
+  if (!res.ok && res.status !== 404) throw new SourceError(`Wikipedia HTTP ${res.status}`);
   const j = res.json as { type?: string; extract?: string; content_urls?: { desktop?: { page?: string } } } | null;
   if (!res.ok || !j?.extract || j.type === "disambiguation") return null;
   return { extract: j.extract, url: j.content_urls?.desktop?.page ?? `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}` };
