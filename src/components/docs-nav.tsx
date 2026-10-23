@@ -9,6 +9,7 @@ const PAGES = [
   { href: "/docs/rest", label: "REST API" },
   { href: "/docs/mcp", label: "MCP" },
   { href: "/openapi.json", label: "OpenAPI" },
+  { href: "/llms.txt", label: "llms.txt" },
 ];
 
 export function DocsNav() {

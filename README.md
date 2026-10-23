@@ -25,6 +25,8 @@ From one measured run ([`/proof`](src/app/proof/page.tsx), `scripts/proof.mts`):
    `QLOO_BASE_URL=https://<host>/q QLOO_TRUSTED_BASE_URL=https://<host>/q qloo mcp`.
 3. **MCP** (`npx notonq mcp`, [packages/mcp](packages/mcp)): the official Qloo harness, with gaps filled and labelled.
 
+Docs live at `/docs` (REST and MCP reference), `/openapi.json`, and for agents `/llms.txt` and `/llms-full.txt`.
+
 ## How it fills a gap
 
 1. **Qloo first.** If Qloo knows the artist, its response passes through untouched.
