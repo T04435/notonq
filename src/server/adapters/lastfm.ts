@@ -1,6 +1,6 @@
-// Last.fm: similar artists (with MusicBrainz IDs) and listener counts. The API is non-commercial and can't be
-// sublicensed, so it always runs on the caller's own key (X-Lastfm-Key); the playground uses ours. Credit and link
-// are required wherever the data shows ("powered by AudioScrobbler").
+// Last.fm: similar artists (with MusicBrainz IDs) and listener counts. The API is non-commercial: a caller's own key
+// (X-Lastfm-Key) is used when sent, otherwise ours for the hackathon demo. Credit and link are required wherever the
+// data shows ("powered by AudioScrobbler"). Any failure (rate limit, outage, bad key) reads as "no Last.fm data".
 import { type Fetch, getJson } from "@/server/http";
 
 export type LfSimilar = { name: string; mbid?: string; match: number; url?: string };

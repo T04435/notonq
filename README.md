@@ -27,6 +27,14 @@ From one measured run ([`/proof`](src/app/proof/page.tsx), `scripts/proof.mts`):
 
 Docs live at `/docs` (REST and MCP reference), `/openapi.json`, and for agents `/llms.txt` and `/llms-full.txt`.
 
+## Inside Qloo
+
+NotOnQ is a proof of concept for a feature Qloo could build in. It shows the behaviour, not the data pipeline: the open
+sources here stand in for whatever Qloo would use. Built into Qloo, the same flow would run on Qloo's own licensed
+sources and taste graph: fill the gap, label it, answer taste questions through similar artists, and step aside once
+the artist is in the catalogue. The Ledger shows which missing artists people actually ask for. Artists first, for this
+hackathon; the same pattern fits other entity types.
+
 ## How it fills a gap
 
 1. **Qloo first.** If Qloo knows the artist, its response passes through untouched.

@@ -129,7 +129,7 @@ describe("runResearch", () => {
     expect(after.researchStatus).toBe("done");
     expect(after.entity).toMatchObject({
       disambiguation: "Brisbane",
-      properties: { short_description: "Tiny Act is a dream-pop duo from Brisbane, formed in 2023.", external: { instagram: { id: "tinyactband" } } },
+      properties: { short_description: "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Bigger Act. Tiny Act is a dream-pop duo from Brisbane, formed in 2023.", external: { instagram: { id: "tinyactband" } } },
       tags: [{ name: "dream-pop", tag_id: "notonq:urn:tag:genre:dream_pop" }],
     });
     expect(after.standIns).toEqual([expect.objectContaining({ entityId: qid(31), source: "research" })]);

@@ -1,6 +1,6 @@
 // Fold verified claims into a stored fallback: only empty fields are filled (open data always wins), every value is
 // cited with its page and quote, and "for fans of" artists Qloo knows become extra stand-ins.
-import { type FallbackEntity, genreTag } from "@/server/engine/artist";
+import { type FallbackEntity, genreTag, notInQlooNote } from "@/server/engine/artist";
 import type { StandIn } from "@/server/engine/standins";
 import { cite, type ProvenanceMap } from "@/server/provenance";
 import { entitiesOf, type QlooClient } from "@/server/qloo/client";
@@ -14,7 +14,8 @@ export function missingFields(f: StoredFallback): ClaimField[] {
   const e = f.entity;
   if (!e) return [];
   const out: ClaimField[] = [];
-  if (!e.properties.short_description) out.push("properties.short_description");
+  // Every fill carries NotOnQ's "Not in Qloo" label there, so "missing" means no summary after the label.
+  if (!e.properties.short_description || f.unavailable.some((u) => u.startsWith("properties.short_description"))) out.push("properties.short_description");
   if (!e.tags.length) out.push("tags");
   if (!e.disambiguation) out.push("disambiguation");
   if (!e.properties.akas.length && !e.properties.external.musicbrainz) out.push("properties.akas");
@@ -52,11 +53,15 @@ export async function applyClaims(f: StoredFallback, verified: Verified[], qloo:
   const proof = (path: string, v: Verified) =>
     cite(provenance, path, { source: v.domain, record: v.source_url, licence: "quoted from the source page", method: "researched", note: `"${v.quote}" (${v.confidence} confidence)` });
 
+  // The label is rebuilt at the end (research can add stand-ins), around the summary already there or a researched one.
+  const label = notInQlooNote(f.standIns);
+  const current = entity.properties.short_description ?? "";
+  let summary = current.startsWith(label) ? current.slice(label.length).trim() : current;
   for (const v of sorted) {
     switch (v.field) {
       case "properties.short_description":
-        if (!entity.properties.short_description) {
-          entity.properties.short_description = v.value;
+        if (!summary) {
+          summary = v.value;
           proof(v.field, v);
           filled.add(v.field);
         }
@@ -111,6 +116,8 @@ export async function applyClaims(f: StoredFallback, verified: Verified[], qloo:
     proof(`standIns.${hit.entity_id}`, v);
     filled.add("standIns");
   }
+
+  if (current.startsWith(label) || !current) entity.properties.short_description = notInQlooNote(standIns, summary || undefined);
 
   const unavailable = f.unavailable.filter((u) => {
     const base = u.split(" ")[0];

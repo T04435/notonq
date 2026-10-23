@@ -12,6 +12,9 @@ Use it two ways: point the official Qloo MCP server at it (its base URL, nothing
 under \`/q\` with the same paths as Qloo. Qloo's results always come first, unchanged; NotOnQ's artists are added after
 them, labelled "Not in Qloo" in properties.short_description.
 
+NotOnQ shows the behaviour, not the data pipeline: its open sources stand in for whatever Qloo would use. Built into
+Qloo, the same flow would run on Qloo's own licensed sources and taste graph.
+
 ## Docs
 
 - [Full reference for agents]({origin}/llms-full.txt): everything below in one markdown file
@@ -158,6 +161,14 @@ Qloo response data is stored publicly).
 - Every artist lookup counts towards the Ledger ({origin}/ledger) against a salted hash of the key and the app label.
 - Research (when the host has AI Gateway access): runs once per artist in the background after a fill with fields
   missing; the answer never waits for it; the next request gets the result.
+
+## Inside Qloo
+
+NotOnQ is a proof of concept for a Qloo feature. The open sources it uses (MusicBrainz, Wikidata, Wikipedia, Last.fm,
+Deezer) stand in for whatever Qloo would use. Built into Qloo, the same flow would run on Qloo's own licensed sources
+and taste graph: fill the gap, label it, answer taste questions through similar artists, step aside once the artist is
+in the catalogue. The Ledger shows which missing artists people ask for. Artists first; the same pattern fits other
+entity types.
 
 ## Limits
 

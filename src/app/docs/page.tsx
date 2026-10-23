@@ -98,6 +98,19 @@ export default function DocsOverview() {
       </section>
 
       <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-medium">Inside Qloo</h2>
+        <p className="text-sm text-muted-foreground">
+          NotOnQ shows the behaviour, not the data pipeline. The open sources it uses here (MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer) stand in
+          for whatever Qloo would use. Built into Qloo, the same flow would run on Qloo&apos;s own licensed sources and taste graph: fill the gap, label
+          it, answer taste questions through similar artists, and step aside once the artist is in the catalogue. The{" "}
+          <Link href="/ledger" className="underline">
+            Ledger
+          </Link>{" "}
+          shows which missing artists people actually ask for. Artists first, for this hackathon; the same pattern fits other entity types.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">Known limits</h2>
         <ul className="list-disc pl-5 text-sm text-muted-foreground">
           <li>Artists only. Other entity types pass through to Qloo.</li>

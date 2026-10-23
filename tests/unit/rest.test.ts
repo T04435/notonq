@@ -114,6 +114,15 @@ describe("handleRest", () => {
     expect(counter.insights.length).toBe(before);
   });
 
+  it("still fills the artist when Last.fm fails (rate limit, outage or bad key)", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const lastfmDown: [string, (u: URL) => Response][] = [["ws.audioscrobbler.com", () => json(200, { error: 29, message: "Rate limit exceeded" })]];
+    const { fetch } = fakeFetch([...qlooRoutes(counter), ...lastfmDown, ...openData]);
+    const out = await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    expect(out.status).toBe(200);
+    expect((out.body as { results: { entity_id: string }[] }).results.map((r) => r.entity_id)).toContain(NEW);
+  });
+
   it("recovers a G2 Qloo ID by building its fallback and retrying with stand-ins", async () => {
     const counter = { search: 0, insights: [] as string[] };
     const { fetch } = fakeFetch([

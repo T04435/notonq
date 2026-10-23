@@ -4,11 +4,12 @@ import { createHash } from "node:crypto";
 import { type ResolveOptions, resolveArtist, SOURCE_ERROR } from "@/server/engine/artist";
 import { type Candidate, idForKey, slug } from "@/server/engine/candidates";
 import type { Fetch } from "@/server/http";
+import { applyClaims } from "@/server/research/apply";
 import { needsResearch, type ResearchDeps, researchEnabled, runResearch } from "@/server/research/run";
 import { entitiesOf, type QlooClient, type QlooEntity } from "@/server/qloo/client";
 import { type Gap, nameKey } from "@/server/qloo/gap";
 import type { Sql } from "@/server/store/db";
-import { type Demand, demandFor, findFallback, logRequest, markResolvedByQloo, saveFallback, type StoredFallback } from "@/server/store/repo";
+import { claimsFor, type Demand, demandFor, findFallback, logRequest, markResolvedByQloo, saveFallback, type StoredFallback, updateFill } from "@/server/store/repo";
 
 export type Ctx = {
   sql: Sql;
@@ -63,13 +64,17 @@ export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions 
     return { servedBy: "qloo", nameKey: key, entity: r.entity };
   }
 
+  // An untyped search that turned up no artist with any evidence wasn't about an artist: no Ledger entry, nothing added.
+  if (r.servedBy === "needs_choice" && opts.untyped && !r.candidates.length) return { servedBy: "needs_choice", nameKey: key, gap: r.gap, candidates: [], demand: await demandFor(ctx.sql, key) };
   if (r.servedBy === "needs_choice") {
     await logRequest(ctx.sql, { nameKey: key, query: name, endpoint: ctx.endpoint, servedBy: "needs_choice", gapKind: r.gap.kind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: false });
     return { servedBy: "needs_choice", nameKey: key, gap: r.gap, candidates: r.candidates, demand: await demandFor(ctx.sql, key) };
   }
 
-  const stored = await saveFallback(ctx.sql, {
-    id: r.entity?.entity_id ?? idForKey(`name:${slug(name)}`),
+  const id = r.entity?.entity_id ?? idForKey(`name:${slug(name)}`);
+  const before = await findFallback(ctx.sql, { id });
+  let stored = await saveFallback(ctx.sql, {
+    id,
     nameKey: key,
     name: r.entity?.name ?? name,
     mbid: r.entity?.properties.external.musicbrainz?.id,
@@ -86,9 +91,27 @@ export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions 
     popularity: r.popularity,
     unavailable: r.unavailable,
   });
+  // The weekly rebuild starts from the sources again: put back what research had verified, instead of losing it.
+  if (before?.researchStatus === "done") stored = await reapplyResearch(stored, ctx);
   await log(ctx, name, key, stored, false);
   scheduleResearch(stored, ctx);
   return { servedBy: "fallback", nameKey: key, cacheHit: false, gap: r.gap, fallback: stored, demand: await demandFor(ctx.sql, key) };
+}
+
+async function reapplyResearch(f: StoredFallback, ctx: Ctx): Promise<StoredFallback> {
+  const verified = (await claimsFor(ctx.sql, f.id))
+    .filter((c) => c.verified)
+    .map((c) => ({
+      field: c.field as Parameters<typeof applyClaims>[1][number]["field"],
+      value: c.value,
+      source_url: c.sourceUrl,
+      quote: c.quote,
+      domain: new URL(c.sourceUrl).hostname,
+      confidence: c.confidence === "high" ? ("high" as const) : ("medium" as const),
+    }));
+  const applied = await applyClaims(f, verified, ctx.qloo);
+  await updateFill(ctx.sql, f.id, { entity: applied.entity, provenance: applied.provenance, standIns: applied.standIns, unavailable: applied.unavailable, researchStatus: "done" });
+  return (await findFallback(ctx.sql, { id: f.id })) ?? f;
 }
 
 /** Tier 3 in the background: only for filled entities with gaps left, once per artist, never blocking the answer. */

@@ -6,7 +6,7 @@ import * as lastfm from "@/server/adapters/lastfm";
 import * as mb from "@/server/adapters/musicbrainz";
 import * as wd from "@/server/adapters/wikidata";
 import * as wp from "@/server/adapters/wikipedia";
-import { type Candidate, candidateFromKey, findCandidates, idForCandidate, slug } from "@/server/engine/candidates";
+import { type Candidate, candidateFromKey, findCandidates, hasEvidence, idForCandidate, slug } from "@/server/engine/candidates";
 import { fitPopularity, type PopularityFit } from "@/server/engine/popularity";
 import { externalOf, lookupBatch, pickStandIns, type Similar, type StandIn } from "@/server/engine/standins";
 import type { Fetch } from "@/server/http";
@@ -71,7 +71,8 @@ export type ArtistResult =
   | ({ servedBy: "fallback"; gap: Gap; qlooEntity?: QlooEntity } & Fill);
 
 export type ResolveDeps = { qloo: QlooClient; lastfmKey?: string; fetch?: Fetch };
-export type ResolveOptions = { candidateKey?: string; choose?: boolean };
+/** untyped: the search named no type, so only candidates with evidence count (see hasEvidence). */
+export type ResolveOptions = { candidateKey?: string; choose?: boolean; untyped?: boolean };
 
 export async function resolveArtist(name: string, deps: ResolveDeps, opts: ResolveOptions = {}): Promise<ArtistResult> {
   const { qloo } = deps;
@@ -88,7 +89,8 @@ export async function resolveArtist(name: string, deps: ResolveDeps, opts: Resol
     gap = search.gap;
   }
 
-  const set = await findCandidates(name, deps);
+  const found = await findCandidates(name, deps);
+  const set = opts.untyped ? { candidates: found.candidates.filter(hasEvidence), auto: found.auto } : found;
   const known = await markInQloo(set.candidates, qloo);
   let anchor: Candidate | undefined;
   if (opts.candidateKey) {
@@ -96,7 +98,7 @@ export async function resolveArtist(name: string, deps: ResolveDeps, opts: Resol
     if (!anchor) return { servedBy: "needs_choice", gap, qlooEntity, candidates: set.candidates };
   } else if (set.auto && !opts.choose) {
     anchor = set.auto;
-  } else if (set.candidates.length) {
+  } else if (set.candidates.length || opts.untyped) {
     return { servedBy: "needs_choice", gap, qlooEntity, candidates: set.candidates };
   }
 

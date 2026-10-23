@@ -67,7 +67,7 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
   // Untyped: anything Qloo has under exactly this name (a place, a book) is Qloo's answer. Typed: an exact artist is.
   if (req.params.types ? "found" in readSearch(query, res) : qlooResults.some((e) => sameName(e.name, query))) return qloo;
 
-  const l = await lookupArtist(query, ctx, options);
+  const l = await lookupArtist(query, ctx, { ...options, untyped: !req.params.types });
   const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : {};
   const withQloo = (ours: unknown[]) => [...qlooResults, ...ours.filter((o) => !qlooResults.some((q) => q.entity_id === (o as { entity_id: string }).entity_id))];
 
@@ -76,8 +76,15 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
   // Ambiguous: every possible artist as a Qloo-shaped entry; sending one's ID back (to /entities or as a signal) fills it.
   if (l.servedBy === "needs_choice") {
     const offered = l.candidates.filter((c) => !c.inQloo);
+    if (!offered.length) return qloo;
     await saveCandidateRefs(ctx.sql, offered.map((c) => ({ id: idForCandidate(c), key: c.key, name: c.name })));
-    return { status: 200, body: { ...base, results: withQloo(offered.map(candidateEntity)), notonq: blockFor(l) }, servedBy: "fallback" };
+    // A candidate already filled shows its fill (with its own label, e.g. "no similar artist Qloo knows yet").
+    const filled = await findOurIds(ctx.sql, offered.map(idForCandidate));
+    const entries = offered.map((c) => {
+      const hit = filled.get(idForCandidate(c));
+      return hit && "fill" in hit && hit.fill.entity ? hit.fill.entity : candidateEntity(c);
+    });
+    return { status: 200, body: { ...base, results: withQloo(entries), notonq: blockFor(l) }, servedBy: "fallback" };
   }
   return {
     status: l.fallback.entity ? 200 : res.status,
@@ -109,7 +116,7 @@ export function candidateEntity(c: Candidate) {
       akas: [],
       external: { ...(c.mbid ? { musicbrainz: { id: c.mbid } } : {}), ...(c.deezerId ? { "notonq:deezer": { id: c.deezerId, fans: c.fans ?? 0 } } : {}) },
       ...(c.image ? { image: { url: c.image } } : {}),
-      short_description: `Not in Qloo: a possible match NotOnQ found on ${sources || "open sources"}${facts.length ? ` (${facts.join(", ")})` : ""}. Choose this ID and NotOnQ fills the artist.`,
+      short_description: `Not in Qloo: a possible match NotOnQ found on ${sources || "open sources"}${facts.length ? ` (${facts.join(", ")})` : ""}. Choose this ID and NotOnQ fills the artist; taste answers then come from similar artists Qloo knows, and are empty if there are none.`,
     },
     tags: [],
   };

@@ -44,6 +44,10 @@ function uuidV5(name: string) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
+/** Enough to offer a candidate when the caller never said it wants an artist (an untyped search for a café or a book
+ * shouldn't turn up a namesake with no trace anywhere): the exact name, plus a MusicBrainz record or any audience. */
+export const hasEvidence = (c: Candidate) => c.exact && (!!c.mbid || (c.listeners ?? 0) > 0 || (c.fans ?? 0) > 0);
+
 /** The entity ID a candidate key fills under. */
 export function idForKey(key: string): string {
   const [kind, ...rest] = key.split(":");
