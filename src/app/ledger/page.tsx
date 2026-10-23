@@ -2,6 +2,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
+import { NotOnQBadge } from "@/components/brand/notonq-badge";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
@@ -12,8 +13,8 @@ import { type Answer, ledger, type LedgerRow } from "@/server/store/repo";
 
 export const metadata = { title: "Ledger · NotOnQ" };
 
-const ANSWER: Record<Answer, { label: string; variant: "default" | "secondary" | "outline" }> = {
-  notonq: { label: "NotOnQ", variant: "default" },
+const ANSWER: Record<Answer, { label: string; variant: "notonq" | "secondary" | "outline" }> = {
+  notonq: { label: "NotOnQ", variant: "notonq" },
   qloo: { label: "Qloo", variant: "secondary" },
   choice: { label: "Awaiting a choice", variant: "outline" },
   none: { label: "Nothing found yet", variant: "outline" },
@@ -113,7 +114,7 @@ function LedgerTable({ rows }: { rows: LedgerRow[] }) {
               )}
             </TableCell>
             <TableCell>
-              <Badge variant={ANSWER[r.answer].variant}>{ANSWER[r.answer].label}</Badge>
+              {r.answer === "notonq" ? <NotOnQBadge>NotOnQ</NotOnQBadge> : <Badge variant={ANSWER[r.answer].variant}>{ANSWER[r.answer].label}</Badge>}
             </TableCell>
             <TableCell className="text-right">{r.requests}</TableCell>
             <TableCell className="text-right">{r.callers}</TableCell>

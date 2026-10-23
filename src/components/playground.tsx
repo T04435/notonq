@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Code } from "@/components/code";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
+import { NotOnQBadge } from "@/components/brand/notonq-badge";
 import { CitedValue } from "@/components/cited-value";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -174,9 +175,11 @@ export function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; on
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               NotOnQ{" "}
-              <Badge variant="secondary">
-                {view.servedBy === "needs_choice" ? "needs your choice" : view.servedBy === "fallback" && !e ? "nothing found yet" : view.notonq.served_by}
-              </Badge>
+              {e && view.servedBy !== "needs_choice" ? (
+                <NotOnQBadge>Not in Qloo · filled by NotOnQ</NotOnQBadge>
+              ) : (
+                <Badge variant="secondary">{view.servedBy === "needs_choice" ? "needs your choice" : view.servedBy === "fallback" && !e ? "nothing found yet" : view.notonq.served_by}</Badge>
+              )}
               {view.notonq.cache?.hit && <Badge variant="outline">cache</Badge>}
             </CardTitle>
             <CardDescription>

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
+import { Logo } from "@/components/brand/mark";
+import { SiteNav } from "@/components/brand/site-nav";
 import { VersionBadge } from "@/components/version-badge";
 import { versionText } from "@/lib/version";
 import "./globals.css";
 
-const geistSans = Geist({ variable: "--font-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// The Schema brand is set in JetBrains Mono throughout.
+const mono = JetBrains_Mono({ variable: "--font-sans", subsets: ["latin"], weight: ["300", "400", "500", "700", "800"] });
 
 export const metadata: Metadata = {
   title: "NotOnQ",
@@ -17,25 +19,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${mono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <header className="border-b">
-          <nav className="mx-auto flex max-w-4xl items-center gap-6 px-4 py-3 text-sm">
-            <Link href="/" className="font-semibold">
-              NotOnQ
+          <nav className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+            <Link href="/" aria-label="NotOnQ home">
+              <Logo />
             </Link>
-            <Link href="/" className="text-muted-foreground hover:text-foreground">
-              Playground
-            </Link>
-            <Link href="/ledger" className="text-muted-foreground hover:text-foreground">
-              Ledger
-            </Link>
-            <Link href="/proof" className="text-muted-foreground hover:text-foreground">
-              Proof
-            </Link>
-            <Link href="/docs" className="text-muted-foreground hover:text-foreground">
-              Docs
-            </Link>
+            <SiteNav />
           </nav>
         </header>
         <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{children}</main>

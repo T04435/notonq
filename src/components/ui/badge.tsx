@@ -18,6 +18,8 @@ const badgeVariants = cva(
         ghost:
           "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
         link: "text-primary underline-offset-4 hover:underline",
+        // Schema: a value or answer NotOnQ filled sits on a hatched ground (wrap the text in a bg-background span).
+        notonq: "hatch border-foreground text-foreground",
       },
     },
     defaultVariants: {
