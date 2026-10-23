@@ -60,26 +60,26 @@ export default function DocsPage() {
           keys Qloo doesn&apos;t have (<code>properties.external[&quot;notonq:deezer&quot;]</code>). Send a <code>notonq:</code> entity ID back as a signal and
           NotOnQ swaps in its stand-ins. Qloo&apos;s own values are never prefixed or changed.
         </p>
-        <div className="grid gap-3 md:grid-cols-2">
-          {(["Qloo", "NotOnQ fallback"] as const).map((title, side) => (
-            <CodeBlock key={title} size="sm">
-              <CodeBlockHeader>
-                <CodeBlockTitle>{title}</CodeBlockTitle>
-              </CodeBlockHeader>
-              <CodeBlockContent>
-                {SPLIT.map((row, i) => {
-                  const line = row[side];
-                  const changed = row[0] !== row[1];
-                  return (
-                    <CodeBlockLine key={i} variant={line === null || !changed ? "default" : side === 0 ? "removed" : "added"}>
-                      {line ?? "\u00a0"}
-                    </CodeBlockLine>
-                  );
-                })}
-              </CodeBlockContent>
-            </CodeBlock>
-          ))}
-        </div>
+        {/* One box: the code grid gets two columns, so each row is Qloo's line beside NotOnQ's (restyled via classes). */}
+        <CodeBlock size="sm">
+          <CodeBlockHeader className="grid grid-cols-2 gap-x-6">
+            <CodeBlockTitle>Qloo</CodeBlockTitle>
+            <CodeBlockTitle>NotOnQ fallback</CodeBlockTitle>
+          </CodeBlockHeader>
+          <CodeBlockContent className="[&>code]:grid-cols-2 [&>code]:gap-x-6">
+            {SPLIT.flatMap((row, i) =>
+              ([0, 1] as const).map((side) => {
+                const line = row[side];
+                const changed = row[0] !== row[1];
+                return (
+                  <CodeBlockLine key={`${i}-${side}`} variant={line === null || !changed ? "default" : side === 0 ? "removed" : "added"}>
+                    {line ?? ""}
+                  </CodeBlockLine>
+                );
+              }),
+            )}
+          </CodeBlockContent>
+        </CodeBlock>
       </div>
       <div className="flex flex-col gap-2">
         <h2 className="font-medium">With the official Qloo harness</h2>
