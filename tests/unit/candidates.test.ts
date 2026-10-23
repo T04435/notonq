@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { resolveArtist } from "@/server/engine/artist";
 import { candidateFromKey, findCandidates, idForKey } from "@/server/engine/candidates";
 import { qlooClient } from "@/server/qloo/client";
+import { handleRest } from "@/server/rest";
 import { memoryDb, type Sql } from "@/server/store/db";
 import { importQueue } from "@/server/store/repo";
 import { lookupArtist } from "@/server/service";
@@ -38,8 +39,10 @@ describe("findCandidates", () => {
   });
 
   it("maps keys to cache IDs and back", () => {
-    expect(idForKey(`mb:${mbid(1)}`)).toBe(`notonq:mbid:${mbid(1)}`);
-    expect(idForKey("dz:555")).toBe("notonq:dz:555");
+    expect(idForKey(`mb:${mbid(1)}`)).toBe(mbid(1));
+    // Not a MusicBrainz artist: a stable version 5 UUID, which the Qloo harness looks up by /entities like any Qloo ID.
+    expect(idForKey("dz:555")).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(idForKey("dz:555")).toBe(idForKey("dz:555"));
     expect(candidateFromKey("dz:555", "Tiny Act")).toMatchObject({ deezerId: 555 });
     expect(candidateFromKey("mb:not-a-uuid", "x")).toBeNull();
   });
@@ -64,7 +67,7 @@ describe("small artists", () => {
     expect(first.servedBy).toBe("needs_choice");
     const picked = await lookupArtist("Tiny Act", ctx, { candidateKey: "lf:tiny-act" });
     if (picked.servedBy !== "fallback") throw new Error("expected a fill");
-    expect(picked.fallback).toMatchObject({ id: "notonq:dz:555", confidence: "low" });
+    expect(picked.fallback).toMatchObject({ id: idForKey("lf:tiny-act"), confidence: "low", chosen: true });
     expect(picked.fallback.entity?.properties.external).toMatchObject({ "notonq:deezer": { id: 555, fans: 2 }, lastfm: { listeners: 4 } });
     expect(picked.fallback.entity?.properties.image?.url).toBe("https://img/x.jpg");
     expect(picked.fallback.standIns).toEqual([expect.objectContaining({ entityId: qid(31), source: "deezer" })]);
@@ -102,5 +105,51 @@ describe("small artists", () => {
     const [row] = await importQueue(sql);
     expect(row).toMatchObject({ query: "Nobody At All", requests: 1 });
     expect(row.entityId).toBeUndefined();
+  });
+});
+
+// What the official Qloo harness sees when only its base URL points at NotOnQ: it reads `results`, picks an exact name,
+// asks when several share it, and looks a chosen UUID up by /entities.
+describe("search through the Qloo harness", () => {
+  let sql: Sql;
+  beforeEach(async () => {
+    sql = await memoryDb();
+  });
+  const fuzzy = (u: URL) =>
+    u.searchParams.get("query") === "Paris"
+      ? json(200, { results: [qlooArtist(60, "Paris")] })
+      : u.searchParams.get("query") === "Bigger Act"
+        ? json(200, { results: [qlooArtist(31, "Bigger Act", { popularity: 0.4 })] })
+        : json(200, { results: [qlooArtist(40, "Tiny Acts Club")] });
+  const routes: [string, (u: URL) => Response][] = [["hackathon.api.qloo.com/search", fuzzy], ...smallArtist];
+  const deps = (fetch: typeof globalThis.fetch) => ({ sql, baseUrl: "https://hackathon.api.qloo.com", salt: "t", fetch });
+
+  it("keeps Qloo's results first and adds the possible artists after, labelled, under UUIDs that fill when sent back", async () => {
+    const { fetch } = fakeFetch(routes);
+    const out = await handleRest({ path: "search", params: { query: "Tiny Act", take: "5" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const results = (out.body as { results: { entity_id: string; name: string; properties: { short_description?: string } }[] }).results;
+    expect(results[0].entity_id).toBe(qid(40));
+    const ours = results.find((r) => r.name === "Tiny Act")!;
+    expect(ours.entity_id).toBe(idForKey("lf:tiny-act"));
+    expect(ours.properties.short_description).toMatch(/^Not in Qloo: a possible match NotOnQ found on lastfm, deezer \(4 Last\.fm listeners, 2 Deezer fans\)/);
+
+    const chosen = await handleRest({ path: "entities", params: { entity_ids: ours.entity_id }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const filled = (chosen.body as { results: { entity_id: string; properties: { short_description: string } }[] }).results;
+    expect(filled).toHaveLength(1);
+    expect(filled[0].entity_id).toBe(ours.entity_id);
+    expect(filled[0].properties.short_description).toMatch(/^Not in Qloo: filled by NotOnQ/);
+  });
+
+  it("leaves an untyped search alone when Qloo has something with exactly that name", async () => {
+    const { fetch } = fakeFetch(routes);
+    const out = await handleRest({ path: "search", params: { query: "Paris" }, apiKey: "k" }, deps(fetch));
+    expect(out).toMatchObject({ servedBy: "qloo", body: { results: [{ entity_id: qid(60) }] } });
+  });
+
+  it("never serves a fill someone picked as the default answer for the name", async () => {
+    const { fetch } = fakeFetch(routes);
+    const ctx = { sql, qloo: qlooClient({ apiKey: "c3", fetch }), lastfmKey: "lf", callerHash: "h", endpoint: "test", fetch };
+    await lookupArtist("Tiny Act", ctx, { candidateKey: "lf:tiny-act" });
+    expect((await lookupArtist("Tiny Act", ctx)).servedBy).toBe("needs_choice");
   });
 });

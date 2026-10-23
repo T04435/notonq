@@ -64,7 +64,7 @@ describe("handleRest", () => {
     const first = await handleRest(req, deps(fetch));
     expect(first.status).toBe(200);
     const body = first.body as { results: { entity_id: string }[]; notonq: { served_by: string; cache: { hit: boolean }; proxy: { stand_ins: unknown[] } } };
-    expect(body.results[0].entity_id).toBe(`notonq:mbid:${NEW}`);
+    expect(body.results[0].entity_id).toBe(NEW);
     expect(body.notonq).toMatchObject({ served_by: "fallback", cache: { hit: false } });
     expect(body.notonq.proxy.stand_ins).toHaveLength(2);
 
@@ -82,12 +82,12 @@ describe("handleRest", () => {
     const { fetch } = fakeFetch([...qlooRoutes(counter), ...openData]);
     await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
     const out = await handleRest(
-      { path: "v2/insights", params: { "filter.type": "urn:entity:place", "signal.interests.entities": `notonq:mbid:${NEW}` }, apiKey: "k" },
+      { path: "v2/insights", params: { "filter.type": "urn:entity:place", "signal.interests.entities": NEW }, apiKey: "k" },
       deps(fetch),
     );
     expect(out.servedBy).toBe("mixed");
     expect(counter.insights.at(-1)).toBe(`${qid(1)},${qid(2)}`);
-    expect((out.body as { notonq: { proxy: { replaced: string[] } } }).notonq.proxy.replaced).toEqual([`notonq:mbid:${NEW}`]);
+    expect((out.body as { notonq: { proxy: { replaced: string[] } } }).notonq.proxy.replaced).toEqual([NEW]);
   });
 
   it("recovers a G2 Qloo ID by building its fallback and retrying with stand-ins", async () => {
@@ -115,7 +115,7 @@ describe("handleRest", () => {
         path: "v2/insights",
         params: {},
         apiKey: "k",
-        body: { "filter.type": "urn:entity:place", "signal.interests.entities": [{ id: `notonq:mbid:${NEW}`, weight: 0.5 }, { id: qid(9), weight: 1 }] },
+        body: { "filter.type": "urn:entity:place", "signal.interests.entities": [{ id: NEW, weight: 0.5 }, { id: qid(9), weight: 1 }] },
       },
       deps(fetch),
     );

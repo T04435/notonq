@@ -3,7 +3,7 @@
 // What is never stored: Qloo responses outside the per-key cache, caller keys (hash only), end-user identifiers.
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS fallback_entities (
-  id               text PRIMARY KEY,           -- notonq:mbid:<uuid> | notonq:dz:<id> | notonq:lf:<slug> | notonq:name:<slug> (nothing found)
+  id               text PRIMARY KEY,           -- UUID: the MBID, or a name-based UUID of the candidate key (see idForKey)
   name_key         text NOT NULL,              -- normalised name it was asked for (one name can be several artists)
   name             text NOT NULL,
   mbid             text,
@@ -25,6 +25,15 @@ ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS candidate_key text;
 ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS confidence text;
 ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS research_status text;   -- null | pending | done | failed | skipped
 ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS research_at timestamptz;
+ALTER TABLE fallback_entities ADD COLUMN IF NOT EXISTS chosen boolean NOT NULL DEFAULT false;   -- picked from candidates: never the default for its name
+
+-- Candidates offered in a search, so an ID sent back (to /entities or as a signal) can be filled.
+CREATE TABLE IF NOT EXISTS candidate_refs (
+  id          text PRIMARY KEY,
+  key         text NOT NULL,
+  name        text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
 CREATE INDEX IF NOT EXISTS fallback_entities_name_key ON fallback_entities (name_key, refreshed_at DESC);
 CREATE INDEX IF NOT EXISTS fallback_entities_mbid ON fallback_entities (mbid);
 CREATE INDEX IF NOT EXISTS fallback_entities_qloo ON fallback_entities (qloo_entity_id);

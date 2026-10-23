@@ -15,6 +15,8 @@ export type StoredFallback = {
   gapKind: "G1" | "G2";
   qlooEntityId?: string;
   candidateKey?: string;
+  /** Picked from candidates by someone: served for that ID, never as the default answer for the name. */
+  chosen?: boolean;
   confidence?: Confidence;
   researchStatus?: "pending" | "done" | "failed" | "skipped";
   researchAt?: string;
@@ -43,6 +45,7 @@ function toFallback(r: Row): StoredFallback {
     gapKind: r.gap_kind as "G1" | "G2",
     qlooEntityId: (r.qloo_entity_id as string) ?? undefined,
     candidateKey: (r.candidate_key as string) ?? undefined,
+    chosen: r.chosen === true,
     confidence: (r.confidence as Confidence) ?? undefined,
     researchStatus: (r.research_status as StoredFallback["researchStatus"]) ?? undefined,
     researchAt: iso(r.research_at),
@@ -67,16 +70,17 @@ export async function findFallback(sql: Sql, by: { nameKey?: string; id?: string
       : by.mbid
         ? ["mbid", by.mbid.toLowerCase()]
         : ["name_key", by.nameKey];
-  const rows = await sql(`SELECT * FROM fallback_entities WHERE ${col} = $1 ORDER BY refreshed_at DESC LIMIT 1`, [val]);
+  const onlyDefault = col === "name_key" ? " AND NOT chosen" : "";
+  const rows = await sql(`SELECT * FROM fallback_entities WHERE ${col} = $1${onlyDefault} ORDER BY refreshed_at DESC LIMIT 1`, [val]);
   return rows[0] ? toFallback(rows[0]) : null;
 }
 
 export async function saveFallback(sql: Sql, f: Omit<StoredFallback, "createdAt" | "refreshedAt" | "resolvedByQlooAt">) {
   const rows = await sql(
-    `INSERT INTO fallback_entities (id, name_key, name, mbid, qid, spotify_id, gap_kind, qloo_entity_id, entity, provenance, stand_ins, popularity, unavailable, candidate_key, confidence)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+    `INSERT INTO fallback_entities (id, name_key, name, mbid, qid, spotify_id, gap_kind, qloo_entity_id, entity, provenance, stand_ins, popularity, unavailable, candidate_key, confidence, chosen)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      ON CONFLICT (id) DO UPDATE SET
-       name_key = EXCLUDED.name_key, name = EXCLUDED.name, candidate_key = EXCLUDED.candidate_key, confidence = EXCLUDED.confidence, mbid = EXCLUDED.mbid, qid = EXCLUDED.qid, spotify_id = EXCLUDED.spotify_id,
+       name_key = EXCLUDED.name_key, name = EXCLUDED.name, candidate_key = EXCLUDED.candidate_key, chosen = fallback_entities.chosen AND EXCLUDED.chosen, confidence = EXCLUDED.confidence, mbid = EXCLUDED.mbid, qid = EXCLUDED.qid, spotify_id = EXCLUDED.spotify_id,
        gap_kind = EXCLUDED.gap_kind, qloo_entity_id = EXCLUDED.qloo_entity_id, entity = EXCLUDED.entity,
        provenance = EXCLUDED.provenance, stand_ins = EXCLUDED.stand_ins, popularity = EXCLUDED.popularity,
        unavailable = EXCLUDED.unavailable, refreshed_at = now()
@@ -97,9 +101,30 @@ export async function saveFallback(sql: Sql, f: Omit<StoredFallback, "createdAt"
       JSON.stringify(f.unavailable),
       f.candidateKey ?? null,
       f.confidence ?? null,
+      f.chosen ?? false,
     ],
   );
   return toFallback(rows[0]);
+}
+
+export async function saveCandidateRefs(sql: Sql, refs: { id: string; key: string; name: string }[]) {
+  for (const r of refs)
+    await sql(`INSERT INTO candidate_refs (id, key, name) VALUES ($1,$2,$3) ON CONFLICT (id) DO UPDATE SET key = EXCLUDED.key, name = EXCLUDED.name`, [r.id, r.key, r.name]);
+}
+
+export type OurId = { fill: StoredFallback } | { candidate: { key: string; name: string } };
+
+/** Which of these IDs are NotOnQ's: a fill we hold, or a candidate we offered and haven't filled yet. */
+export async function findOurIds(sql: Sql, ids: string[]): Promise<Map<string, OurId>> {
+  const out = new Map<string, OurId>();
+  if (!ids.length) return out;
+  const lower = ids.map((i) => i.toLowerCase());
+  const at = (id: string) => ids[lower.indexOf(id.toLowerCase())];
+  for (const row of await sql(`SELECT DISTINCT ON (id) * FROM fallback_entities WHERE lower(id) = ANY($1) ORDER BY id, refreshed_at DESC`, [lower]))
+    out.set(at(String(row.id)), { fill: toFallback(row) });
+  for (const row of await sql(`SELECT id, key, name FROM candidate_refs WHERE lower(id) = ANY($1)`, [lower]))
+    if (!out.has(at(String(row.id)))) out.set(at(String(row.id)), { candidate: { key: String(row.key), name: String(row.name) } });
+  return out;
 }
 
 export async function updateFill(

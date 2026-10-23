@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 // Who could this name be? Small artists rarely have one clean MusicBrainz record, so every source's matches are
 // gathered, merged where they are clearly the same artist, and offered as choices. Only a single confident exact
 // MusicBrainz match continues without asking.
@@ -30,12 +31,28 @@ export type CandidateSet = { candidates: Candidate[]; auto?: Candidate };
 
 export const slug = (name: string) => nameKey(name).replace(/\s+/g, "-");
 
-/** The cache ID a candidate fills under. */
+// NotOnQ's entity IDs are UUIDs, like Qloo's: the official Qloo harness only looks an ID up by /entities when it is
+// UUID-shaped, so a person choosing one of our candidates would otherwise be asked again. A MusicBrainz artist keeps
+// its MBID; anything else gets a stable name-based (version 5) UUID of its key in NotOnQ's own namespace.
+const NAMESPACE = Buffer.from("8f3b6c2a5d0e4b7c9a1f2e3d4c5b6a79", "hex");
+
+function uuidV5(name: string) {
+  const b = createHash("sha1").update(NAMESPACE).update(name).digest().subarray(0, 16);
+  b[6] = (b[6] & 0x0f) | 0x50;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = b.toString("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/** The entity ID a candidate key fills under. */
 export function idForKey(key: string): string {
   const [kind, ...rest] = key.split(":");
   const v = rest.join(":");
-  return kind === "mb" ? `notonq:mbid:${v}` : `notonq:${kind}:${v}`;
+  return kind === "mb" ? v.toLowerCase() : uuidV5(key);
 }
+
+/** The ID a listed candidate is offered under: the same ID its fill gets. */
+export const idForCandidate = (c: Pick<Candidate, "key" | "mbid">) => (c.mbid ? c.mbid.toLowerCase() : idForKey(c.key));
 
 /** A candidate rebuilt from its key alone (when a client sends back a key we didn't just list). */
 export function candidateFromKey(key: string, name: string): Candidate | null {

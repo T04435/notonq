@@ -6,7 +6,7 @@ import * as lastfm from "@/server/adapters/lastfm";
 import * as mb from "@/server/adapters/musicbrainz";
 import * as wd from "@/server/adapters/wikidata";
 import * as wp from "@/server/adapters/wikipedia";
-import { type Candidate, candidateFromKey, findCandidates, idForKey, slug } from "@/server/engine/candidates";
+import { type Candidate, candidateFromKey, findCandidates, idForCandidate, slug } from "@/server/engine/candidates";
 import { fitPopularity, type PopularityFit } from "@/server/engine/popularity";
 import { externalOf, lookupBatch, pickStandIns, type Similar, type StandIn } from "@/server/engine/standins";
 import type { Fetch } from "@/server/http";
@@ -155,7 +155,7 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
 
   const displayName = artist?.name ?? dz?.name ?? anchor.name;
   const entity: FallbackEntity = {
-    entity_id: idForKey(artist ? `mb:${artist.mbid}` : anchor.deezerId ? `dz:${anchor.deezerId}` : `lf:${slug(lfName)}`),
+    entity_id: idForCandidate(anchor),
     name: displayName,
     types: [ARTIST],
     properties: { akas: [], external: {} },
@@ -205,10 +205,17 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
     cite(provenance, "properties.image", { source: "deezer", record: dz.link, licence: LICENCES.deezer, method: "copied" });
   } else unavailable.push("properties.image");
 
-  if (summary) {
-    entity.properties.short_description = summary.extract;
-    cite(provenance, "properties.short_description", { source: "wikipedia", record: summary.url, licence: LICENCES.wikipedia, method: "copied" });
-  } else if (!unavailable.some((u) => u.startsWith("properties.short_description"))) unavailable.push("properties.short_description");
+  // The label goes where every client shows an entity (the Qloo harness passes short_description to the agent), so
+  // an answer built on stand-ins is never mistaken for Qloo's own data about this artist.
+  entity.properties.short_description = notInQlooNote(standIns, summary?.extract);
+  cite(provenance, "properties.short_description", {
+    source: "notonq",
+    record: summary?.url ?? artist?.record ?? anchor.links[0]?.url ?? "",
+    licence: summary ? LICENCES.wikipedia : LICENCES.notonq,
+    method: "derived",
+    note: summary ? "NotOnQ's label, then the Wikipedia summary copied unchanged" : "NotOnQ's label (no Wikipedia summary found)",
+  });
+  if (!summary && !unavailable.some((u) => u.startsWith("properties.short_description"))) unavailable.push("properties.short_description (no Wikipedia summary)");
 
   if (wiki?.genres.length) {
     entity.tags = wiki.genres.map(genreTag);
@@ -238,6 +245,14 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
   } else unavailable.push("popularity");
 
   return { entity, candidateKey: anchor.key, confidence: artist ? "high" : "low", standIns, popularity, provenance, unavailable };
+}
+
+/** The label every NotOnQ entity carries in short_description. */
+export function notInQlooNote(standIns: Pick<StandIn, "name">[], summary?: string) {
+  const via = standIns.length
+    ? ` Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: ${standIns.slice(0, 3).map((s) => s.name).join(", ")}.`
+    : " No similar artist Qloo knows yet, so taste answers are not available.";
+  return `Not in Qloo: filled by NotOnQ from open sources.${via}${summary ? ` ${summary}` : ""}`;
 }
 
 const DEEZER_LOOKUPS = 5;

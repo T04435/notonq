@@ -80,12 +80,12 @@ describe("resolveArtist", () => {
     if (out.servedBy !== "fallback") throw new Error("expected a fallback");
     expect(out.gap.kind).toBe("G1");
     expect(out.entity).toMatchObject({
-      entity_id: `notonq:mbid:${NEW}`,
+      entity_id: NEW,
       name: "Newact",
       types: ["urn:entity:artist"],
       disambiguation: "indie band, US",
       properties: {
-        short_description: "Newact is a band.",
+        short_description: "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2, Similar 3. Newact is a band.",
         akas: [{ value: "New Act", languages: [] }],
         external: { musicbrainz: { id: NEW }, wikidata: { id: "Q1" }, spotify: { id: "spotifyid1" }, lastfm: { listeners: 316228 } },
       },

@@ -69,7 +69,7 @@ export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions 
   }
 
   const stored = await saveFallback(ctx.sql, {
-    id: r.entity?.entity_id ?? `notonq:name:${slug(name)}`,
+    id: r.entity?.entity_id ?? idForKey(`name:${slug(name)}`),
     nameKey: key,
     name: r.entity?.name ?? name,
     mbid: r.entity?.properties.external.musicbrainz?.id,
@@ -78,6 +78,7 @@ export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions 
     gapKind: r.gap.kind === "G2" ? "G2" : "G1",
     qlooEntityId: r.qlooEntity?.entity_id,
     candidateKey: r.candidateKey,
+    chosen: !!opts.candidateKey,
     confidence: r.confidence,
     entity: r.entity,
     provenance: r.provenance,

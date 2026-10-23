@@ -58,14 +58,16 @@ describe("Qloo shape, 1:1", () => {
     expect(QlooArtist.safeParse(qlooArtist(1, "x")).success).toBe(false); // fixture lacks akas/tags: proves the schema is strict
   });
 
-  it("a NotOnQ fallback entity fits Qloo's shape, with everything of ours prefixed notonq:", async () => {
+  it("a NotOnQ fallback entity fits Qloo's shape, with every key of ours prefixed notonq: and a Not-in-Qloo label", async () => {
     const { fetch } = fakeFetch(routes);
     const out = await resolveArtist("Newact", { qloo: qlooClient({ apiKey: "s1", fetch }), lastfmKey: "lf", fetch });
     if (out.servedBy !== "fallback" || !out.entity) throw new Error("expected a fill");
     const parsed = QlooArtist.safeParse(out.entity);
     expect(parsed.error?.issues ?? []).toEqual([]);
     expect(foreignKeys(out.entity)).toEqual([]);
-    expect(out.entity.entity_id.startsWith("notonq:")).toBe(true);
+    // Our entity IDs are UUIDs (the Qloo harness needs that); the label says whose entity it is.
+    expect(out.entity.entity_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(out.entity.properties.short_description).toMatch(/^Not in Qloo: filled by NotOnQ/);
     expect(out.entity.tags.every((t) => t.tag_id.startsWith("notonq:urn:tag:genre:") && t.value === t.tag_id && t.type === "urn:tag:genre")).toBe(true);
     expect(out.entity.properties.external).toMatchObject({
       lastfm: { id: "Newact", listeners: 1000, scrobbles: 5000 },
