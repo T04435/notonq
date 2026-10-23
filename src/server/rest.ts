@@ -53,7 +53,8 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
   if (!outcome || "found" in outcome) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
 
   const l = await lookupArtist(req.params.query, ctx, options);
-  if (l.servedBy === "qloo") return { status: res.status, body: res.json, servedBy: "qloo" };
+  // The chosen candidate turned out to be an artist Qloo knows under another spelling: Qloo's own entity, unchanged.
+  if (l.servedBy === "qloo") return { status: 200, body: { results: [l.entity], notonq: { served_by: "qloo", attribution: [] } }, servedBy: "qloo" };
   const qlooResults = res.ok ? entitiesOf(res.json) : [];
   const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : {};
   // Ambiguous: return Qloo's own answer untouched, plus the candidates to choose from.

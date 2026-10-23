@@ -8,7 +8,7 @@ import * as wd from "@/server/adapters/wikidata";
 import * as wp from "@/server/adapters/wikipedia";
 import { type Candidate, candidateFromKey, findCandidates, idForKey, slug } from "@/server/engine/candidates";
 import { fitPopularity, type PopularityFit } from "@/server/engine/popularity";
-import { lookupBatch, pickStandIns, type Similar, type StandIn } from "@/server/engine/standins";
+import { externalOf, lookupBatch, pickStandIns, type Similar, type StandIn } from "@/server/engine/standins";
 import type { Fetch } from "@/server/http";
 import { cite, LICENCES, type ProvenanceMap } from "@/server/provenance";
 import { ARTIST, entitiesOf, type QlooClient, type QlooEntity } from "@/server/qloo/client";
@@ -86,6 +86,7 @@ export async function resolveArtist(name: string, deps: ResolveDeps, opts: Resol
   }
 
   const set = await findCandidates(name, deps);
+  const known = await markInQloo(set.candidates, qloo);
   let anchor: Candidate | undefined;
   if (opts.candidateKey) {
     anchor = set.candidates.find((c) => c.key === opts.candidateKey) ?? candidateFromKey(opts.candidateKey, name) ?? undefined;
@@ -95,7 +96,27 @@ export async function resolveArtist(name: string, deps: ResolveDeps, opts: Resol
   } else if (set.candidates.length) {
     return { servedBy: "needs_choice", gap, qlooEntity, candidates: set.candidates };
   }
+
+  // The chosen artist may be one Qloo knows under another spelling ("eminim" → Eminem): then Qloo answers, not us.
+  if (anchor?.mbid && !anchor.inQloo) await markInQloo([anchor], qloo, known);
+  const hit = anchor?.inQloo && known.get(anchor.inQloo.entityId);
+  if (hit && !readInsights(await qloo.insights({ "filter.type": ARTIST, "signal.interests.entities": hit.entity_id, take: 1 }))) return { servedBy: "qloo", entity: hit };
+
   return { servedBy: "fallback", gap, qlooEntity, ...(await buildFallback(name, deps, anchor)) };
+}
+
+/** One batch lookup by MusicBrainz ID: flags the candidates Qloo already has, and returns those Qloo entities. */
+async function markInQloo(candidates: Candidate[], qloo: QlooClient, known = new Map<string, QlooEntity>()) {
+  const mbids = [...new Set(candidates.flatMap((c) => (c.mbid ? [c.mbid.toLowerCase()] : [])))].slice(0, 25);
+  if (!mbids.length) return known;
+  const rows = entitiesOf((await qloo.entitiesByMbids(mbids)).json);
+  for (const c of candidates) {
+    const e = c.mbid ? rows.find((r) => externalOf(r, "musicbrainz").some((m) => String(m.id).toLowerCase() === c.mbid!.toLowerCase())) : undefined;
+    if (!e) continue;
+    c.inQloo = { entityId: e.entity_id, name: e.name };
+    known.set(e.entity_id, e);
+  }
+  return known;
 }
 
 export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }: ResolveDeps, anchor?: Candidate): Promise<Fill> {

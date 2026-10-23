@@ -5,6 +5,7 @@ import { demandText } from "@/lib/demand";
 import type { FallbackEntity, ResolveOptions } from "@/server/engine/artist";
 import type { Candidate } from "@/server/engine/candidates";
 import { ARTIST, entitiesOf, type QlooClient, qlooClient } from "@/server/qloo/client";
+import { sameName } from "@/server/qloo/gap";
 import { cachedQloo } from "@/server/qloo/cached";
 import { needsResearch, researchEnabled } from "@/server/research/run";
 import { blockFor, type NotOnQBlock } from "@/server/respond";
@@ -42,7 +43,10 @@ export async function playgroundLookup(
   const done = (v: Omit<PlaygroundView, "query" | "steps" | "ms">): PlaygroundView => ({ query: name, steps, ms: Date.now() - started, ...v });
 
   if (l.servedBy === "qloo") {
-    steps.push({ title: "Qloo", detail: `Found "${l.entity.name}" in Qloo's taste graph` });
+    steps.push({
+      title: "Qloo",
+      detail: sameName(name, l.entity.name) ? `Found "${l.entity.name}" in Qloo's taste graph` : `Qloo has no "${name}", but the artist you chose is in Qloo as "${l.entity.name}"`,
+    });
     const recs = await qloo.insights({ "filter.type": ARTIST, "signal.interests.entities": l.entity.entity_id, take: 6 });
     return done({
       servedBy: "qloo",

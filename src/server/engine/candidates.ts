@@ -22,6 +22,8 @@ export type Candidate = {
   fans?: number;
   image?: string;
   links: { source: string; url: string }[];
+  /** Set when Qloo already knows this candidate (matched by MusicBrainz ID): a "did you mean" rather than a gap. */
+  inQloo?: { entityId: string; name: string };
 };
 
 export type CandidateSet = { candidates: Candidate[]; auto?: Candidate };

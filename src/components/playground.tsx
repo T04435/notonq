@@ -306,6 +306,7 @@ function Candidates({ candidates, onChoose }: { candidates: Candidate[]; onChoos
                 <ItemTitle>
                   {c.name}
                   {c.exact && <Badge variant="secondary">exact name</Badge>}
+                  {c.inQloo && <Badge>in Qloo</Badge>}
                 </ItemTitle>
                 <ItemDescription>
                   {[c.type, c.disambiguation, c.country, c.listeners !== undefined && `${c.listeners.toLocaleString("en")} Last.fm listeners`, c.fans !== undefined && `${c.fans.toLocaleString("en")} Deezer fans`]
@@ -323,8 +324,8 @@ function Candidates({ candidates, onChoose }: { candidates: Candidate[]; onChoos
                 </ItemDescription>
               </ItemContent>
               <ItemActions>
-                <Button size="sm" onClick={() => onChoose(c.key)}>
-                  Use this one
+                <Button size="sm" variant={c.inQloo ? "secondary" : "default"} onClick={() => onChoose(c.key)}>
+                  {c.inQloo ? "Use Qloo's data" : "Use this one"}
                 </Button>
               </ItemActions>
             </Item>

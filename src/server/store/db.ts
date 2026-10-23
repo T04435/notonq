@@ -4,7 +4,10 @@ import { SCHEMA } from "@/server/store/schema";
 // embedded PGlite (real Postgres in WASM) under .data/ for local runs. Same SQL, same results.
 export type Sql = <T = Record<string, unknown>>(text: string, params?: unknown[]) => Promise<T[]>;
 
-let ready: Promise<Sql> | undefined;
+// One connection per process. Next.js loads route handlers and server components as separate bundles, so a module
+// variable would give each bundle its own PGlite on the same folder: writes in one were invisible to the other (and
+// two instances on one data dir risk corrupting it). globalThis is shared across bundles.
+const shared = globalThis as typeof globalThis & { __notonqDb?: Promise<Sql> };
 
 async function connect(databaseUrl?: string): Promise<Sql> {
   if (databaseUrl) {
@@ -33,11 +36,11 @@ async function migrate(sql: Sql) {
  * into .env.local (learnings: env pull points local at prod), unless NOTONQ_USE_NEON=1 asks for Neon on purpose. */
 export function db(databaseUrl = process.env.DATABASE_URL): Promise<Sql> {
   const useNeon = process.env.NODE_ENV === "production" || process.env.NOTONQ_USE_NEON === "1";
-  ready ??= connect(useNeon && databaseUrl && databaseUrl !== "SET_ME" ? databaseUrl : undefined).catch((e) => {
-    ready = undefined;
+  shared.__notonqDb ??= connect(useNeon && databaseUrl && databaseUrl !== "SET_ME" ? databaseUrl : undefined).catch((e) => {
+    shared.__notonqDb = undefined;
     throw e;
   });
-  return ready;
+  return shared.__notonqDb;
 }
 
 /** Tests use their own in-memory PGlite. */

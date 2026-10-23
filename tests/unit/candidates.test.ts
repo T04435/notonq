@@ -77,6 +77,23 @@ describe("small artists", () => {
     expect(row).toMatchObject({ query: "Tiny Act", requests: 3, askedToChoose: true, confidence: "low" });
   });
 
+  it("treats a chosen candidate Qloo already knows as a typo: Qloo answers, not NotOnQ", async () => {
+    const KNOWN = mbid(42);
+    const { fetch } = fakeFetch([
+      ["hackathon.api.qloo.com/search", () => json(200, { results: [qlooArtist(40, "Someone Else")] })],
+      ["hackathon.api.qloo.com/entities", (u) => (u.searchParams.get("external.musicbrainz.ids")?.includes(KNOWN) ? json(200, { results: [qlooArtist(41, "Famous Act", { mb: 42 })] }) : json(200, { results: [] }))],
+      ["hackathon.api.qloo.com/v2/insights", () => json(200, { results: { entities: [] } })],
+      ["musicbrainz.org/ws/2/artist", () => json(200, { artists: [{ id: KNOWN, name: "Famous Act", score: 80 }] })],
+      ["api.deezer.com/search/artist", () => json(200, { data: [] })],
+    ]);
+    const deps = { qloo: qlooClient({ apiKey: "c4", fetch }), fetch };
+    const asked = await resolveArtist("famus act", deps);
+    if (asked.servedBy !== "needs_choice") throw new Error("expected candidates");
+    expect(asked.candidates[0]).toMatchObject({ name: "Famous Act", inQloo: { entityId: qid(41), name: "Famous Act" } });
+    const picked = await resolveArtist("famus act", deps, { candidateKey: asked.candidates[0].key });
+    expect(picked).toEqual({ servedBy: "qloo", entity: expect.objectContaining({ entity_id: qid(41) }) });
+  });
+
   it("keeps a name nobody knows in the queue as demand, without an entity", async () => {
     const { fetch } = fakeFetch([...qloo404]);
     const ctx = { sql, qloo: qlooClient({ apiKey: "c3", fetch }), callerHash: "h", endpoint: "test", fetch };
