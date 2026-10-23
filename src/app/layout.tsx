@@ -34,7 +34,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               Proof
             </Link>
             <Link href="/docs" className="text-muted-foreground hover:text-foreground">
-              Use it
+              Docs
             </Link>
           </nav>
         </header>
