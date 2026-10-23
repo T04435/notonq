@@ -16,6 +16,8 @@ built from open sources, with a source on every value. Works with the Qloo API; 
 }
 ```
 
+> **Scope: artists only.** NotOnQ fills music artists; everything else is the harness talking to Qloo as usual.
+
 ## What changes compared with `qloo mcp`
 
 - **Same tools, same names, same envelope.** `qloo_describe`, `qloo_recommend`, `qloo_where_popular` and the rest come

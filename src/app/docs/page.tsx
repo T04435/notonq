@@ -1,4 +1,5 @@
 import { Code } from "@/components/code";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CodeBlock, CodeBlockContent, CodeBlockHeader, CodeBlockLine, CodeBlockTitle } from "@/components/ui/code-block";
 
 export const metadata = { title: "Use it · NotOnQ" };
@@ -44,6 +45,13 @@ export default function DocsPage() {
   return (
     <section className="flex max-w-3xl flex-col gap-6">
       <h1 className="text-2xl font-semibold">Use NotOnQ</h1>
+      <Alert>
+        <AlertTitle>Artists only, for this hackathon</AlertTitle>
+        <AlertDescription>
+          NotOnQ fills gaps for music artists (<code>urn:entity:artist</code>). Requests for any other entity type, and any request Qloo can answer, pass
+          straight through to Qloo unchanged.
+        </AlertDescription>
+      </Alert>
       <div className="flex flex-col gap-2">
         <h2 className="font-medium">Drop-in REST</h2>
         <p className="text-sm text-muted-foreground">

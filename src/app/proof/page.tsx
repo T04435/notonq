@@ -19,7 +19,7 @@ export default function ProofPage() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">Proof</h1>
         <p className="text-muted-foreground">
-          Live: every artist lookup NotOnQ has handled, through the playground, the drop-in API or MCP, updating as it happens. Below it, a fixed
+          Artists only. Live: every artist lookup NotOnQ has handled, through the playground, the drop-in API or MCP, updating as it happens. Below it, a fixed
           benchmark run that measures what live traffic can&apos;t.
         </p>
       </header>

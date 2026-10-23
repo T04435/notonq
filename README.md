@@ -6,6 +6,9 @@ developers actually hit can be ranked for import.
 
 Built for the Qloo Agentic Hackathon 2026. Works with the Qloo API; not affiliated with or endorsed by Qloo.
 
+> **Scope: artists only.** For the hackathon, NotOnQ fills gaps for music artists (`urn:entity:artist`), where the gap
+> is measured. Every other entity type, and every request Qloo can answer, passes straight through to Qloo unchanged.
+
 ## What it proves
 
 From one measured run ([`/proof`](src/app/proof/page.tsx), `scripts/proof.mts`):

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Playground } from "@/components/playground";
+import { Badge } from "@/components/ui/badge";
 
 export default function Home() {
   return (
@@ -10,6 +11,10 @@ export default function Home() {
           When the Qloo API has no data for an artist, NotOnQ returns the same shape from open sources, with a source on every value. Taste data still
           comes from Qloo, through similar artists it does know. Every answer is cached, and every request counts towards a ranked list of what Qloo
           is missing.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          <Badge variant="secondary">Artists only</Badge> For the Qloo Agentic Hackathon, NotOnQ fills music artists, where the gap is measured. Every
+          other entity type passes straight through to Qloo, unchanged.
         </p>
       </header>
       {/* The playground reads ?q= deep links, so it renders inside a Suspense boundary. */}
