@@ -90,6 +90,30 @@ describe("handleRest", () => {
     expect((out.body as { notonq: { proxy: { replaced: string[] } } }).notonq.proxy.replaced).toEqual([NEW]);
   });
 
+  it("compares audiences through the stand-ins of a NotOnQ artist in either group", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const seen: string[] = [];
+    const { fetch } = fakeFetch([
+      ["/v2/analysis/compare", (u) => (seen.push(u.searchParams.get("a.signal.interests.entities") ?? ""), json(200, { results: { a: [], b: [], tags: [] } }))],
+      ...qlooRoutes(counter),
+      ...openData,
+    ]);
+    await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const out = await handleRest({ path: "v2/analysis/compare", params: { "a.signal.interests.entities": NEW, "b.signal.interests.entities": qid(9) }, apiKey: "k" }, deps(fetch));
+    expect(out.servedBy).toBe("mixed");
+    expect(seen.at(-1)).toBe(`${qid(1)},${qid(2)}`);
+  });
+
+  it("answers empty, without asking Qloo, when a NotOnQ artist has no stand-ins", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const { fetch } = fakeFetch([...qlooRoutes(counter), ...openData.filter(([k]) => k !== "method=artist.getsimilar"), ["method=artist.getsimilar", () => json(200, { similarartists: { artist: [] } })]]);
+    await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const before = counter.insights.length;
+    const out = await handleRest({ path: "v2/insights", params: { "filter.type": "urn:heatmap", "signal.interests.entities": NEW }, apiKey: "k" }, deps(fetch));
+    expect(out).toMatchObject({ status: 200, servedBy: "fallback", body: { success: true, results: {} } });
+    expect(counter.insights.length).toBe(before);
+  });
+
   it("recovers a G2 Qloo ID by building its fallback and retrying with stand-ins", async () => {
     const counter = { search: 0, insights: [] as string[] };
     const { fetch } = fakeFetch([

@@ -3,59 +3,69 @@ import { SimpleTable } from "@/components/simple-table";
 
 export const metadata = { title: "MCP · NotOnQ" };
 
+const SETUP = `# Install Qloo's MCP server once (or use the one you have)
+npm install -g @qloo/qloo-harness
+
+# Run it against NotOnQ: only the base URL changes
+QLOO_API_KEY=<your Qloo key> \\
+QLOO_BASE_URL=https://<notonq-host>/q/app/my-app \\
+QLOO_TRUSTED_BASE_URL=https://<notonq-host>/q/app/my-app \\
+qloo mcp`;
+
 const CONFIG = `{
   "mcpServers": {
-    "notonq": {
-      "command": "npx",
-      "args": ["-y", "notonq", "mcp"],
+    "qloo": {
+      "command": "qloo",
+      "args": ["mcp"],
       "env": {
         "QLOO_API_KEY": "<your Qloo key>",
-        "NOTONQ_URL": "https://<notonq-host>",
-        "NOTONQ_APP": "my-app"
+        "QLOO_BASE_URL": "https://<notonq-host>/q/app/my-app",
+        "QLOO_TRUSTED_BASE_URL": "https://<notonq-host>/q/app/my-app"
       }
     }
   }
 }`;
 
-const FLOW = `qloo_describe { "entity": "victoria queen", "type": "artist" }
-→ status: "needs_input", notonq_candidates: [{ "key": "lf:victoria-queen", … }, …]
+// Real harness output (trimmed), 23 Oct 2026, base URL pointed at NotOnQ.
+const FLOW = `qloo_where_popular { "entity": "sombr", "within": "United States" }
+→ status: "ok", resolution.selected: {
+    "id": "502cf908-9921-48bc-bf0e-265c881c0156", "name": "sombr", "type": "urn:entity:artist",
+    "description": "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps,
+                    audiences) use similar artists Qloo knows: The Neighbourhood, Harry Styles, Wallows. …" }
+  results: [{ "location": { "geohash": "djn1", … }, "query": { "affinity": 1, … } }, …]
 
-notonq_fill { "name": "victoria queen", "candidate": "lf:victoria-queen" }
-→ status: "partial", results: [{ "entity_id": "notonq:dz:12775769", … }]
-
-qloo_recommend { "target_type": "artist", "signals": ["sombr"] }
-→ status: "partial", warnings: ["… "sombr" → The Neighbourhood, Harry Styles, Wallows, …"]`;
+qloo_where_popular { "entity": "Victoria Queen", "within": "United States" }
+→ status: "empty", resolution.selected: {
+    "id": "e1e3771f-bb8e-5289-b602-5c79b9b67223", "name": "Victoria Queen",
+    "description": "Not in Qloo: a possible match NotOnQ found on lastfm, deezer (4 Last.fm listeners, 2 Deezer fans). …" }
+  alternatives: Qloo's own (Victoria, Queen Victoria Market, …)`;
 
 export default function McpReference() {
   return (
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Install</h2>
+        <h2 className="text-lg font-medium">Use Qloo&apos;s own MCP server</h2>
         <p className="text-sm text-muted-foreground">
-          <code>notonq mcp</code> runs the official Qloo MCP server (<code>@qloo/qloo-harness</code>, unchanged) with NotOnQ behind it, through a
-          loopback-only proxy. Same tools, same names, same result envelope. Node 22.19 or later.
+          NotOnQ has no MCP server of its own. The official Qloo harness (<code>@qloo/qloo-harness</code>) runs unchanged, with its base URL pointed at
+          NotOnQ. Same tools, same arguments, same result envelope; the difference is in the data it gets back.
         </p>
-        <Code code={CONFIG} language="json" title="MCP client configuration" />
-        <SimpleTable
-          head={["Variable", "Required", "Use"]}
-          mono={[0]}
-          rows={[
-            ["QLOO_API_KEY", "yes", "Your Qloo key, forwarded per request, never stored"],
-            ["NOTONQ_URL", "no", "The NotOnQ host (default http://localhost:3400)"],
-            ["NOTONQ_APP", "no", "Your app's label in the Ledger and on Proof"],
-            ["LASTFM_API_KEY", "no", "Your own Last.fm key, if you want Last.fm data under your key"],
-          ]}
-        />
+        <Code code={SETUP} language="bash" title="Terminal" />
+        <Code code={CONFIG} language="json" title="Claude Desktop, Cursor or any MCP client" />
+        <p className="text-sm text-muted-foreground">
+          Both URLs must match: the harness only sends your key to a base URL you have marked as trusted. <code>my-app</code> names your app in the Ledger.
+        </p>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Statuses NotOnQ adds</h2>
+        <h2 className="text-lg font-medium">What the agent sees</h2>
         <SimpleTable
-          head={["status", "Means"]}
-          mono={[0]}
+          head={["Situation", "What happens"]}
           rows={[
-            ["partial", "Some of the result is NotOnQ's (a filled artist, or Qloo's answer for stand-ins). A warning names the stand-ins; notonq_provenance gives the sources."],
-            ["needs_input", "The artist name is ambiguous. notonq_candidates lists the options: ask the person, or pick from context, then call notonq_fill."],
+            ["Qloo knows the artist", "Nothing changes: Qloo's entity and answer."],
+            ["Qloo doesn't, one artist has that name", "The harness picks NotOnQ's entity by exact name. Its description starts \"Not in Qloo\" and names the stand-ins; Qloo's own matches stay as alternatives."],
+            ["Several artists share the name", "The harness asks which one (status needs_input), listing the real artists with country, listeners and sources. The agent passes the chosen ID back; NotOnQ fills it."],
+            ["Taste questions (recommend, maps, audiences)", "Qloo answers for the stand-ins, similar artists Qloo knows."],
+            ["No similar artist Qloo knows", "An empty answer (status empty). The label says what the artist is; nothing is guessed."],
           ]}
         />
       </section>
@@ -63,28 +73,28 @@ export default function McpReference() {
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">Tools</h2>
         <SimpleTable
-          head={["Tool", "With NotOnQ", "Checked"]}
+          head={["Tool", "With NotOnQ", "Checked live (23 Oct)"]}
           mono={[0]}
           rows={[
-            ["qloo_describe", "An artist Qloo lacks comes back filled (partial), or needs_input with candidates.", "end to end"],
-            ["qloo_recommend", "Signals Qloo can't use become stand-ins (partial). Exact names Qloo knows are passed as Qloo IDs, so it answers where the plain harness asks which one.", "end to end"],
-            ["qloo_rank", "Signals swapped like recommend; the options being ranked are left alone.", "end to end"],
-            ["qloo_compare_audiences", "group_a and group_b swapped like signals.", "end to end"],
-            ["qloo_where_popular", "Heatmap of the stand-ins, labelled partial.", "end to end"],
-            ["qloo_audience_demographics", "Age and gender skew of the stand-ins, labelled partial.", "end to end"],
-            ["qloo_entity_tags", "Tags of the stand-ins, labelled partial. (The harness returns broad tags across types even for artists Qloo knows.)", "end to end"],
-            ["qloo_trends", "Passes through; Qloo has had no trend data since about May 2026.", "end to end"],
+            ["qloo_describe", "An artist Qloo lacks resolves to NotOnQ's entity, labelled.", "sombr"],
+            ["qloo_where_popular", "Heatmap of the stand-ins; empty when there are none.", "sombr, Victoria Queen"],
+            ["qloo_recommend", "NotOnQ artists as signals become their stand-ins.", "sombr"],
+            ["qloo_rank", "Signals swapped; the options being ranked are left alone.", "sombr vs Harry Styles, Wallows"],
+            ["qloo_compare_audiences", "A NotOnQ artist in either group becomes its stand-ins.", "sombr vs Harry Styles"],
+            ["qloo_audience_demographics", "Age and gender skew of the stand-ins.", "sombr"],
+            ["qloo_entity_tags", "Tags of the stand-ins.", "sombr"],
+            ["qloo_trends", "Passes through; Qloo has had no trend data since about May 2026.", "not run"],
             ["qloo_capabilities, qloo_find_tags", "Unchanged.", "pass-through"],
-            ["notonq_candidates", "Every artist a name could be, across MusicBrainz, Last.fm and Deezer, flagged when Qloo already knows one.", "end to end"],
-            ["notonq_fill", "Fill from one candidate key: a Qloo-shaped entity with a notonq: ID, usable as a signal.", "end to end"],
-            ["notonq_provenance", "Source, record, licence and method for every value of a notonq: entity, plus its stand-ins.", "end to end"],
           ]}
         />
+        <p className="text-sm text-muted-foreground">
+          Sources for every value are on the REST response (<code>notonq.provenance</code>), in the playground and on each artist&apos;s Ledger page.
+        </p>
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">A typical exchange</h2>
-        <Code code={FLOW} language="bash" title="Agent calls" />
+        <h2 className="text-lg font-medium">A real exchange</h2>
+        <Code code={FLOW} language="bash" title="Harness calls, trimmed" />
       </section>
     </div>
   );

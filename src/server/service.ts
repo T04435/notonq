@@ -1,4 +1,4 @@
-// The service every door uses (playground, REST, MCP): look up an artist with the cache in front, record demand,
+// The service every door uses (playground, REST and the Qloo harness through it): look up an artist with the cache in front, record demand,
 // hand back candidates when the name is ambiguous, and close the loop when Qloo finally knows an artist we filled in.
 import { createHash } from "node:crypto";
 import { type ResolveOptions, resolveArtist, SOURCE_ERROR } from "@/server/engine/artist";

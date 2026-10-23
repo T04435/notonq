@@ -17,13 +17,13 @@ From one measured run ([`/proof`](src/app/proof/page.tsx), `scripts/proof.mts`):
 - NotOnQ builds a **sourced entity for 100%** of those gaps, and finds **stand-ins Qloo can answer for in 80%**.
 - Using stand-ins alone recovers **37%** of Qloo's own top-20 "fans also like" for artists Qloo does know (29% of the top 10).
 
-## Three ways in
+## Two ways in
 
 1. **Playground** (`/`): look up any artist and see what Qloo returned and what NotOnQ filled, with a citation on every value.
-2. **Drop-in REST** (`/q/*`): the same paths and parameters as the Qloo API, with your own `X-Api-Key`. Responses have
-   exactly Qloo's shape, and anything NotOnQ adds is prefixed `notonq:`. The official harness works too:
-   `QLOO_BASE_URL=https://<host>/q QLOO_TRUSTED_BASE_URL=https://<host>/q qloo mcp`.
-3. **MCP** (`npx notonq mcp`, [packages/mcp](packages/mcp)): the official Qloo harness, with gaps filled and labelled.
+2. **Drop-in REST and MCP** (`/q/*`): the same paths and parameters as the Qloo API, with your own `X-Api-Key`.
+   Qloo's results come first, unchanged; NotOnQ's artists are added after them in exactly Qloo's shape, with UUID IDs
+   and a "Not in Qloo" label in `short_description`. For MCP, run the official Qloo harness unchanged:
+   `QLOO_BASE_URL=https://<host>/q/app/my-app QLOO_TRUSTED_BASE_URL=https://<host>/q/app/my-app qloo mcp`.
 
 Docs live at `/docs` (REST and MCP reference), `/openapi.json`, and for agents `/llms.txt` and `/llms-full.txt`.
 
@@ -31,7 +31,7 @@ Docs live at `/docs` (REST and MCP reference), `/openapi.json`, and for agents `
 
 1. **Qloo first.** If Qloo knows the artist, its response passes through untouched.
 2. **Who could it be?** MusicBrainz, Last.fm and Deezer matches are merged. Only one confident exact MusicBrainz match
-   continues by itself; otherwise you choose (`notonq.candidate=<key>`).
+   continues by itself; otherwise every candidate is listed and you choose one by its ID.
 3. **Open data** for facts: MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer.
 4. **Stand-ins:** similar artists Qloo *does* know become the taste signal, so affinities, heatmaps and demographics
    still come from Qloo, labelled as coming from the stand-ins.

@@ -19,7 +19,7 @@ export default function ProofPage() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">Proof</h1>
         <p className="text-muted-foreground">
-          Artists only. Live: every artist lookup NotOnQ has handled, through the playground, the drop-in API or MCP, updating as it happens. Below it, a fixed
+          Artists only. Live: every artist lookup NotOnQ has handled, through the playground, the drop-in API or the Qloo harness, updating as it happens. Below it, a fixed
           benchmark run that measures what live traffic can&apos;t.
         </p>
       </header>
@@ -124,7 +124,7 @@ async function Live() {
         </Table>
       )}
       <p className="text-xs text-muted-foreground">
-        Each artist counts once, by the outcome of its latest lookup. Apps are the X-NotOnQ-App label callers send (unlabelled otherwise).
+        Each artist counts once, by the outcome of its latest lookup. Apps are the label callers give (/q/app/&lt;label&gt; or X-NotOnQ-App; unlabelled otherwise).
       </p>
     </div>
   );

@@ -44,6 +44,7 @@ export async function handleRest(req: RestRequest, deps: RestDeps): Promise<Rest
     if (path === "search" && req.params.query && artistScope(req.params.types)) return await search(req, ctx, options);
     if (path === "entities" && req.params.entity_ids) return await entities(req, ctx);
     if (path === "v2/insights") return await insights(req, ctx);
+    if (path === "v2/analysis/compare") return await compare(req, ctx);
     const res = await qloo.get(`/${path}`, req.params);
     return { status: res.status || 502, body: res.json, servedBy: "qloo" };
   } catch (e) {
@@ -184,10 +185,36 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   };
 }
 
+/** Audience comparison: each group's NotOnQ artists become their stand-ins (Qloo would silently drop our IDs). */
+async function compare(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
+  const groups = Object.keys(req.params).filter((k) => k.endsWith("signal.interests.entities"));
+  const ids = groups.flatMap((k) => req.params[k].split(",").map((s) => s.trim()).filter(Boolean));
+  const replaced = new Map([...(await oursFor(ids, ctx))].filter(([, f]) => f.standIns.length));
+  const params = { ...req.params };
+  for (const k of groups) params[k] = withSignal(req.params, req.params[k].split(",").map((s) => s.trim()).filter(Boolean), replaced)["signal.interests.entities"];
+  const res = await ctx.qloo.get("/v2/analysis/compare", params);
+  if (!replaced.size) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+  for (const f of replaced.values())
+    await logRequest(ctx.sql, { nameKey: f.nameKey, entityId: f.id, endpoint: ctx.endpoint, servedBy: "mixed", gapKind: f.gapKind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: true });
+  const body = res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { message: qlooMessage(res.json) };
+  return {
+    status: res.status || 502,
+    body: {
+      ...body,
+      notonq: {
+        served_by: "mixed",
+        proxy: { replaced: [...replaced.keys()], stand_ins: [...replaced.values()].flatMap(standInsOf) },
+        note: "Groups with NotOnQ artists were compared through their stand-ins, similar artists Qloo knows.",
+      },
+    },
+    servedBy: "mixed",
+  };
+}
+
 type SignalItem = string | { id: string; weight?: number };
 
 /** POST /v2/insights: `signal.interests.entities` may be a list of IDs or of {id, weight} (Qloo's live format, checked
- * 23 Oct 2026: "an array of UUID strings and/or objects with an id property"). notonq: IDs, and Qloo IDs
+ * 23 Oct 2026: "an array of UUID strings and/or objects with an id property"). NotOnQ IDs, and Qloo IDs
  * Qloo can't use as a signal, become their stand-ins in the same form (weights scaled by each stand-in's match). */
 async function insightsPost(body: Record<string, unknown>, ctx: Ctx): Promise<RestResponse> {
   const raw = body["signal.interests.entities"];
