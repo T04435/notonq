@@ -106,6 +106,30 @@ describe("handleRest", () => {
     expect(counter.insights.at(-1)).toBe(`${qid(1)},${qid(2)}`);
   });
 
+  it("swaps notonq: IDs in a POST /v2/insights body, keeping weighted objects weighted", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const { fetch, bodies } = fakeFetch([...qlooRoutes(counter), ...openData]);
+    await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const out = await handleRest(
+      {
+        path: "v2/insights",
+        params: {},
+        apiKey: "k",
+        body: { "filter.type": "urn:entity:place", "signal.interests.entities": [{ id: `notonq:mbid:${NEW}`, weight: 0.5 }, { id: qid(9), weight: 1 }] },
+      },
+      deps(fetch),
+    );
+    expect(out.servedBy).toBe("mixed");
+    expect(bodies.at(-1)).toEqual({
+      "filter.type": "urn:entity:place",
+      "signal.interests.entities": [
+        { id: qid(1), weight: 0.45 },
+        { id: qid(2), weight: 0.45 },
+        { id: qid(9), weight: 1 },
+      ],
+    });
+  });
+
   it("passes anything else straight through", async () => {
     const { fetch } = fakeFetch([["/v2/tags", () => json(200, { results: { tags: [] } })]]);
     const out = await handleRest({ path: "v2/tags", params: { "filter.query": "folk" }, apiKey: "k" }, deps(fetch));

@@ -45,8 +45,22 @@ export function cachedQloo(client: QlooClient, sql: Sql, callerHash: string, bud
     if (CACHEABLE.has(res.status)) await qlooCachePut(sql, callerHash, key, res.status, res.json);
     return res;
   };
+  const post: QlooClient["post"] = async (path, body) => {
+    const key = createHash("sha256").update(`POST ${path} ${JSON.stringify(body)}`).digest("hex");
+    const hit = await qlooCacheGet(sql, callerHash, key);
+    if (hit) {
+      hits++;
+      return { status: hit.status, ok: hit.status >= 200 && hit.status < 300, json: hit.body, ms: 0, url: path } satisfies HttpResult;
+    }
+    if (budget > 0 && (await qlooCallsToday(sql, callerHash)) >= budget) throw new QlooBudgetExceeded(budget);
+    await countQlooCall(sql, callerHash);
+    const res = await client.post(path, body);
+    if (CACHEABLE.has(res.status)) await qlooCachePut(sql, callerHash, key, res.status, res.json);
+    return res;
+  };
   return {
     get,
+    post,
     searchArtist: (name, take = 5) => get("/search", { query: name, types: "urn:entity:artist", take }),
     entitiesByMbids: (mbids) => get("/entities", { "external.musicbrainz.ids": mbids.join(",") }),
     insights: (params) => get("/v2/insights", params),

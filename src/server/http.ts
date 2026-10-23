@@ -16,12 +16,20 @@ export const USER_AGENT = "NotOnQ/0.1 (+https://github.com/T04435/notonq)";
 
 export async function getJson(
   url: string,
-  { fetch: f = fetch, headers = {}, timeoutMs = 15_000 }: { fetch?: Fetch; headers?: Record<string, string>; timeoutMs?: number } = {},
+  {
+    fetch: f = fetch,
+    headers = {},
+    timeoutMs = 15_000,
+    method = "GET",
+    body,
+  }: { fetch?: Fetch; headers?: Record<string, string>; timeoutMs?: number; method?: "GET" | "POST"; body?: unknown } = {},
 ): Promise<HttpResult> {
   const started = Date.now();
   try {
     const res = await f(url, {
-      headers: { "User-Agent": USER_AGENT, Accept: "application/json", ...headers },
+      method,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json", ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers },
       signal: AbortSignal.timeout(timeoutMs),
     });
     const text = await res.text();

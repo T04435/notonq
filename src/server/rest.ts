@@ -16,6 +16,8 @@ export type RestRequest = {
   apiKey?: string;
   lastfmKey?: string;
   appLabel?: string;
+  /** POST requests carry Qloo's parameters in a JSON body instead of the query string. */
+  body?: Record<string, unknown>;
 };
 
 export type RestDeps = { sql: Sql; baseUrl: string; salt: string; fetch?: Fetch; defer?: Ctx["defer"]; research?: Ctx["research"] };
@@ -34,6 +36,11 @@ export async function handleRest(req: RestRequest, deps: RestDeps): Promise<Rest
   req = { ...req, params: Object.fromEntries(Object.entries(req.params).filter(([k]) => !k.startsWith("notonq."))) };
 
   try {
+    if (req.body) {
+      if (path === "v2/insights") return await insightsPost(req.body, ctx);
+      const res = await qloo.post(`/${path}`, req.body);
+      return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+    }
     if (path === "search" && req.params.query && isArtistOnly(req.params.types)) return await search(req, ctx, options);
     if (path === "entities" && (req.params.entity_ids ?? "").split(",").some((id) => NOTONQ_ID.test(id))) return await entities(req, ctx);
     if (path === "v2/insights") return await insights(req, ctx);
@@ -124,6 +131,55 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
           replaced: [...replaced.keys()],
           stand_ins: [...replaced.values()].flatMap(standInsOf),
         },
+        note: "Results are Qloo's answer for the stand-ins listed, used in place of artists Qloo has no taste data for.",
+      },
+    },
+    servedBy: "mixed",
+  };
+}
+
+type SignalItem = string | { id: string; weight?: number };
+
+/** POST /v2/insights: `signal.interests.entities` may be a list of IDs or of {id, weight} (Qloo's live format, checked
+ * 23 Oct 2026: "an array of UUID strings and/or objects with an id property"). notonq: IDs, and Qloo IDs
+ * Qloo can't use as a signal, become their stand-ins in the same form (weights scaled by each stand-in's match). */
+async function insightsPost(body: Record<string, unknown>, ctx: Ctx): Promise<RestResponse> {
+  const raw = body["signal.interests.entities"];
+  const items: SignalItem[] = Array.isArray(raw) ? (raw as SignalItem[]) : typeof raw === "string" ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  const idOf = (i: SignalItem) => (typeof i === "string" ? i : i.id);
+  const replaced = new Map<string, StoredFallback>();
+  for (const id of items.map(idOf).filter((s) => NOTONQ_ID.test(s))) {
+    const f = await findFallback(ctx.sql, { id });
+    if (f) replaced.set(id, f);
+  }
+  const rewrite = () => {
+    if (!items.length) return body;
+    const out = items.flatMap((i) => {
+      const f = replaced.get(idOf(i));
+      if (!f) return [i];
+      return f.standIns.map((s) => (typeof i === "string" ? s.entityId : { id: s.entityId, weight: Math.round((i.weight ?? 1) * s.weight * 1000) / 1000 }));
+    });
+    return { ...body, "signal.interests.entities": out };
+  };
+  let res = await ctx.qloo.post("/v2/insights", rewrite());
+  if (res.status === 400 && readInsightsSafe(res)) {
+    for (const id of items.map(idOf).filter((s) => !NOTONQ_ID.test(s) && !replaced.has(s))) {
+      const f = await fallbackForQlooId(id, ctx);
+      if (f?.standIns.length) replaced.set(id, f);
+    }
+    res = await ctx.qloo.post("/v2/insights", rewrite());
+  }
+  if (!replaced.size) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+  for (const f of replaced.values())
+    await logRequest(ctx.sql, { nameKey: f.nameKey, entityId: f.id, endpoint: ctx.endpoint, servedBy: "mixed", gapKind: f.gapKind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: true });
+  const resBody = res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { message: qlooMessage(res.json) };
+  return {
+    status: res.status || 502,
+    body: {
+      ...resBody,
+      notonq: {
+        served_by: "mixed",
+        proxy: { replaced: [...replaced.keys()], stand_ins: [...replaced.values()].flatMap(standInsOf) },
         note: "Results are Qloo's answer for the stand-ins listed, used in place of artists Qloo has no taste data for.",
       },
     },

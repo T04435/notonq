@@ -49,8 +49,16 @@ export function qlooClient({ apiKey, baseUrl = QLOO_HACKATHON_BASE, fetch: f }: 
     return first.status === 429 ? call() : first;
   }
 
+  /** POST with a JSON body (Qloo accepts POST on /v2/insights for array and weighted parameters). */
+  async function post(path: string, body: Record<string, unknown>): Promise<HttpResult> {
+    const call = () => pace(() => getJson(`${baseUrl}${path}`, { fetch: f, method: "POST", body, headers: { "X-Api-Key": apiKey } }));
+    const first = await call();
+    return first.status === 429 ? call() : first;
+  }
+
   return {
     get,
+    post,
     searchArtist: (name: string, take = 5) => get("/search", { query: name, types: ARTIST, take }),
     entitiesByMbids: (mbids: string[]) => get("/entities", { "external.musicbrainz.ids": mbids.join(",") }),
     insights: (params: Record<string, string | number | undefined>) => get("/v2/insights", params),

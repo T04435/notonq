@@ -11,13 +11,16 @@ export const json = (status: number, body: unknown) =>
 /** A fetch that answers by the first matching URL substring, and records every URL it was asked for. */
 export function fakeFetch(routes: [match: string, respond: (url: URL) => Response][]) {
   const calls: string[] = [];
-  const f = (async (input: RequestInfo | URL) => {
+  /** JSON bodies of POST requests, in order. */
+  const bodies: unknown[] = [];
+  const f = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
     calls.push(url.href);
+    if (typeof init?.body === "string") bodies.push(JSON.parse(init.body));
     const hit = routes.find(([m]) => url.href.includes(m));
     return hit ? hit[1](url) : json(404, { message: "no fixture" });
   }) as Fetch;
-  return { fetch: f, calls };
+  return { fetch: f, calls, bodies };
 }
 
 export const qlooArtist = (n: number, name: string, opts: { popularity?: number; mb?: number; listeners?: number } = {}) => ({
