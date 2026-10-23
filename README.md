@@ -32,7 +32,7 @@ From one measured run ([`/proof`](src/app/proof/page.tsx), `scripts/proof.mts`):
    still come from Qloo, labelled as coming from the stand-ins.
 5. **Research (tier 3):** for what's still missing, a web research agent returns claims with a URL and an exact quote.
    Plain code re-fetches every page and keeps only quotes it finds there.
-6. **Cache and demand:** every answer is cached, and every request counts towards an import queue (`/ledger`) of what
+6. **Cache and demand:** every answer is cached, and every request counts towards the Ledger (`/ledger`), a ranked list of what
    Qloo is missing. It holds IDs and demand only, never copied data.
 
 Anything else is marked `unavailable`. Nothing is invented.

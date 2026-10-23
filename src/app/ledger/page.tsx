@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -8,13 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { db } from "@/server/store/db";
 import { importQueue, totals } from "@/server/store/repo";
 
-export const metadata = { title: "Import queue · NotOnQ" };
+export const metadata = { title: "Ledger · NotOnQ" };
 
 export default function LedgerPage() {
   return (
     <section className="flex flex-col gap-6">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Import queue</h1>
+        <h1 className="text-2xl font-semibold">Ledger</h1>
         <p className="text-muted-foreground">
           Artists developers asked for that Qloo had no data for, ranked by how many separate callers asked. Each row carries only IDs Qloo&apos;s own
           /entities endpoint accepts and the stand-ins Qloo already knows: no copied data.
@@ -44,7 +45,7 @@ async function Queue() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        {t.entities} missing artists · {t.gapRequests} gap requests · {t.cacheHits} served from cache · {t.callers} distinct callers · updates live
+        {t.entities} missing artists · {t.gapRequests} gap requests · {t.cacheHits} served from cache · {t.callers} distinct callers · updates live · click an artist to see its results
       </p>
       <Table>
         <TableHeader>
@@ -61,7 +62,9 @@ async function Queue() {
           {rows.map((r) => (
             <TableRow key={r.nameKey}>
               <TableCell className="font-medium">
-                {r.name ?? r.query}
+                <Link href={`/ledger/${encodeURIComponent(r.nameKey)}`} className="underline-offset-4 hover:underline">
+                  {r.name ?? r.query}
+                </Link>
                 {!r.entityId && (
                   <Badge variant="outline" className="ml-2">
                     {r.askedToChoose ? "awaiting a choice" : "nothing found yet"}

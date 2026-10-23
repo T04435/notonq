@@ -8,9 +8,9 @@ import { ARTIST, entitiesOf, type QlooClient, qlooClient } from "@/server/qloo/c
 import { sameName } from "@/server/qloo/gap";
 import { cachedQloo } from "@/server/qloo/cached";
 import { needsResearch, researchEnabled } from "@/server/research/run";
-import { blockFor, type NotOnQBlock } from "@/server/respond";
+import { blockFor, fallbackBlock, type NotOnQBlock } from "@/server/respond";
 import type { Sql } from "@/server/store/db";
-import type { StoredFallback } from "@/server/store/repo";
+import type { Demand, StoredFallback } from "@/server/store/repo";
 import { type Ctx, hashCaller, type Lookup, lookupArtist } from "@/server/service";
 
 export type Step = { title: string; detail: string; status?: "error" | "pending" };
@@ -122,6 +122,44 @@ export async function playgroundLookup(
     alsoLike,
     dropIn: { request: dropInRequest(name, f.candidateKey), response: { results: f.entity ? [f.entity] : [], notonq } },
   });
+}
+
+/** A stored fill as a read-only view for the Ledger: no lookup, no Qloo call, nothing counted as demand. */
+export function storedView(f: StoredFallback, demand: Demand): PlaygroundView {
+  const steps: Step[] = [
+    {
+      title: "Qloo",
+      status: "error",
+      detail: f.gapKind === "G2" ? "Found in Qloo search, but not usable as a taste signal" : "Qloo had no artist with this name when it was asked",
+    },
+    { title: "Filled", detail: `First filled ${new Date(f.createdAt).toUTCString()}, last refreshed ${new Date(f.refreshedAt).toUTCString()}` },
+  ];
+  if (f.entity)
+    steps.push({
+      title: "Stand-ins",
+      detail: f.standIns.length ? `${f.standIns.length} similar artists Qloo knows: ${f.standIns.map((s) => s.name).join(", ")}` : "No similar artist known to Qloo",
+      status: f.standIns.length ? undefined : "error",
+    });
+  if (f.entity) steps.push(researchStep(f));
+  steps.push({ title: "Demand", detail: demandText(demand) });
+  const notonq = fallbackBlock(f, demand, { hit: true });
+  return {
+    query: f.name,
+    servedBy: "fallback",
+    qloo: {
+      status: f.gapKind === "G2" ? 400 : 404,
+      label: f.gapKind === "G2" ? "400 not in taste graph" : "no match",
+      summary: f.gapKind === "G2" ? "Qloo can find the name but has no taste data for it." : "Qloo has no artist with this name.",
+    },
+    entity: f.entity,
+    candidates: [],
+    candidateKey: f.candidateKey,
+    notonq,
+    alsoLike: { names: [], via: "none", note: "Open it in the playground to see Qloo's live answer for the stand-ins" },
+    dropIn: { request: dropInRequest(f.name, f.candidateKey), response: { results: f.entity ? [f.entity] : [], notonq } },
+    steps,
+    ms: 0,
+  };
 }
 
 function researchStep(f: StoredFallback): Step {

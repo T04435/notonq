@@ -28,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               Playground
             </Link>
             <Link href="/ledger" className="text-muted-foreground hover:text-foreground">
-              Import queue
+              Ledger
             </Link>
             <Link href="/proof" className="text-muted-foreground hover:text-foreground">
               Proof

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Playground } from "@/components/playground";
 
 export default function Home() {
@@ -11,7 +12,10 @@ export default function Home() {
           is missing.
         </p>
       </header>
-      <Playground />
+      {/* The playground reads ?q= deep links, so it renders inside a Suspense boundary. */}
+      <Suspense>
+        <Playground />
+      </Suspense>
     </section>
   );
 }

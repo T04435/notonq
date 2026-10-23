@@ -211,7 +211,7 @@ export type QueueRow = {
   resolvedByQlooAt?: string;
 };
 
-/** The import queue: every name Qloo had a gap for, ranked by distinct callers, then requests, then recency, with
+/** The Ledger: every name Qloo had a gap for, ranked by distinct callers, then requests, then recency, with
  * the entity NotOnQ filled for it (if any). Names nobody could fill are kept: demand without data is the point. */
 export async function importQueue(sql: Sql, limit = 50): Promise<QueueRow[]> {
   const rows = await sql(
@@ -249,6 +249,20 @@ export async function totals(sql: Sql) {
             (SELECT count(DISTINCT caller_hash)::int FROM requests WHERE served_by <> 'qloo') AS callers`,
   );
   return { entities: Number(r.entities), gapRequests: Number(r.gap_requests), cacheHits: Number(r.cache_hits), callers: Number(r.callers) };
+}
+
+/** Where one artist's demand came from: lookups per app, plus the name as last typed. */
+export async function demandByApp(sql: Sql, nameKey: string) {
+  const rows = await sql(
+    `SELECT coalesce(app_label, 'unlabelled') AS app, count(*)::int AS requests, count(DISTINCT caller_hash)::int AS callers, max(created_at) AS last
+     FROM requests WHERE name_key = $1 AND served_by <> 'qloo' GROUP BY 1 ORDER BY 2 DESC`,
+    [nameKey],
+  );
+  const [q] = await sql(`SELECT query FROM requests WHERE name_key = $1 AND query IS NOT NULL ORDER BY created_at DESC LIMIT 1`, [nameKey]);
+  return {
+    query: (q?.query as string) ?? nameKey,
+    apps: rows.map((r) => ({ app: String(r.app), requests: Number(r.requests), callers: Number(r.callers), last: iso(r.last) })),
+  };
 }
 
 /** Real Qloo calls made today for one caller (cache hits don't count). */

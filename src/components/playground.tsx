@@ -1,7 +1,8 @@
 "use client";
 
 import { CircleCheckIcon, CircleXIcon, DatabaseIcon, SearchIcon, UserIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { CodeBlock, CodeBlockCopyButton } from "@/components/ai-elements/code-block";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { CitedValue } from "@/components/cited-value";
@@ -26,6 +27,17 @@ export function Playground() {
   const [view, setView] = useState<PlaygroundView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
+
+  // Deep links from the Ledger: /?q=<name>[&candidate=<key>|&choose=1] runs that lookup once on arrival.
+  const params = useSearchParams();
+  const started = useRef(false);
+  useEffect(() => {
+    const q = params.get("q");
+    if (!q || started.current) return;
+    started.current = true;
+    void run(q, { candidate: params.get("candidate") ?? undefined, choose: params.get("choose") === "1" || undefined });
+    // Only the first arrival triggers a lookup (the ref guards re-renders).
+  }, [params]);
 
   // While research runs in the background, check back every 5 s (up to 2 minutes) for the filled-in result.
   const researching = view?.notonq.research?.status === "pending";
@@ -124,7 +136,8 @@ export function Playground() {
   );
 }
 
-function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose: (key: string) => void; onShowAll: () => void }) {
+/** One artist's result. Shared by the playground (live lookup) and the Ledger's read-only page (no callbacks there). */
+export function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose?: (key: string) => void; onShowAll?: () => void }) {
   const p = view.notonq.provenance ?? {};
   const e = view.entity;
   const ext = e?.properties.external;
@@ -192,7 +205,7 @@ function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose:
         </Card>
       </div>
 
-      {view.servedBy === "needs_choice" && <Candidates candidates={view.candidates} onChoose={onChoose} />}
+      {view.servedBy === "needs_choice" && onChoose && <Candidates candidates={view.candidates} onChoose={onChoose} />}
 
       {e && view.notonq.confidence === "low" && (
         <Alert>
@@ -201,7 +214,7 @@ function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose:
         </Alert>
       )}
 
-      {view.servedBy === "fallback" && (
+      {view.servedBy === "fallback" && onShowAll && (
         <Button variant="link" className="w-fit px-0" onClick={onShowAll}>
           Not this artist? See every match
         </Button>
@@ -278,7 +291,7 @@ function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose:
           <CodeBlockCopyButton />
         </CodeBlock>
       </div>
-      <p className="text-xs text-muted-foreground">Looked up in {(view.ms / 1000).toFixed(1)} s.</p>
+      {view.ms > 0 && <p className="text-xs text-muted-foreground">Looked up in {(view.ms / 1000).toFixed(1)} s.</p>}
     </div>
   );
 }
