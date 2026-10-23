@@ -51,25 +51,27 @@ async function Live() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader>
-            <CardDescription>Artists Qloo couldn&apos;t use</CardDescription>
-            <CardTitle className="text-3xl">{pct(s.gapRatePct)}</CardTitle>
+            <CardDescription>Artists NotOnQ answered</CardDescription>
+            <CardTitle className="text-3xl">{f.artists}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {s.gaps} of {s.artists} artists looked up ({s.unknownG1} unknown, {s.notInTasteGraphG2} not in the taste graph), {s.lookups} lookups in all
+            of {s.artists} artists looked up ({pct(s.gapRatePct)} needed NotOnQ: {s.unknownG1} unknown to Qloo, {s.notInTasteGraphG2} not in its taste graph);{" "}
+            {s.lookups} lookups in all
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardDescription>Gaps NotOnQ filled</CardDescription>
-            <CardTitle className="text-3xl">{pct(f.entityPct)}</CardTitle>
+            <CardDescription>Taste answers through stand-ins</CardDescription>
+            <CardTitle className="text-3xl">{pct(f.standInsPct)}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {f.artists} filled with a sourced entity; {s.awaitingChoice} waiting for someone to choose which artist; {pct(f.standInsPct)} of fills have stand-ins
+            of NotOnQ&apos;s answers can still get Qloo&apos;s recommendations, heatmaps and demographics, via similar artists Qloo knows;{" "}
+            {s.standInSwaps} such calls so far; {s.awaitingChoice} waiting for someone to choose which artist
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardDescription>Served from cache</CardDescription>
+            <CardDescription>Instant from cache</CardDescription>
             <CardTitle className="text-3xl">{pct(s.cacheHitPct)}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
@@ -81,13 +83,14 @@ async function Live() {
       <Table>
         <TableBody>
           {[
-            ["Fills with stand-ins Qloo can answer for", pct(f.standInsPct)],
-            ["Fills with derived popularity", pct(f.popularityPct)],
-            ["Fills with genres", pct(f.genresPct)],
-            ["Fills with a description", pct(f.descriptionPct)],
-            ["Fills with an image", pct(f.imagePct)],
+            ["NotOnQ answers with a sourced entity", pct(f.entityPct)],
+            ["NotOnQ answers with stand-ins Qloo can answer for", pct(f.standInsPct)],
+            ["…with derived popularity", pct(f.popularityPct)],
+            ["…with genres", pct(f.genresPct)],
+            ["…with a description", pct(f.descriptionPct)],
+            ["…with an image", pct(f.imagePct)],
             ["Low confidence (no MusicBrainz record)", pct(f.lowConfidencePct)],
-            ["Cited fields per fill, on average", String(f.meanCitedFields)],
+            ["Cited fields per answer, on average", String(f.meanCitedFields)],
             ["Research runs · verified claims · rejected claims", `${s.research.runs} · ${s.research.verifiedClaims} · ${s.research.rejectedClaims}`],
           ].map(([label, v]) => (
             <TableRow key={label}>
@@ -105,7 +108,7 @@ async function Live() {
               <TableHead>App</TableHead>
               <TableHead className="text-right">Lookups</TableHead>
               <TableHead className="text-right">Artists</TableHead>
-              <TableHead className="text-right">Qloo couldn&apos;t use</TableHead>
+              <TableHead className="text-right">Needed NotOnQ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

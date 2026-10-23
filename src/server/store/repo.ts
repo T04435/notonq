@@ -241,6 +241,60 @@ export async function importQueue(sql: Sql, limit = 50): Promise<QueueRow[]> {
   }));
 }
 
+export type Answer = "notonq" | "qloo" | "choice" | "none";
+
+export type LedgerRow = {
+  nameKey: string;
+  name: string;
+  answer: Answer;
+  entityId?: string;
+  confidence?: Confidence;
+  standIns: StandIn[];
+  requests: number;
+  callers: number;
+  apps: string[];
+  lastRequested: string;
+  resolvedByQlooAt?: string;
+};
+
+/** The Ledger: every artist looked up through NotOnQ (any door) and how its latest lookup was answered: by NotOnQ,
+ * by Qloo, waiting for someone to choose which artist, or nothing found yet. Newest first. */
+export async function ledger(sql: Sql, limit = 200): Promise<LedgerRow[]> {
+  const rows = await sql(
+    `WITH lk AS (
+       SELECT * FROM requests WHERE served_by IN ('qloo', 'fallback', 'needs_choice', 'mixed')
+     ), latest AS (
+       SELECT DISTINCT ON (name_key) name_key, served_by AS outcome, entity_id, query
+       FROM lk WHERE served_by IN ('qloo', 'fallback', 'needs_choice') ORDER BY name_key, created_at DESC
+     ), agg AS (
+       SELECT name_key, count(*)::int AS requests, count(DISTINCT caller_hash)::int AS callers,
+              array_agg(DISTINCT coalesce(app_label, 'unlabelled')) AS apps, max(created_at) AS last
+       FROM lk GROUP BY name_key
+     )
+     SELECT a.*, l.outcome, l.entity_id, l.query, f.name, f.confidence, f.stand_ins, f.resolved_by_qloo_at, f.entity IS NOT NULL AS filled
+     FROM agg a JOIN latest l USING (name_key) LEFT JOIN fallback_entities f ON f.id = l.entity_id
+     ORDER BY a.last DESC LIMIT $1`,
+    [limit],
+  );
+  return rows.map((r) => {
+    const outcome = String(r.outcome);
+    const answer: Answer = outcome === "qloo" ? "qloo" : outcome === "needs_choice" ? "choice" : r.filled ? "notonq" : "none";
+    return {
+      nameKey: String(r.name_key),
+      name: (answer === "notonq" ? (r.name as string) : undefined) ?? String(r.query ?? r.name_key),
+      answer,
+      entityId: answer === "notonq" ? ((r.entity_id as string) ?? undefined) : undefined,
+      confidence: (r.confidence as Confidence) ?? undefined,
+      standIns: answer === "notonq" ? json(r.stand_ins, []) : [],
+      requests: Number(r.requests),
+      callers: Number(r.callers),
+      apps: (Array.isArray(r.apps) ? r.apps : json<string[]>(r.apps, [])).map(String),
+      lastRequested: iso(r.last)!,
+      resolvedByQlooAt: iso(r.resolved_by_qloo_at),
+    };
+  });
+}
+
 export async function totals(sql: Sql) {
   const [r] = await sql(
     `SELECT (SELECT count(DISTINCT name_key)::int FROM requests WHERE served_by <> 'qloo') AS entities,
@@ -255,12 +309,17 @@ export async function totals(sql: Sql) {
 export async function demandByApp(sql: Sql, nameKey: string) {
   const rows = await sql(
     `SELECT coalesce(app_label, 'unlabelled') AS app, count(*)::int AS requests, count(DISTINCT caller_hash)::int AS callers, max(created_at) AS last
-     FROM requests WHERE name_key = $1 AND served_by <> 'qloo' GROUP BY 1 ORDER BY 2 DESC`,
+     FROM requests WHERE name_key = $1 GROUP BY 1 ORDER BY 2 DESC`,
     [nameKey],
   );
   const [q] = await sql(`SELECT query FROM requests WHERE name_key = $1 AND query IS NOT NULL ORDER BY created_at DESC LIMIT 1`, [nameKey]);
+  const [o] = await sql(
+    `SELECT served_by FROM requests WHERE name_key = $1 AND served_by IN ('qloo', 'fallback', 'needs_choice') ORDER BY created_at DESC LIMIT 1`,
+    [nameKey],
+  );
   return {
     query: (q?.query as string) ?? nameKey,
+    latest: (o?.served_by as string) ?? undefined,
     apps: rows.map((r) => ({ app: String(r.app), requests: Number(r.requests), callers: Number(r.callers), last: iso(r.last) })),
   };
 }

@@ -22,7 +22,7 @@ values are never changed.
 
 ## Optional
 
-- [Ledger]({origin}/ledger): artists developers asked for that Qloo had no data for, ranked by distinct callers
+- [Ledger]({origin}/ledger): every artist looked up through NotOnQ, which app asked, and whether Qloo or NotOnQ answered
 - [Proof]({origin}/proof): live numbers from every lookup, and a dated benchmark run
 - [Playground]({origin}/): look up an artist and see Qloo's answer beside NotOnQ's
 `;
@@ -156,7 +156,7 @@ Qloo response data is stored publicly).
 
 - Fallbacks are shared (open data): filled artists refresh weekly; misses and fills with a failed source retry after a day.
 - Qloo responses are cached per caller key only.
-- Every gap request counts towards the Ledger ({origin}/ledger) against a salted hash of the key and the app label.
+- Every artist lookup counts towards the Ledger ({origin}/ledger) against a salted hash of the key and the app label.
 - Research (when the host has AI Gateway access): runs once per artist in the background after a fill with fields
   missing; the answer never waits for it; the next request gets the result.
 

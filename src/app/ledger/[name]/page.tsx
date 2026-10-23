@@ -39,6 +39,21 @@ async function Entry({ params }: { params: PageProps<"/ledger/[name]">["params"]
   const [f, demand, origin] = await Promise.all([findFallback(sql, { nameKey }), demandFor(sql, nameKey), demandByApp(sql, nameKey)]);
   const play = (extra: Record<string, string> = {}) => `/?${new URLSearchParams({ q: origin.query, ...extra })}`;
 
+  if (origin.latest === "qloo")
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>{origin.query}</EmptyTitle>
+          <EmptyDescription>Answered by Qloo: it has this artist, so NotOnQ stepped aside and passed Qloo&apos;s answer through unchanged.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild>
+            <Link href={play()}>See Qloo&apos;s answer in the playground</Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+
   if (!f?.entity)
     return (
       <Empty>
