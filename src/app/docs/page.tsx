@@ -1,4 +1,5 @@
-import { CodeBlock } from "@/components/ai-elements/code-block";
+import { Code } from "@/components/code";
+import { CodeBlock, CodeBlockContent, CodeBlockHeader, CodeBlockLine, CodeBlockTitle } from "@/components/ui/code-block";
 
 export const metadata = { title: "Use it · NotOnQ" };
 
@@ -17,11 +18,27 @@ QLOO_BASE_URL=https://<notonq-host>/q \\
 QLOO_TRUSTED_BASE_URL=https://<notonq-host>/q \\
 qloo mcp`;
 
-const SHAPE = `// Qloo                                     // NotOnQ fallback
-"entity_id": "B8BEE72B-…",                 "entity_id": "notonq:mbid:502cf908-…",
-"tags": [{ "tag_id": "urn:tag:genre:folk",  "tags": [{ "tag_id": "notonq:urn:tag:genre:bedroom_pop",
-           "type": "urn:tag:genre", … }],             "type": "urn:tag:genre", … }],
-"external": { "lastfm": { "id", "listeners", "scrobbles" }, … }   // same, plus "notonq:deezer": { "id", "fans" }`;
+// One artist response side by side: Qloo's on the left, NotOnQ's on the right. A row is [left, right]; null means the
+// line exists on one side only. Changed lines are marked removed (left) and added (right); the rest are identical.
+type Side = string | null;
+const SPLIT: [left: Side, right: Side][] = [
+  ["{", "{"],
+  ['  "results": [{', '  "results": [{'],
+  ['    "entity_id": "B8BEE72B-…",', '    "entity_id": "notonq:mbid:502cf908-…",'],
+  ['    "name": "sombr",', '    "name": "sombr",'],
+  ['    "types": ["urn:entity:artist"],', '    "types": ["urn:entity:artist"],'],
+  ['    "tags": [{', '    "tags": [{'],
+  ['      "tag_id": "urn:tag:genre:pop",', '      "tag_id": "notonq:urn:tag:genre:pop",'],
+  ['      "type": "urn:tag:genre"', '      "type": "urn:tag:genre"'],
+  ["    }],", "    }],"],
+  ['    "properties": { "external": {', '    "properties": { "external": {'],
+  ['      "lastfm": { "id", "listeners" },', '      "lastfm": { "id", "listeners" },'],
+  [null, '      "notonq:deezer": { "id", "fans" }'],
+  ["    } }", "    } }"],
+  ["  }],", "  }],"],
+  [null, '  "notonq": { "served_by", "provenance", … }'],
+  ["}", "}"],
+];
 
 export default function DocsPage() {
   return (
@@ -33,7 +50,7 @@ export default function DocsPage() {
           Change the base URL. When Qloo answers, you get Qloo&apos;s response unchanged. When Qloo has a gap, you get a Qloo-shaped entity built from
           open data, plus a <code>notonq</code> block with the gap type, the stand-ins, the cache state, the demand and a source for every value.
         </p>
-        <CodeBlock code={REST} language="bash" />
+        <Code code={REST} language="bash" title="Drop-in REST" />
       </div>
       <div className="flex flex-col gap-2">
         <h2 className="font-medium">Same shape as Qloo, 1:1</h2>
@@ -43,11 +60,30 @@ export default function DocsPage() {
           keys Qloo doesn&apos;t have (<code>properties.external[&quot;notonq:deezer&quot;]</code>). Send a <code>notonq:</code> entity ID back as a signal and
           NotOnQ swaps in its stand-ins. Qloo&apos;s own values are never prefixed or changed.
         </p>
-        <CodeBlock code={SHAPE} language="json" />
+        <div className="grid gap-3 md:grid-cols-2">
+          {(["Qloo", "NotOnQ fallback"] as const).map((title, side) => (
+            <CodeBlock key={title} size="sm">
+              <CodeBlockHeader>
+                <CodeBlockTitle>{title}</CodeBlockTitle>
+              </CodeBlockHeader>
+              <CodeBlockContent>
+                {SPLIT.map((row, i) => {
+                  const line = row[side];
+                  const changed = row[0] !== row[1];
+                  return (
+                    <CodeBlockLine key={i} variant={line === null || !changed ? "default" : side === 0 ? "removed" : "added"}>
+                      {line ?? "\u00a0"}
+                    </CodeBlockLine>
+                  );
+                })}
+              </CodeBlockContent>
+            </CodeBlock>
+          ))}
+        </div>
       </div>
       <div className="flex flex-col gap-2">
         <h2 className="font-medium">With the official Qloo harness</h2>
-        <CodeBlock code={HARNESS} language="bash" />
+        <Code code={HARNESS} language="bash" title="Official Qloo harness" />
         <p className="text-sm text-muted-foreground">A <code>npx notonq mcp</code> wrapper with the same tool names is on the way.</p>
       </div>
       <div className="flex flex-col gap-2">

@@ -3,7 +3,7 @@
 import { CircleCheckIcon, CircleXIcon, DatabaseIcon, SearchIcon, UserIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { CodeBlock, CodeBlockCopyButton } from "@/components/ai-elements/code-block";
+import { Code } from "@/components/code";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { CitedValue } from "@/components/cited-value";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -284,12 +284,8 @@ export function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; on
 
       <div className="flex flex-col gap-2">
         <h2 className="text-sm font-medium">The same, as a drop-in API call</h2>
-        <CodeBlock code={view.dropIn.request} language="bash">
-          <CodeBlockCopyButton />
-        </CodeBlock>
-        <CodeBlock code={JSON.stringify(view.dropIn.response, null, 2)} language="json" className="max-h-96 overflow-auto">
-          <CodeBlockCopyButton />
-        </CodeBlock>
+        <Code code={view.dropIn.request} language="bash" title="Request" />
+        <Code code={JSON.stringify(view.dropIn.response, null, 2)} language="json" title="Response" className="max-h-96 overflow-auto" />
       </div>
       {view.ms > 0 && <p className="text-xs text-muted-foreground">Looked up in {(view.ms / 1000).toFixed(1)} s.</p>}
     </div>
