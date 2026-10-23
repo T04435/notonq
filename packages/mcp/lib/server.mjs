@@ -106,9 +106,10 @@ export async function startNotonqMcp({ notonqUrl, qlooKey, lastfmKey, app = "not
       return block ? envelope("notonq_provenance", "ok", `Provenance for ${args.id}`, block) : envelope("notonq_provenance", "empty", "No NotOnQ entity with that ID.", null);
     }
 
-    const { args: forwarded, replaced } = await swapSignals(args, rest);
+    const { args: forwarded, replaced } = await swapSignals(args, rest, params.name);
+    proxy.take(); // forget the lookups swapSignals itself made
     const result = await harness.callTool({ name: params.name, arguments: forwarded });
-    return markFallbacks(params.name, args, result, rest, replaced);
+    return markFallbacks(params.name, args, result, rest, replaced, proxy.take());
   });
 
   await server.connect(new StdioServerTransport());
@@ -125,13 +126,28 @@ export async function startNotonqMcp({ notonqUrl, qlooKey, lastfmKey, app = "not
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Tool arguments that are lists of artists used as a taste signal. `options` (what qloo_rank ranks) and `entities` of
+ * qloo_trends are left alone: swapping those would change the question, not answer it. */
+const SIGNAL_LISTS = ["signals", "group_a", "group_b", "entities"];
+
 /** The harness only takes Qloo UUIDs as signals. A named signal Qloo has no data for (or a notonq: ID) is swapped
  * for the Qloo UUIDs of its stand-ins, so the harness asks Qloo for the stand-ins instead (Qloo Support's fallback). */
-async function swapSignals(args, rest) {
-  if (!Array.isArray(args.signals)) return { args, replaced: [] };
+async function swapSignals(args, rest, tool) {
+  let next = args;
+  const replaced = [];
+  for (const key of SIGNAL_LISTS) {
+    if (!Array.isArray(args[key]) || (key === "entities" && tool === "qloo_trends")) continue;
+    const { list, swaps } = await swapList(args[key], rest);
+    next = { ...next, [key]: list };
+    replaced.push(...swaps);
+  }
+  return { args: next, replaced };
+}
+
+async function swapList(items, rest) {
   const out = [];
   const replaced = [];
-  for (const s of args.signals) {
+  for (const s of items) {
     if (UUID.test(s)) {
       out.push(s);
       continue;
@@ -142,16 +158,29 @@ async function swapSignals(args, rest) {
     if (block && block.served_by !== "qloo" && standIns.length) {
       out.push(...standIns.map((x) => x.entity_id));
       replaced.push({ signal: s, stand_ins: standIns.map((x) => x.name) });
-    } else out.push(s);
+      continue;
+    }
+    // An artist Qloo knows, matched by exact name once and only once: pass Qloo's own ID, so the harness doesn't stop
+    // to ask which one (it does for plain names). Artists only, like the rest of NotOnQ.
+    const exact = (Array.isArray(body?.results) ? body.results : []).filter((e) => sameName(e?.name, s) && UUID.test(String(e?.entity_id)));
+    out.push(exact.length === 1 ? exact[0].entity_id : s);
   }
-  return { args: { ...args, signals: [...new Set(out)].slice(0, 10) }, replaced };
+  return { list: [...new Set(out)].slice(0, 10), swaps: replaced };
 }
 
 /** Results that contain NotOnQ entities are relabelled "partial"; an artist lookup (qloo_describe) with no exact
  * match is checked against NotOnQ, and an ambiguous name becomes "needs_input" with the candidates. */
-async function markFallbacks(tool, args, result, rest, replaced = []) {
+async function markFallbacks(tool, args, result, rest, replaced = [], seen = []) {
   const env = result.structuredContent;
   if (!env || typeof env !== "object") return result;
+  // The harness resolved a name to a NotOnQ entity itself, and NotOnQ answered through stand-ins (heatmaps,
+  // demographics…): those results carry no entity IDs, so the proxy's record is what labels them.
+  const viaStandIns = seen.filter((s) => s.standIns.length);
+  if (!replaced.length && viaStandIns.length && env.status !== "error") {
+    const names = [...new Set(viaStandIns.flatMap((s) => s.standIns))];
+    const next = { ...env, status: env.status === "ok" ? "partial" : env.status, warnings: [...(env.warnings ?? []), `Qloo has no taste data for this artist; NotOnQ answered with Qloo's data for similar artists it does know: ${names.join(", ")}.`], notonq_stand_ins: names };
+    return { ...result, content: [{ type: "text", text: JSON.stringify(next) }], structuredContent: next };
+  }
   if (replaced.length && env.status !== "error") {
     const note = replaced.map((r) => `"${r.signal}" → ${r.stand_ins.join(", ")}`).join("; ");
     const next = { ...env, status: env.status === "ok" ? "partial" : env.status, warnings: [...(env.warnings ?? []), `Qloo has no taste data for some signals; NotOnQ asked Qloo for similar artists it does know instead: ${note}.`], notonq_replaced: replaced };
