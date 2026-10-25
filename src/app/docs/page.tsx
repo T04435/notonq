@@ -107,13 +107,13 @@ export default function DocsOverview() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Qloo&apos;s data stays with the caller</h2>
+        <h2 className="text-lg font-medium">No raw Qloo responses on our pages</h2>
         <p className="text-sm text-muted-foreground">
-          Our pages never show Qloo&apos;s own data. On Ask, in the Ledger and in every replay, Qloo&apos;s results are redacted on the server before
-          anything reaches a browser or is stored: each value becomes <code>[redacted string]</code>, <code>[redacted uuid]</code>,{" "}
-          <code>[redacted number]</code> or <code>[redacted boolean]</code>, so you still see what Qloo returned and how much. NotOnQ&apos;s own data is
-          shown in full; a Qloo record NotOnQ picked keeps only its name and NotOnQ&apos;s MusicBrainz evidence. The drop-in API is different: a caller
-          gets Qloo&apos;s answer for their own key, unchanged, exactly as from Qloo.
+          Our pages show results derived from Qloo (artist names, links, the agent&apos;s answer, the final table) but never Qloo&apos;s raw API
+          responses. On Ask, in the Ledger and in every replay, raw response JSON is redacted on the server before anything reaches a browser or is
+          stored: each Qloo value becomes <code>[redacted string]</code>, <code>[redacted uuid]</code>, <code>[redacted number]</code> or{" "}
+          <code>[redacted boolean]</code>, keeping the shape. Qloo entity IDs are removed everywhere. NotOnQ&apos;s own data is shown in full. The
+          drop-in API is different: a caller gets Qloo&apos;s answer for their own key, unchanged, exactly as from Qloo.
         </p>
       </section>
 

@@ -278,8 +278,9 @@ const decadeTag = (era: string) => {
   return m ? `urn:tag:genre:music:${(m[2] ?? m[1]).slice(-2)}s` : null;
 };
 
-/** Qloo's own data never leaves the server: every event is redacted here, before it streams to the page or is stored.
- * NotOnQ's fills are shown in full; a Qloo record NotOnQ picked keeps its name and NotOnQ's label. */
+/** Raw Qloo API responses never leave the server: the JSON shown under "What your app gets" is redacted by type, and
+ * Qloo entity IDs are removed from every event. Results derived from Qloo (artist names, links, the agent's answer, the
+ * final table) are shown, as Qloo allows; Qloo's own description text is not. NotOnQ's fills are shown in full. */
 export function redactEvent(e: AskEvent): AskEvent {
   // Last pass on every event: any Qloo entity ID left in any field (request lists, inputs, notes) is removed too.
   return redactQlooIds(redactFields(e));
@@ -295,18 +296,11 @@ function redactFields(e: AskEvent): AskEvent {
           ? r
           : r.label === "picked"
             ? { ...r, id: REDACTED.uuid, description: r.description ? ourLabelPart(r.description) : undefined }
-            : { name: r.name ? REDACTED.string : undefined, id: r.id ? REDACTED.uuid : undefined, description: r.description ? REDACTED.string : undefined, location: r.location ? REDACTED.string : undefined },
+            : { ...r, id: r.id ? REDACTED.uuid : undefined, description: undefined },
       ),
       http: (e as { http?: HttpExchange[] }).http?.map((h) => ({ request: redactQlooIds(h.request), json: redactBody(h.json) })),
     } as AskEvent;
-  if (e.type === "answer" && e.column === "qloo") return { ...e, text: REDACTED.string };
-  if (e.type === "reconcile")
-    return {
-      ...e,
-      rows: e.rows.map((r) =>
-        r.origin === "notonq_added" ? r : r.origin === "notonq_picked" ? { ...r, id: REDACTED.uuid } : { ...r, id: REDACTED.uuid, name: REDACTED.string, link: undefined, facts: undefined, sources: undefined },
-      ),
-    };
+  if (e.type === "reconcile") return { ...e, rows: e.rows.map((r) => (r.origin === "notonq_added" ? r : { ...r, id: REDACTED.uuid })) };
   return e;
 }
 

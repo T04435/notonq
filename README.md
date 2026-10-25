@@ -35,11 +35,11 @@ sources and taste graph: fill the gap, label it, answer taste questions through 
 the artist is in the catalogue. The Ledger shows which missing artists people actually ask for. Artists first, for this
 hackathon; the same pattern fits other entity types.
 
-## Qloo's data stays with the caller
+## No raw Qloo responses on our pages
 
-The drop-in API returns Qloo's answer to its caller unchanged. NotOnQ's own pages (Ask, the Ledger, replays) never show
-Qloo's data: it is redacted on the server by type (`[redacted string]`, `[redacted uuid]`…) before anything reaches a
-browser or is stored. NotOnQ's own data is shown in full.
+The drop-in API returns Qloo's answer to its caller unchanged. NotOnQ's own pages (Ask, the Ledger, replays) show results
+derived from Qloo, such as artist names, but never Qloo's raw API responses: those are redacted on the server by type
+(`[redacted string]`, `[redacted uuid]`…) before anything reaches a browser or is stored. NotOnQ's own data is shown in full.
 
 ## How it fills a gap
 

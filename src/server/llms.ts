@@ -163,12 +163,12 @@ Qloo response data is stored publicly).
 - Every request is recorded in the Ledger ({origin}/ledger) against a salted hash of the key and the app label, and can
   be replayed step by step there (recorded results, nothing re-run).
 
-## Qloo's data stays with the caller
+## No raw Qloo responses on NotOnQ's pages
 
-The drop-in API returns Qloo's answer to its caller unchanged. NotOnQ's own pages (Ask, the Ledger, replays) never show
-Qloo's data: it is redacted on the server by type ("[redacted string]", "[redacted uuid]", "[redacted number]",
-"[redacted boolean]"), keeping the shape. NotOnQ's own data is shown in full. Qloo entity IDs are upper-case UUIDs;
-NotOnQ's IDs are lower case.
+The drop-in API returns Qloo's answer to its caller unchanged. NotOnQ's own pages (Ask, the Ledger, replays) show results
+derived from Qloo (artist names, links, the agent's answer, the final table) but never raw Qloo API responses: those are
+redacted on the server by type ("[redacted string]", "[redacted uuid]", "[redacted number]", "[redacted boolean]"),
+keeping the shape. Qloo entity IDs (upper-case UUIDs) are removed everywhere; NotOnQ's own data is shown in full.
 - Research (when the host has AI Gateway access): runs once per artist in the background after a fill with fields
   missing; the answer never waits for it; the next request gets the result.
 
