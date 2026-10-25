@@ -16,6 +16,7 @@
     "@ai-sdk/gateway": "^4.0.121",
     "@electric-sql/pglite": "^0.5.11",
     "@neondatabase/serverless": "^1.2.0",
+    "@qloo/qloo-harness": "0.1.26",
     "ai": "^7.0.148",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",
