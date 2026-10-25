@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { Trace, TraceDescription, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
+import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import type { AskEvent, Column, Constraint, Judgement, ResultItem } from "@/server/agent/ask";
 
 const EXAMPLES = [
@@ -143,13 +143,15 @@ function ColumnCard({ column, title, description, events, running, constraints }
             e.type === "call" ? (
               <CallLine key={i} call={e} />
             ) : e.type === "stage" ? (
-              <TraceLine key={i}>
-                <TraceIcon>
-                  <CircleDotIcon />
-                </TraceIcon>
-                <TraceTitle className="whitespace-normal font-medium text-foreground">{e.title}</TraceTitle>
-                {e.detail ? <TraceDescription className="whitespace-normal">{e.detail}</TraceDescription> : null}
-              </TraceLine>
+              <div key={i} className="flex flex-col gap-0.5 pt-2">
+                <TraceLine className="items-start">
+                  <TraceIcon className="mt-0.5">
+                    <CircleDotIcon />
+                  </TraceIcon>
+                  <TraceTitle className="whitespace-normal font-medium text-foreground">{e.title}</TraceTitle>
+                </TraceLine>
+                {e.detail ? <span className="pl-6 text-xs break-words text-muted-foreground">{e.detail}</span> : null}
+              </div>
             ) : e.type === "judge" ? (
               <JudgeBlock key={i} judgement={e.judgement} />
             ) : null,
@@ -179,6 +181,38 @@ function CallLine({ call }: { call: { tool: string; input: unknown; status: stri
         </TraceTitle>
       </TraceLine>
       <span className="pl-6 text-xs break-words text-muted-foreground">{brief(call.input)}</span>
+      {call.results.some((r) => r.sources?.length || r.facts?.length) ? (
+        <ul className="flex flex-col gap-2 pl-6">
+          {call.results
+            .filter((r) => r.sources?.length || r.facts?.length)
+            .map((r, i) => (
+              <li key={i} className="flex flex-col gap-1 border-l border-dashed pl-3 text-xs">
+                <span>
+                  <span className="font-medium">{r.name}</span>
+                  <span className="text-muted-foreground"> · {r.label === "picked" ? "Qloo's own record, picked by NotOnQ" : "not in Qloo, filled by NotOnQ"}</span>
+                </span>
+                {r.facts?.length ? <span className="text-muted-foreground">{r.facts.join(" · ")}</span> : null}
+                {r.sources?.length ? (
+                  <span className="flex flex-wrap gap-1">
+                    {r.sources.map((s) =>
+                      s.url ? (
+                        <Badge key={s.source} asChild variant="outline" title={s.licence}>
+                          <a href={s.url} target="_blank" rel="noreferrer">
+                            {s.source}
+                          </a>
+                        </Badge>
+                      ) : (
+                        <Badge key={s.source} variant="outline" title={s.licence}>
+                          {s.source}
+                        </Badge>
+                      ),
+                    )}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+        </ul>
+      ) : null}
       {call.results.length ? (
         <div className="flex flex-wrap gap-1.5 pl-6">
           {call.results.slice(0, 10).map((r, i) =>

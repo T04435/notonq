@@ -14,7 +14,8 @@ export async function POST(request: Request) {
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Ask a question (3 to 300 characters)." }, { status: 400 });
   if (!env.QLOO_API_KEY) return Response.json({ error: "The playground has no Qloo key configured (QLOO_API_KEY)." }, { status: 503 });
-  if (limited("ask", clientIp(request), LIMIT)) return Response.json({ error: "Too many questions from your address. Try again within the hour." }, { status: 429 });
+  // Our keys are spent per question, so the public site is limited; the local dev server is not.
+  if (process.env.NODE_ENV === "production" && limited("ask", clientIp(request), LIMIT)) return Response.json({ error: "Too many questions from your address. Try again within the hour." }, { status: 429 });
 
   const notonqBase = `${new URL(request.url).origin}/q/app/playground-ask`;
   const encoder = new TextEncoder();

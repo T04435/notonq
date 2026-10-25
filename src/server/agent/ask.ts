@@ -12,7 +12,8 @@ export const AGENT_MODEL = process.env.NOTONQ_AGENT_MODEL ?? "anthropic/claude-h
 export const JUDGE_MODEL = "typesafe-ai/jev";
 
 export type Column = "qloo" | "notonq";
-export type ResultItem = { name?: string; label?: "not_in_qloo" | "picked"; location?: string; description?: string };
+export type Source = { source: string; url?: string; licence?: string };
+export type ResultItem = { id?: string; name?: string; label?: "not_in_qloo" | "picked"; location?: string; description?: string; sources?: Source[]; facts?: string[] };
 export type Constraint = { kind: (typeof KINDS)[number]; value: string; check: string };
 export type Judgement = { verdict: "answered" | "partly" | "not_answered"; p: Record<string, number>; met: (Constraint & { p: number })[] };
 export type AskEvent =
@@ -38,11 +39,42 @@ next to it. Answer briefly: a short list, one line each.`;
 type Call = { tool: string; input: unknown; status: string; results: ResultItem[] };
 
 const item = (r: unknown): ResultItem => {
-  const x = (r ?? {}) as { name?: string; location?: { latitude: number; longitude: number }; properties?: { short_description?: string; description?: string }; description?: string };
+  const x = (r ?? {}) as { entity_id?: string; name?: string; location?: { latitude: number; longitude: number }; properties?: { short_description?: string; description?: string }; description?: string };
   const description = String(x.properties?.short_description ?? x.properties?.description ?? x.description ?? "").slice(0, 700) || undefined;
   const label = description?.startsWith("Not in Qloo") ? "not_in_qloo" : description?.startsWith("Picked by NotOnQ") ? "picked" : undefined;
-  return { name: x.name, label, description, location: x.location ? `${x.location.latitude.toFixed(2)}, ${x.location.longitude.toFixed(2)}` : undefined };
+  return { id: x.entity_id, name: x.name, label, description, location: x.location ? `${x.location.latitude.toFixed(2)}, ${x.location.longitude.toFixed(2)}` : undefined };
 };
+
+const SOURCE_NAMES: Record<string, string> = { musicbrainz: "MusicBrainz", wikidata: "Wikidata", wikipedia: "Wikipedia", lastfm: "Last.fm", deezer: "Deezer", "wikimedia-commons": "Wikimedia Commons", notonq: "NotOnQ (derived)", research: "Research" };
+
+/** The harness only passes a name and description on, so for every result NotOnQ added, the page fetches where its
+ * values came from (NotOnQ's provenance) and the facts behind it, through the same NotOnQ endpoint. */
+async function withSources(items: ResultItem[], notonqBase: string, key: string): Promise<ResultItem[]> {
+  const ids = [...new Set(items.filter((i) => i.label && i.id).map((i) => i.id!))];
+  if (!ids.length) return items;
+  const res = await fetch(`${notonqBase}/entities?entity_ids=${encodeURIComponent(ids.join(","))}`, { headers: { "X-Api-Key": key } }).catch(() => null);
+  const body = (res?.ok ? await res.json().catch(() => null) : null) as {
+    results?: { entity_id: string; properties?: { external?: Record<string, { id?: string | number; listeners?: number; fans?: number }> } }[];
+    notonq?: Record<string, { provenance?: Record<string, { source: string; record?: string; licence?: string }[]> }>;
+  } | null;
+  if (!body) return items;
+  return items.map((i) => {
+    if (!i.label || !i.id) return i;
+    const entity = body.results?.find((e) => e.entity_id.toLowerCase() === i.id!.toLowerCase());
+    const ext = entity?.properties?.external ?? {};
+    const sources = new Map<string, Source>();
+    for (const list of Object.values(body.notonq?.[i.id]?.provenance ?? body.notonq?.[i.id.toLowerCase()]?.provenance ?? {}))
+      for (const p of list) if (!sources.has(p.source)) sources.set(p.source, { source: SOURCE_NAMES[p.source] ?? p.source, url: p.record?.startsWith("http") ? p.record : undefined, licence: p.licence });
+    const mbid = ext.musicbrainz?.id;
+    if (mbid && !sources.has("musicbrainz")) sources.set("musicbrainz", { source: "MusicBrainz", url: `https://musicbrainz.org/artist/${mbid}`, licence: "CC0-1.0" });
+    const facts = [
+      ext.lastfm?.listeners !== undefined && `${Number(ext.lastfm.listeners).toLocaleString("en")} Last.fm listeners`,
+      ext["notonq:deezer"]?.fans !== undefined && `${Number(ext["notonq:deezer"].fans).toLocaleString("en")} Deezer fans`,
+      /\(MusicBrainz: ([^)]+)\)/.exec(i.description ?? "")?.[1],
+    ].filter(Boolean) as string[];
+    return { ...i, sources: [...sources.values()], facts };
+  });
+}
 
 function harness(base: string, key: string) {
   return createQlooToolsFromEnvironment({ env: { ...process.env, QLOO_API_KEY: key, QLOO_BASE_URL: base, QLOO_TRUSTED_BASE_URL: base } });
@@ -50,14 +82,14 @@ function harness(base: string, key: string) {
 
 type HarnessTool = ReturnType<typeof harness>[number];
 
-async function runTool(t: HarnessTool, input: unknown, onCall: (c: Call) => void) {
+async function runTool(t: HarnessTool, input: unknown, onCall: (c: Call) => void | Promise<void>) {
   const out = (await t.execute(`call-${Date.now()}`, input as never, undefined, undefined, undefined as never)) as { content?: { text?: string }[]; details?: Record<string, unknown> };
   const env = (out.details ?? JSON.parse(out.content?.[0]?.text ?? "{}")) as { status?: string; results?: unknown[] };
-  onCall({ tool: t.name, input, status: String(env.status ?? "ok"), results: (env.results ?? []).slice(0, 12).map(item) });
+  await onCall({ tool: t.name, input, status: String(env.status ?? "ok"), results: (env.results ?? []).slice(0, 12).map(item) });
   return out.content?.[0]?.text ?? JSON.stringify(env);
 }
 
-async function agent(base: string, key: string, system: string, question: string, onCall: (c: Call) => void) {
+async function agent(base: string, key: string, system: string, question: string, onCall: (c: Call) => void | Promise<void>) {
   const tools = Object.fromEntries(
     harness(base, key).map((t) => [
       t.name,
@@ -126,6 +158,9 @@ async function finalAnswer(question: string, sections: { title: string; calls: C
     model: gateway(AGENT_MODEL),
     prompt: `Answer the question from these tool results only. Say plainly which names came from Qloo's own answer and which
 NotOnQ added: an entity whose description starts "Not in Qloo" or "Picked by NotOnQ" is NotOnQ's; say so next to it.
+A tool call with status needs_input did not answer: its candidates are Qloo's "did you mean" suggestions, not part of
+Qloo's answer. Never list them as answers; mention them only as names Qloo suggested instead. Likewise, a result about a
+different entity than the one the question names (a look-alike name) is not an answer.
 No names that are not in the results. A short list, one line each, then one sentence on where the data came from.
 Question: ${question}
 ${JSON.stringify(sections)}`,
@@ -185,9 +220,10 @@ export async function ask(question: string, d: AskDeps) {
   const place = constraints.find((c) => c.kind === "place");
   const tag = era ? decadeTag(era.value) : null;
   const calls: Call[] = [];
-  const onNotOnQ = (c: Call) => {
-    calls.push(c);
-    d.emit({ type: "call", column: "notonq", stage: "notonq", ...c });
+  const onNotOnQ = async (c: Call) => {
+    const sourced = { ...c, results: await withSources(c.results, d.notonqBase, d.qlooKey) };
+    calls.push(sourced);
+    d.emit({ type: "call", column: "notonq", stage: "notonq", ...sourced });
   };
   if (tag) {
     d.emit({ type: "stage", column: "notonq", stage: "notonq", title: "Decade filter through NotOnQ", detail: `${tag}${place ? ` with ${place.value}` : ""}: NotOnQ fills it only where Qloo returns nothing` });
