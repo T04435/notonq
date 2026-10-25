@@ -19,7 +19,7 @@ From one measured run ([`/proof`](src/app/proof/page.tsx), `scripts/proof.mts`):
 
 ## Two ways in
 
-1. **Playground** (`/`): look up any artist and see what Qloo returned and what NotOnQ filled, with a citation on every value.
+1. **Ask** (`/`): a question run through Qloo's own MCP harness, straight to Qloo first; NotOnQ then checks that answer, asks Qloo again if it falls short, and only then adds open data. It ends with a table of every artist: where it came from, kept or removed and why, and what NotOnQ added, with sources.
 2. **Drop-in REST and MCP** (`/q/*`): the same paths and parameters as the Qloo API, with your own `X-Api-Key`.
    Qloo's results come first, unchanged; NotOnQ's artists are added after them in exactly Qloo's shape, with UUID IDs
    and a "Not in Qloo" label in `short_description`. For MCP, run the official Qloo harness unchanged:
@@ -35,6 +35,12 @@ sources and taste graph: fill the gap, label it, answer taste questions through 
 the artist is in the catalogue. The Ledger shows which missing artists people actually ask for. Artists first, for this
 hackathon; the same pattern fits other entity types.
 
+## Qloo's data stays with the caller
+
+The drop-in API returns Qloo's answer to its caller unchanged. NotOnQ's own pages (Ask, the Ledger, replays) never show
+Qloo's data: it is redacted on the server by type (`[redacted string]`, `[redacted uuid]`…) before anything reaches a
+browser or is stored. NotOnQ's own data is shown in full.
+
 ## How it fills a gap
 
 1. **Qloo first.** If Qloo knows the artist, its response passes through untouched.
@@ -45,7 +51,7 @@ hackathon; the same pattern fits other entity types.
    still come from Qloo, labelled as coming from the stand-ins.
 5. **Research (tier 3):** for what's still missing, a web research agent returns claims with a URL and an exact quote.
    Plain code re-fetches every page and keeps only quotes it finds there.
-6. **Cache and demand:** every answer is cached, and every request counts towards the Ledger (`/ledger`), a ranked list of what
+6. **Cache, demand and replay:** every answer is cached, and every request is recorded in the Ledger (`/ledger`), replayable step by step; its Artists tab is a ranked list of what
    Qloo is missing. It holds IDs and demand only, never copied data.
 
 Anything else is marked `unavailable`. Nothing is invented.

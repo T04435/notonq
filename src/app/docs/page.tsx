@@ -85,13 +85,46 @@ export default function DocsOverview() {
       </section>
 
       <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-medium">Ask, the Ledger and replays</h2>
+        <ul className="list-disc pl-5 text-sm text-muted-foreground">
+          <li>
+            <Link href="/" className="underline">
+              Ask
+            </Link>{" "}
+            runs Qloo&apos;s own MCP harness on a question, straight to Qloo first. NotOnQ then checks that answer against what the question asks for
+            (Jev, per constraint and per artist), asks Qloo again if it falls short, and only then adds open data. It ends with a table of every
+            artist: where it came from, kept or removed and why, and what NotOnQ added, with sources.
+          </li>
+          <li>
+            The{" "}
+            <Link href="/ledger" className="underline">
+              Ledger
+            </Link>{" "}
+            records every request: Ask questions (each step, with its timing) and calls from apps and Qloo&apos;s MCP (the request without its key,
+            and the response). Open one to replay it step by step with its recorded results; nothing is re-run.
+          </li>
+        </ul>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-medium">Qloo&apos;s data stays with the caller</h2>
+        <p className="text-sm text-muted-foreground">
+          Our pages never show Qloo&apos;s own data. On Ask, in the Ledger and in every replay, Qloo&apos;s results are redacted on the server before
+          anything reaches a browser or is stored: each value becomes <code>[redacted string]</code>, <code>[redacted uuid]</code>,{" "}
+          <code>[redacted number]</code> or <code>[redacted boolean]</code>, so you still see what Qloo returned and how much. NotOnQ&apos;s own data is
+          shown in full; a Qloo record NotOnQ picked keeps only its name and NotOnQ&apos;s MusicBrainz evidence. The drop-in API is different: a caller
+          gets Qloo&apos;s answer for their own key, unchanged, exactly as from Qloo.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">Caching, demand and budgets</h2>
         <ul className="list-disc pl-5 text-sm text-muted-foreground">
           <li>Fallbacks are open data, so they are shared: filled artists refresh weekly, misses and fills with a failed source retry after a day.</li>
           <li>Qloo responses are cached per caller key only, never shared between callers.</li>
           <li>
-            Every artist lookup counts towards the <Link href="/ledger" className="underline">Ledger</Link>, against a salted hash of your key and your app
-            label (<code>/q/app/&lt;label&gt;</code> or <code>X-NotOnQ-App</code>). Keys are never stored.
+            Every request is recorded in the <Link href="/ledger" className="underline">Ledger</Link> against a salted hash of your key and your app label
+            (<code>/q/app/&lt;label&gt;</code> or <code>X-NotOnQ-App</code>), with Qloo&apos;s data redacted. Keys are never stored.
           </li>
           <li>Each caller has a daily budget of real Qloo calls (default 1500; cache hits are free). Over it, NotOnQ answers 429 until 00:00 UTC.</li>
         </ul>

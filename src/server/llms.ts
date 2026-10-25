@@ -25,7 +25,7 @@ Qloo, the same flow would run on Qloo's own licensed sources and taste graph.
 
 ## Optional
 
-- [Ledger]({origin}/ledger): every artist looked up through NotOnQ, which app asked, and whether Qloo or NotOnQ answered
+- [Ledger]({origin}/ledger): every request made through NotOnQ (Ask questions and API/MCP calls), each replayable step by step; an Artists tab counts who answered each artist
 - [Proof]({origin}/proof): live numbers from every lookup, and a dated benchmark run
 - [Ask]({origin}/): one question; Qloo answers first through its own harness, then NotOnQ checks that answer and adds only what it lacks (every step shown)
 `;
@@ -160,7 +160,15 @@ Qloo response data is stored publicly).
 
 - Fallbacks are shared (open data): filled artists refresh weekly; misses and fills with a failed source retry after a day.
 - Qloo responses are cached per caller key only.
-- Every artist lookup counts towards the Ledger ({origin}/ledger) against a salted hash of the key and the app label.
+- Every request is recorded in the Ledger ({origin}/ledger) against a salted hash of the key and the app label, and can
+  be replayed step by step there (recorded results, nothing re-run).
+
+## Qloo's data stays with the caller
+
+The drop-in API returns Qloo's answer to its caller unchanged. NotOnQ's own pages (Ask, the Ledger, replays) never show
+Qloo's data: it is redacted on the server by type ("[redacted string]", "[redacted uuid]", "[redacted number]",
+"[redacted boolean]"), keeping the shape. NotOnQ's own data is shown in full. Qloo entity IDs are upper-case UUIDs;
+NotOnQ's IDs are lower case.
 - Research (when the host has AI Gateway access): runs once per artist in the background after a fill with fields
   missing; the answer never waits for it; the next request gets the result.
 
