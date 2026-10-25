@@ -72,8 +72,6 @@ export function Ask() {
     }
   }
 
-  const constraints = (events.find((e) => e.type === "constraints") as { constraints: Constraint[] } | undefined)?.constraints;
-  const failed = events.find((e) => e.type === "error") as { message: string } | undefined;
 
   return (
     <div className="flex flex-col gap-6">
@@ -101,11 +99,21 @@ export function Ask() {
           </Button>
         ))}
       </div>
-      {error || failed ? <p className="text-sm text-destructive">{error ?? failed?.message}</p> : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {events.length || running ? <RunView events={events} running={running} /> : null}
+    </div>
+  );
+}
 
-      {events.length || running ? (
-        // One timeline: Qloo answers first through its own harness; NotOnQ carries on from that answer, below it.
-        <Card>
+/** One run, step by step: shared by Ask (live) and the Ledger's replay (recorded steps shown again). */
+export function RunView({ events, running }: { events: AskEvent[]; running: boolean }) {
+  const constraints = (events.find((e) => e.type === "constraints") as { constraints: Constraint[] } | undefined)?.constraints;
+  const failed = events.find((e) => e.type === "error") as { message: string } | undefined;
+  return (
+    <div className="flex flex-col gap-4">
+      {failed ? <p className="text-sm text-destructive">{failed.message}</p> : null}
+      {/* One timeline: Qloo answers first through its own harness; NotOnQ carries on from that answer, below it. */}
+      <Card>
           <CardContent className="flex flex-col gap-6">
             <Section
               column="qloo"
@@ -125,8 +133,7 @@ export function Ask() {
               constraints={constraints}
             />
           </CardContent>
-        </Card>
-      ) : null}
+      </Card>
     </div>
   );
 }
@@ -336,7 +343,7 @@ function Reconcile({ event }: { event?: { rows: Row[]; places: number } }) {
                   ? `Misses ${failed.map((s) => `${s.kind.replace("_", " ")} ${s.value} (${pct(s.p)})`).join(", ")}`
                   : r.status === "kept"
                     ? r.scores.length
-                      ? `Meets ${r.scores.map((s) => `${s.kind.replace("_", " ")} (${pct(s.p)})`).join(", ")}`
+                      ? `${r.scores.every((s) => s.p >= 0.6) ? "Meets" : "Kept as Qloo returned it; scores"} ${r.scores.map((s) => `${s.kind.replace("_", " ")} (${pct(s.p)})`).join(", ")}`
                       : "Returned for the question"
                     : [r.facts?.join(" · "), r.scores.length ? r.scores.map((s) => `${s.kind.replace("_", " ")} ${pct(s.p)}`).join(", ") : ""].filter(Boolean).join(" · ");
               return (

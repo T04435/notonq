@@ -7,6 +7,7 @@ import { gateway } from "@ai-sdk/gateway";
 import { createQlooToolsFromEnvironment } from "@qloo/qloo-harness";
 import { experimental_decide as decide, generateText, isStepCount, jsonSchema, Output, tool } from "ai";
 import { z } from "zod";
+import { shorten } from "@/server/shorten";
 
 export const AGENT_MODEL = process.env.NOTONQ_AGENT_MODEL ?? "anthropic/claude-haiku-5.5";
 export const JUDGE_MODEL = "typesafe-ai/jev";
@@ -24,18 +25,6 @@ async function exchanges(requests: Request[] | undefined, notonqBase: string, ke
     out.push({ request: `GET /q${r.path}?${decodeURIComponent(qs.toString())}`, json: shorten(json) });
   }
   return out;
-}
-
-function shorten(json: unknown): unknown {
-  if (!json || typeof json !== "object") return json;
-  const j = json as { results?: unknown };
-  const cut = (list: unknown[]) => (list.length > 3 ? [...list.slice(0, 3), `… ${list.length - 3} more`] : list);
-  if (Array.isArray(j.results)) return { ...j, results: cut(j.results) };
-  if (j.results && typeof j.results === "object") {
-    const r = j.results as Record<string, unknown>;
-    return { ...j, results: Object.fromEntries(Object.entries(r).map(([k, v]) => [k, Array.isArray(v) ? cut(v) : v])) };
-  }
-  return json;
 }
 
 export type ResultItem = { id?: string; name?: string; label?: "not_in_qloo" | "picked"; location?: string; description?: string; sources?: Source[]; facts?: string[]; link?: string };
@@ -232,7 +221,8 @@ const ENTITY_TOOLS = new Set(["qloo_recommend", "qloo_rank", "qloo_compare_audie
 
 /** The final table, built from the data rather than written by a model: every artist Qloo returned, kept or removed by
  * its own scores; artists the agent only looked up by name; and what NotOnQ added, with evidence and sources. */
-async function reconcile(question: string, constraints: Constraint[], stages: { stage: "qloo" | "better" | "notonq"; calls: Call[] }[]) {
+/** passThrough: Qloo's answer met the question and is returned as it is, so none of its artists is removed. */
+async function reconcile(question: string, constraints: Constraint[], stages: { stage: "qloo" | "better" | "notonq"; calls: Call[] }[], passThrough = false) {
   const seen = new Map<string, Omit<Row, "status" | "scores"> & { description?: string }>();
   let places = 0;
   for (const { stage, calls } of stages)
@@ -262,13 +252,15 @@ async function reconcile(question: string, constraints: Constraint[], stages: { 
     facts,
     sources,
     scores: scores[i],
-    status: origin.startsWith("notonq") ? "added" : scores[i].every((s) => s.p >= MET) ? "kept" : "removed",
+    status: origin.startsWith("notonq") ? "added" : passThrough || scores[i].every((s) => s.p >= MET) ? "kept" : "removed",
   }));
   const count = (o: Origin[], s?: Row["status"]) => rows.filter((r) => o.includes(r.origin) && (!s || r.status === s)).length;
   const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
   const meet = (k: number) => `${k} ${k === 1 ? "meets" : "meet"} it`;
   const parts = [
-    `Qloo returned ${n(count(["qloo"]), "artist", "artists")} for the question; ${meet(count(["qloo"], "kept"))}.`,
+    passThrough
+      ? `Qloo returned ${n(count(["qloo"]), "artist", "artists")} for the question and its answer meets it, so it is returned as it is.`
+      : `Qloo returned ${n(count(["qloo"]), "artist", "artists")} for the question; ${meet(count(["qloo"], "kept"))}.`,
     count(["qloo_again"]) ? `Asked again, Qloo returned ${n(count(["qloo_again"]), "artist", "artists")}; ${meet(count(["qloo_again"], "kept"))}.` : "",
     count(["qloo_lookup"]) ? `The agent also looked up ${n(count(["qloo_lookup"]), "artist", "artists")} in Qloo by names it chose itself.` : "",
     count(["notonq_added", "notonq_picked"])
@@ -302,7 +294,7 @@ export async function ask(question: string, d: AskDeps) {
   let j = await judge(question, constraints, qlooCalls);
   d.emit({ type: "judge", stage: "qloo", judgement: j });
   if (j.verdict === "answered") {
-    const r = await reconcile(question, constraints, [{ stage: "qloo", calls: qlooCalls }]);
+    const r = await reconcile(question, constraints, [{ stage: "qloo", calls: qlooCalls }], true);
     d.emit({ type: "reconcile", ...r });
     d.emit({ type: "answer", column: "notonq", text: "Qloo's answer meets every part of the question, so NotOnQ adds nothing.", source: "qloo" });
     return;
