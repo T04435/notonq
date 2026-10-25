@@ -7,7 +7,7 @@ import { NotOnQBadge } from "@/components/brand/notonq-badge";
 import { Code } from "@/components/code";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -26,7 +26,7 @@ const VERDICT: Record<Judgement["verdict"], { label: string; variant: "secondary
   not_answered: { label: "not answered", variant: "destructive" },
 };
 
-const SOURCE: Record<string, string> = { qloo: "Qloo's own answer", qloo_better: "Qloo, asked again", notonq: "Qloo first, then NotOnQ, labelled" };
+const SOURCE: Record<string, string> = { qloo: "Answer", qloo_better: "Answer: Qloo, asked again", notonq: "Answer: Qloo first, then NotOnQ, labelled" };
 
 const brief = (input: unknown) =>
   Object.entries((input ?? {}) as Record<string, unknown>)
@@ -89,7 +89,7 @@ export function Ask() {
         <Input id="ask-question" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask what you would ask Qloo's MCP, e.g. find me 60s music popular in Lagos" />
         <Button type="submit" disabled={running}>
           {running ? <Spinner /> : null}
-          Ask both
+          Ask
         </Button>
       </form>
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -103,32 +103,48 @@ export function Ask() {
       {error || failed ? <p className="text-sm text-destructive">{error ?? failed?.message}</p> : null}
 
       {events.length || running ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <ColumnCard column="qloo" title="Qloo alone" description="Qloo's own MCP harness, base URL = Qloo." events={events} running={running} />
-          <ColumnCard
-            column="notonq"
-            title="With NotOnQ"
-            description="The same harness and model. NotOnQ checks Qloo's answer first and only adds what it lacks."
-            events={events}
-            running={running}
-            constraints={constraints}
-          />
-        </div>
+        // One timeline: Qloo answers first through its own harness; NotOnQ carries on from that answer, below it.
+        <Card>
+          <CardContent className="flex flex-col gap-6">
+            <Section
+              column="qloo"
+              step="1"
+              title="Qloo, through its own MCP harness"
+              description="Qloo's harness and tools, unchanged, base URL = Qloo. This is what any Qloo MCP user gets today."
+              events={events}
+              running={running}
+            />
+            <Section
+              column="notonq"
+              step="2"
+              title="NotOnQ carries on from Qloo's answer"
+              description="Same harness and model. It checks whether Qloo's answer meets the question; only if not does it ask Qloo again, then add open data, labelled."
+              events={events}
+              running={running}
+              constraints={constraints}
+            />
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   );
 }
 
-function ColumnCard({ column, title, description, events, running, constraints }: { column: Column; title: string; description: string; events: AskEvent[]; running: boolean; constraints?: Constraint[] }) {
+function Section({ column, step, title, description, events, running, constraints }: { column: Column; step: string; title: string; description: string; events: AskEvent[]; running: boolean; constraints?: Constraint[] }) {
   const mine = events.filter((e) => ("column" in e && e.column === column) || (column === "notonq" && e.type === "judge"));
   const answer = mine.find((e) => e.type === "answer") as { text: string; source: string } | undefined;
+  const qlooDone = events.some((e) => e.type === "answer" && e.column === "qloo");
+  if (column === "notonq" && !qlooDone && !mine.length) return null;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+    <section className={column === "notonq" ? "flex flex-col gap-4 border-t pt-6" : "flex flex-col gap-4"}>
+      <header className="flex flex-col gap-1">
+        <h2 className="flex items-baseline gap-2 text-base font-medium">
+          <span className="text-xs text-muted-foreground tabular-nums">{step}</span>
+          {title}
+        </h2>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </header>
+      <div className="flex flex-col gap-4">
         {column === "notonq" && constraints ? (
           <div className="flex flex-col gap-1 text-xs">
             <span className="text-muted-foreground">What the question asks for</span>
@@ -141,7 +157,6 @@ function ColumnCard({ column, title, description, events, running, constraints }
             </div>
           </div>
         ) : null}
-        {column === "notonq" && !mine.length ? <p className="text-sm text-muted-foreground">Waiting for Qloo&apos;s answer, which NotOnQ checks first.</p> : null}
         <Trace>
           {mine.map((e, i) =>
             e.type === "call" ? (
@@ -169,8 +184,8 @@ function ColumnCard({ column, title, description, events, running, constraints }
         ) : running ? (
           <Spinner />
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 

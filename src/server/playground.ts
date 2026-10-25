@@ -7,7 +7,6 @@ import type { Candidate } from "@/server/engine/candidates";
 import { needsResearch, researchEnabled } from "@/server/research/run";
 import { fallbackBlock, type NotOnQBlock } from "@/server/respond";
 import type { Demand, StoredFallback } from "@/server/store/repo";
-import { type Lookup } from "@/server/service";
 
 export type Step = { title: string; detail: string; status?: "error" | "pending" };
 

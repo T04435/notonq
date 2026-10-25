@@ -27,7 +27,7 @@ Qloo, the same flow would run on Qloo's own licensed sources and taste graph.
 
 - [Ledger]({origin}/ledger): every artist looked up through NotOnQ, which app asked, and whether Qloo or NotOnQ answered
 - [Proof]({origin}/proof): live numbers from every lookup, and a dated benchmark run
-- [Ask]({origin}/): one question, answered by Qloo's own harness twice: Qloo alone, and through NotOnQ (judged, every step shown)
+- [Ask]({origin}/): one question; Qloo answers first through its own harness, then NotOnQ checks that answer and adds only what it lacks (every step shown)
 `;
 
 export const LLMS_FULL = `# NotOnQ: full reference
