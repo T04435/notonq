@@ -43,7 +43,10 @@ async function RunBody({ params }: { params: PageProps<"/ledger/run/[id]">["para
         </div>
         <h1 className="text-xl font-semibold break-words">{run.title}</h1>
         {run.summary ? <p className="text-sm text-muted-foreground">{run.summary}</p> : null}
-        <p className="text-xs text-muted-foreground">A replay of what happened, with the original results. Nothing is re-run.</p>
+        <p className="text-xs text-muted-foreground">
+          A replay of what happened. Nothing is re-run. Qloo&apos;s own results are shown as counts: they came with the caller&apos;s key and are not
+          republished here. NotOnQ&apos;s additions, the checks and the verdicts are shown in full.
+        </p>
       </header>
       <Replay run={run} />
     </div>
