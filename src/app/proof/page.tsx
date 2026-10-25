@@ -19,7 +19,7 @@ export default function ProofPage() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">Proof</h1>
         <p className="text-muted-foreground">
-          Artists only. Live: every artist lookup NotOnQ has handled, through the playground, the drop-in API or the Qloo harness, updating as it happens. Below it, a fixed
+          Artists only. Live: every artist lookup NotOnQ has handled, through Ask, the drop-in API or the Qloo harness, updating as it happens. Below it, a fixed
           benchmark run that measures what live traffic can&apos;t.
         </p>
       </header>
@@ -40,7 +40,7 @@ async function Live() {
       <Empty>
         <EmptyHeader>
           <EmptyTitle>No lookups yet</EmptyTitle>
-          <EmptyDescription>Look up an artist in the playground or call the drop-in API, and the live numbers start here.</EmptyDescription>
+          <EmptyDescription>Ask a question on the home page or call the drop-in API, and the live numbers start here.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );

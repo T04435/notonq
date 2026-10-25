@@ -46,7 +46,7 @@ async function Rows() {
       <Empty>
         <EmptyHeader>
           <EmptyTitle>No lookups yet</EmptyTitle>
-          <EmptyDescription>Look up an artist in the playground, or call the drop-in API or MCP.</EmptyDescription>
+          <EmptyDescription>Ask a question on the home page, or call the drop-in API or Qloo&apos;s MCP through NotOnQ.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );

@@ -1,8 +1,6 @@
 "use client";
 
-import { CircleCheckIcon, CircleXIcon, DatabaseIcon, SearchIcon, UserIcon } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { CircleCheckIcon, CircleXIcon, UserIcon } from "lucide-react";
 import { Code } from "@/components/code";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
@@ -11,133 +9,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Spinner } from "@/components/ui/spinner";
-import { Trace, TraceDescription, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
+import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { demandText } from "@/lib/demand";
 import type { Candidate } from "@/server/engine/candidates";
 import type { PlaygroundView } from "@/server/playground";
 import type { Provenance } from "@/server/provenance";
 
-const EXAMPLES = ["sombr", "Nettspend", "Courtney Barnett"];
-
-export function Playground() {
-  const [name, setName] = useState("");
-  const [view, setView] = useState<PlaygroundView | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<string | null>(null);
-
-  // Deep links from the Ledger: /?q=<name>[&candidate=<key>|&choose=1] runs that lookup once on arrival.
-  const params = useSearchParams();
-  const started = useRef(false);
-  useEffect(() => {
-    const q = params.get("q");
-    if (!q || started.current) return;
-    started.current = true;
-    void run(q, { candidate: params.get("candidate") ?? undefined, choose: params.get("choose") === "1" || undefined });
-    // Only the first arrival triggers a lookup (the ref guards re-renders).
-  }, [params]);
-
-  // While research runs in the background, check back every 5 s (up to 2 minutes) for the filled-in result.
-  const researching = view?.notonq.research?.status === "pending";
-  useEffect(() => {
-    if (!researching || !view) return;
-    let tries = 0;
-    const timer = setInterval(async () => {
-      if (++tries > 24) return clearInterval(timer);
-      const res = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: view.query, candidate: view.candidateKey }) });
-      if (!res.ok) return;
-      const next = (await res.json()) as PlaygroundView;
-      if (next.notonq.research?.status !== "pending") {
-        clearInterval(timer);
-        setView(next);
-      }
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [researching, view]);
-
-  async function run(artist: string, opts: { candidate?: string; choose?: boolean } = {}) {
-    const q = artist.trim();
-    if (!q) return;
-    setName(q);
-    setLoading(q);
-    setError(null);
-    try {
-      const res = await fetch("/api/lookup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: q, ...opts }) });
-      const body = await res.json().catch(() => ({ error: `The server answered HTTP ${res.status} without details.` }));
-      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-      setView(body as PlaygroundView);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(null);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      <form
-        className="flex flex-col gap-3 sm:flex-row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void run(name);
-        }}
-      >
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="An artist name, e.g. sombr" aria-label="Artist name" maxLength={100} />
-        <Button type="submit" disabled={!!loading}>
-          {loading ? <Spinner /> : <SearchIcon />}
-          Look up
-        </Button>
-      </form>
-      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        Try:
-        {EXAMPLES.map((ex) => (
-          <Button key={ex} variant="outline" size="sm" disabled={!!loading} onClick={() => void run(ex)}>
-            {ex}
-          </Button>
-        ))}
-      </div>
-
-      {error && (
-        <Alert variant="destructive">
-          <CircleXIcon />
-          <AlertTitle>The lookup failed</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {loading && (
-        <Trace>
-          <TraceLine status="running">
-            <TraceIcon>
-              <Spinner />
-            </TraceIcon>
-            <TraceTitle>Asking Qloo about {loading}</TraceTitle>
-            <TraceDescription>then open data and stand-ins if Qloo has a gap</TraceDescription>
-          </TraceLine>
-        </Trace>
-      )}
-
-      {!loading && !view && !error && (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <DatabaseIcon />
-            </EmptyMedia>
-            <EmptyTitle>Look up any artist</EmptyTitle>
-            <EmptyDescription>Qloo answers first. Where it has nothing, NotOnQ fills the gap and shows where every value came from.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      )}
-
-      {!loading && view && <Result view={view} onChoose={(key) => void run(view.query, { candidate: key })} onShowAll={() => void run(view.query, { choose: true })} />}
-    </div>
-  );
-}
-
-/** One artist's result. Shared by the playground (live lookup) and the Ledger's read-only page (no callbacks there). */
+/** One artist's result, as the Ledger's artist page shows it: every field with its sources. */
 export function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; onChoose?: (key: string) => void; onShowAll?: () => void }) {
   const p = view.notonq.provenance ?? {};
   const e = view.entity;

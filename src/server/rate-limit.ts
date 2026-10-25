@@ -1,4 +1,4 @@
-// In-memory per-IP limits for the endpoints that spend our own keys (playground lookups, Ask). Per instance, so a
+// In-memory per-IP limits for the endpoints that spend our own keys (Ask). Per instance, so a
 // soft limit: BotID and a WAF rule back it up on Vercel.
 const buckets = new Map<string, number[]>();
 

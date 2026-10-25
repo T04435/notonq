@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRightIcon, CircleCheckIcon, CircleDotIcon, CircleXIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
 import { Code } from "@/components/code";
@@ -34,7 +35,8 @@ const brief = (input: unknown) =>
 
 /** One question, answered by Qloo's own MCP harness twice: Qloo alone, and through NotOnQ. Every step is shown. */
 export function Ask() {
-  const [question, setQuestion] = useState("");
+  // Links from the Ledger prefill the question (?q=); asking stays a click, since each question spends model calls.
+  const [question, setQuestion] = useState(useSearchParams().get("q") ?? "");
   const [events, setEvents] = useState<AskEvent[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string>();

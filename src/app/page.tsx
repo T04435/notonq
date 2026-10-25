@@ -1,8 +1,6 @@
 import { Suspense } from "react";
 import { Ask } from "@/components/ask";
-import { Playground } from "@/components/playground";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Home() {
   return (
@@ -19,21 +17,10 @@ export default function Home() {
           straight through to Qloo, unchanged.
         </p>
       </header>
-      <Tabs defaultValue="ask">
-        <TabsList>
-          <TabsTrigger value="ask">Ask</TabsTrigger>
-          <TabsTrigger value="lookup">Look up an artist</TabsTrigger>
-        </TabsList>
-        <TabsContent value="ask">
-          <Ask />
-        </TabsContent>
-        <TabsContent value="lookup">
-          {/* The lookup reads ?q= deep links, so it renders inside a Suspense boundary. */}
-          <Suspense>
-            <Playground />
-          </Suspense>
-        </TabsContent>
-      </Tabs>
+      {/* Ask reads ?q= (links from the Ledger), so it renders inside a Suspense boundary. */}
+      <Suspense>
+        <Ask />
+      </Suspense>
     </section>
   );
 }

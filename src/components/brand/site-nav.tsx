@@ -6,7 +6,7 @@ import { cn } from "cn";
 
 // Lowercase paths, as the Schema brand writes them; the current one is bold and underlined.
 const LINKS = [
-  { href: "/", label: "/playground" },
+  { href: "/", label: "/ask" },
   { href: "/ledger", label: "/ledger" },
   { href: "/proof", label: "/proof" },
   { href: "/docs", label: "/docs" },
