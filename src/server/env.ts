@@ -11,11 +11,11 @@ const Env = z.object({
   /** Our own Qloo key: used only by the playground. REST callers always bring their own. */
   QLOO_API_KEY: optional,
   QLOO_BASE_URL: z.string().url().default("https://hackathon.api.qloo.com"),
-  /** Our own Last.fm key: playground only. REST callers send X-Lastfm-Key. */
+  /** Our own Last.fm key: the playground, and REST callers who send no X-Lastfm-Key (hackathon demo). */
   LASTFM_API_KEY: optional,
   /** Neon in deployed envs. Unset locally → an embedded PGlite database in .data/. */
   DATABASE_URL: optional,
-  /** Salt for hashing caller keys in the demand ledger. */
+  /** Salt for hashing caller keys in the demand ledger. Set a random value in every deployed environment. */
   NOTONQ_SALT: z.string().default("notonq-local-salt"),
 });
 
