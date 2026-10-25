@@ -5,7 +5,6 @@ import { env } from "@/server/env";
 import { clientIp, limited } from "@/server/rate-limit";
 import { hashCaller } from "@/server/service";
 import { db } from "@/server/store/db";
-import { askRunWithoutQlooData } from "@/server/shorten";
 import { type RunEvent, saveRun } from "@/server/store/repo";
 
 // The Ask playground: one question, answered by Qloo's own harness twice (Qloo alone, and through NotOnQ), streamed
@@ -24,8 +23,8 @@ export async function POST(request: Request) {
 
   const notonqBase = `${new URL(request.url).origin}/q/app/playground-ask`;
   const encoder = new TextEncoder();
-  // Every step is also recorded, with its time, so the Ledger can replay this run as it happened; Qloo's own results
-  // are stored as counts only (askRunWithoutQlooData), since the replay is public.
+  // Every step is also recorded, with its time, so the Ledger can replay this run as it happened. The events arrive
+  // already redacted (redactEvent): Qloo's own data is never streamed or stored.
   const started = Date.now();
   const recorded: RunEvent[] = [];
   const caller = hashCaller(`ask:${clientIp(request)}`, env.NOTONQ_SALT);
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
       after(async () => {
         const answer = recorded.findLast((e) => e.type === "answer" && e.column === "notonq") as { text?: string; source?: string } | undefined;
         const summary = (recorded.find((e) => e.type === "reconcile") as { summary?: string } | undefined)?.summary ?? answer?.text;
-        await saveRun(await db(), { id: crypto.randomUUID(), kind: "ask", title: parsed.data.question, summary, servedBy: answer?.source, appLabel: "ask", callerHash: caller, events: askRunWithoutQlooData(recorded), ms: Date.now() - started });
+        await saveRun(await db(), { id: crypto.randomUUID(), kind: "ask", title: parsed.data.question, summary, servedBy: answer?.source, appLabel: "ask", callerHash: caller, events: recorded, ms: Date.now() - started });
       });
     },
   });

@@ -7,6 +7,7 @@ import { gateway } from "@ai-sdk/gateway";
 import { createQlooToolsFromEnvironment } from "@qloo/qloo-harness";
 import { experimental_decide as decide, generateText, isStepCount, jsonSchema, Output, tool } from "ai";
 import { z } from "zod";
+import { ourLabelPart, REDACTED, redactBody, redactQlooIds } from "@/server/redact";
 import { shorten } from "@/server/shorten";
 
 export const AGENT_MODEL = process.env.NOTONQ_AGENT_MODEL ?? "anthropic/claude-haiku-5.5";
@@ -115,9 +116,11 @@ async function withSources(items: ResultItem[], notonqBase: string, key: string)
       for (const p of list) if (!sources.has(p.source)) sources.set(p.source, { source: SOURCE_NAMES[p.source] ?? p.source, url: p.record?.startsWith("http") ? p.record : undefined, licence: p.licence });
     const mbid = ext.musicbrainz?.id;
     if (mbid && !sources.has("musicbrainz")) sources.set("musicbrainz", { source: "MusicBrainz", url: `https://musicbrainz.org/artist/${mbid}`, licence: "CC0-1.0" });
+    // A picked record is Qloo's: only NotOnQ's MusicBrainz evidence is shown, never facts read from Qloo's copy of it.
+    const fromFill = i.label === "not_in_qloo";
     const facts = [
-      ext.lastfm?.listeners !== undefined && `${Number(ext.lastfm.listeners).toLocaleString("en")} Last.fm listeners`,
-      ext["notonq:deezer"]?.fans !== undefined && `${Number(ext["notonq:deezer"].fans).toLocaleString("en")} Deezer fans`,
+      fromFill && ext.lastfm?.listeners !== undefined && `${Number(ext.lastfm.listeners).toLocaleString("en")} Last.fm listeners`,
+      fromFill && ext["notonq:deezer"]?.fans !== undefined && `${Number(ext["notonq:deezer"].fans).toLocaleString("en")} Deezer fans`,
       /\(MusicBrainz: ([^)]+)\)/.exec(i.description ?? "")?.[1],
     ].filter(Boolean) as string[];
     return { ...i, sources: [...sources.values()], facts };
@@ -275,7 +278,40 @@ const decadeTag = (era: string) => {
   return m ? `urn:tag:genre:music:${(m[2] ?? m[1]).slice(-2)}s` : null;
 };
 
-export async function ask(question: string, d: AskDeps) {
+/** Qloo's own data never leaves the server: every event is redacted here, before it streams to the page or is stored.
+ * NotOnQ's fills are shown in full; a Qloo record NotOnQ picked keeps its name and NotOnQ's label. */
+export function redactEvent(e: AskEvent): AskEvent {
+  // Last pass on every event: any Qloo entity ID left in any field (request lists, inputs, notes) is removed too.
+  return redactQlooIds(redactFields(e));
+}
+
+function redactFields(e: AskEvent): AskEvent {
+  if (e.type === "call")
+    return {
+      ...e,
+      input: redactQlooIds(e.input),
+      results: e.results.map((r) =>
+        r.label === "not_in_qloo"
+          ? r
+          : r.label === "picked"
+            ? { ...r, id: REDACTED.uuid, description: r.description ? ourLabelPart(r.description) : undefined }
+            : { name: r.name ? REDACTED.string : undefined, id: r.id ? REDACTED.uuid : undefined, description: r.description ? REDACTED.string : undefined, location: r.location ? REDACTED.string : undefined },
+      ),
+      http: (e as { http?: HttpExchange[] }).http?.map((h) => ({ request: redactQlooIds(h.request), json: redactBody(h.json) })),
+    } as AskEvent;
+  if (e.type === "answer" && e.column === "qloo") return { ...e, text: REDACTED.string };
+  if (e.type === "reconcile")
+    return {
+      ...e,
+      rows: e.rows.map((r) =>
+        r.origin === "notonq_added" ? r : r.origin === "notonq_picked" ? { ...r, id: REDACTED.uuid } : { ...r, id: REDACTED.uuid, name: REDACTED.string, link: undefined, facts: undefined, sources: undefined },
+      ),
+    };
+  return e;
+}
+
+export async function ask(question: string, deps: AskDeps) {
+  const d: AskDeps = { ...deps, emit: (e) => deps.emit(redactEvent(e)) };
   const qlooCalls: Call[] = [];
   const onQloo = async (c: Call) => {
     const linked = { ...c, results: await withLinks(c.results, d.qlooBase, d.qlooKey) };

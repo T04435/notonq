@@ -336,7 +336,7 @@ function Reconcile({ event }: { event?: { rows: Row[]; places: number } }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((r) => {
+            {rows.map((r, idx) => {
               const failed = r.scores.filter((s) => s.p < 0.6);
               const why =
                 r.status === "removed"
@@ -347,7 +347,7 @@ function Reconcile({ event }: { event?: { rows: Row[]; places: number } }) {
                       : "Returned for the question"
                     : [r.facts?.join(" · "), r.scores.length ? r.scores.map((s) => `${s.kind.replace("_", " ")} ${pct(s.p)}`).join(", ") : ""].filter(Boolean).join(" · ");
               return (
-                <TableRow key={r.id}>
+                <TableRow key={`${r.id}-${idx}`}>
                   <TableCell className="font-medium whitespace-normal">
                     {r.link ? (
                       <a href={r.link} target="_blank" rel="noreferrer" className="underline underline-offset-4">

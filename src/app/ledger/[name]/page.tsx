@@ -9,6 +9,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { storedView } from "@/server/playground";
+import { redactQlooIds } from "@/server/redact";
 import { db } from "@/server/store/db";
 import { claimsFor, demandByApp, demandFor, findFallback } from "@/server/store/repo";
 
@@ -82,7 +83,7 @@ async function Entry({ params }: { params: PageProps<"/ledger/[name]">["params"]
         </Button>
       </header>
 
-      <Result view={storedView(f, demand)} />
+      <Result view={redactQlooIds(storedView(f, demand))} />
 
       <div className="flex flex-col gap-2">
         <h2 className="font-medium">Where the demand came from</h2>

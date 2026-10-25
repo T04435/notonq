@@ -84,7 +84,7 @@ function ApiSteps({ steps }: { steps: RunEvent[] }) {
             </div>
             <Code
               language="json"
-              title="Response: NotOnQ's part (Qloo's own results are not stored; long lists cut to 3)"
+              title="Response (Qloo's own data redacted; long lists cut to 3)"
               code={JSON.stringify(s.body, null, 2)}
               className="max-h-[32rem] overflow-auto"
             />
