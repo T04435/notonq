@@ -13,6 +13,31 @@ export const JUDGE_MODEL = "typesafe-ai/jev";
 
 export type Column = "qloo" | "notonq";
 export type Source = { source: string; url?: string; licence?: string };
+/** The REST exchange behind a harness call through NotOnQ, replayed (cached, so cheap) to show developers exactly what
+ * their app would send and get back: Qloo's response shape plus the notonq block. Long lists are cut to 3 for reading. */
+async function exchanges(requests: Request[] | undefined, notonqBase: string, key: string): Promise<HttpExchange[]> {
+  const out: HttpExchange[] = [];
+  for (const r of (requests ?? []).filter((x) => (x.method ?? "GET") === "GET" && x.path)) {
+    const qs = new URLSearchParams(Object.entries(r.query ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v.join(",") : String(v)]));
+    const res = await fetch(`${notonqBase}${r.path}?${qs}`, { headers: { "X-Api-Key": key } }).catch(() => null);
+    const json = res ? await res.json().catch(() => null) : null;
+    out.push({ request: `GET /q${r.path}?${decodeURIComponent(qs.toString())}`, json: shorten(json) });
+  }
+  return out;
+}
+
+function shorten(json: unknown): unknown {
+  if (!json || typeof json !== "object") return json;
+  const j = json as { results?: unknown };
+  const cut = (list: unknown[]) => (list.length > 3 ? [...list.slice(0, 3), `… ${list.length - 3} more`] : list);
+  if (Array.isArray(j.results)) return { ...j, results: cut(j.results) };
+  if (j.results && typeof j.results === "object") {
+    const r = j.results as Record<string, unknown>;
+    return { ...j, results: Object.fromEntries(Object.entries(r).map(([k, v]) => [k, Array.isArray(v) ? cut(v) : v])) };
+  }
+  return json;
+}
+
 export type ResultItem = { id?: string; name?: string; label?: "not_in_qloo" | "picked"; location?: string; description?: string; sources?: Source[]; facts?: string[] };
 export type Constraint = { kind: (typeof KINDS)[number]; value: string; check: string };
 export type Judgement = { verdict: "answered" | "partly" | "not_answered"; p: Record<string, number>; met: (Constraint & { p: number })[] };
@@ -36,7 +61,9 @@ add names the tools did not return. There is no person to ask: when a tool retur
 best one from the question and call again. If an entity's description says "Not in Qloo" or "Picked by NotOnQ", say so
 next to it. Answer briefly: a short list, one line each.`;
 
-type Call = { tool: string; input: unknown; status: string; results: ResultItem[] };
+export type HttpExchange = { request: string; json: unknown };
+type Request = { method?: string; path?: string; query?: Record<string, unknown> };
+type Call = { tool: string; input: unknown; status: string; results: ResultItem[]; requests?: Request[]; http?: HttpExchange[] };
 
 const item = (r: unknown): ResultItem => {
   const x = (r ?? {}) as { entity_id?: string; name?: string; location?: { latitude: number; longitude: number }; properties?: { short_description?: string; description?: string }; description?: string };
@@ -84,8 +111,8 @@ type HarnessTool = ReturnType<typeof harness>[number];
 
 async function runTool(t: HarnessTool, input: unknown, onCall: (c: Call) => void | Promise<void>) {
   const out = (await t.execute(`call-${Date.now()}`, input as never, undefined, undefined, undefined as never)) as { content?: { text?: string }[]; details?: Record<string, unknown> };
-  const env = (out.details ?? JSON.parse(out.content?.[0]?.text ?? "{}")) as { status?: string; results?: unknown[] };
-  await onCall({ tool: t.name, input, status: String(env.status ?? "ok"), results: (env.results ?? []).slice(0, 12).map(item) });
+  const env = (out.details ?? JSON.parse(out.content?.[0]?.text ?? "{}")) as { status?: string; results?: unknown[]; provenance?: { requests?: Request[] } };
+  await onCall({ tool: t.name, input, status: String(env.status ?? "ok"), results: (env.results ?? []).slice(0, 12).map(item), requests: env.provenance?.requests });
   return out.content?.[0]?.text ?? JSON.stringify(env);
 }
 
@@ -221,7 +248,8 @@ export async function ask(question: string, d: AskDeps) {
   const tag = era ? decadeTag(era.value) : null;
   const calls: Call[] = [];
   const onNotOnQ = async (c: Call) => {
-    const sourced = { ...c, results: await withSources(c.results, d.notonqBase, d.qlooKey) };
+    const [results, http] = await Promise.all([withSources(c.results, d.notonqBase, d.qlooKey), exchanges(c.requests, d.notonqBase, d.qlooKey)]);
+    const sourced = { ...c, results, http };
     calls.push(sourced);
     d.emit({ type: "call", column: "notonq", stage: "notonq", ...sourced });
   };

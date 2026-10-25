@@ -1,15 +1,17 @@
 "use client";
 
-import { CircleCheckIcon, CircleDotIcon, CircleXIcon } from "lucide-react";
+import { ChevronRightIcon, CircleCheckIcon, CircleDotIcon, CircleXIcon } from "lucide-react";
 import { useState } from "react";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
+import { Code } from "@/components/code";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
-import type { AskEvent, Column, Constraint, Judgement, ResultItem } from "@/server/agent/ask";
+import type { AskEvent, Column, Constraint, HttpExchange, Judgement, ResultItem } from "@/server/agent/ask";
 
 const EXAMPLES = [
   "Where in the US is sombr most popular, and what artists would his fans like?",
@@ -170,7 +172,7 @@ function ColumnCard({ column, title, description, events, running, constraints }
   );
 }
 
-function CallLine({ call }: { call: { tool: string; input: unknown; status: string; results: ResultItem[] } }) {
+function CallLine({ call }: { call: { tool: string; input: unknown; status: string; results: ResultItem[]; http?: HttpExchange[] } }) {
   const ok = call.status === "ok";
   return (
     <div className="flex flex-col gap-1.5">
@@ -213,6 +215,18 @@ function CallLine({ call }: { call: { tool: string; input: unknown; status: stri
             ))}
         </ul>
       ) : null}
+      {call.http?.map((h, i) => (
+        <Collapsible key={`h${i}`} className="flex flex-col gap-1.5 pl-6">
+          <CollapsibleTrigger className="flex items-center gap-1 text-left text-xs underline-offset-4 hover:underline">
+            <ChevronRightIcon className="size-3 shrink-0 transition-transform [[data-state=open]>&]:rotate-90" />
+            What your app gets from NotOnQ (JSON)
+          </CollapsibleTrigger>
+          <CollapsibleContent className="flex flex-col gap-2">
+            <Code code={h.request} language="bash" title="Request (add your X-Api-Key header)" />
+            <Code code={JSON.stringify(h.json, null, 2)} language="json" title="Response" className="max-h-96 overflow-auto" />
+          </CollapsibleContent>
+        </Collapsible>
+      ))}
       {call.results.length ? (
         <div className="flex flex-wrap gap-1.5 pl-6">
           {call.results.slice(0, 10).map((r, i) =>
