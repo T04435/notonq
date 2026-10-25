@@ -10,8 +10,10 @@ import { verifyClaims } from "@/server/research/verify";
 import type { Sql } from "@/server/store/db";
 import { findFallback, researchRunsToday, saveClaims, setResearchStatus, startResearch, type StoredFallback, updateFill } from "@/server/store/repo";
 
-/** Research needs an AI Gateway credential (OIDC on Vercel, AI_GATEWAY_API_KEY locally). NOTONQ_RESEARCH=0 turns it off. */
-export const researchEnabled = () => process.env.NOTONQ_RESEARCH !== "0" && Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
+/** Research needs an AI Gateway credential: AI_GATEWAY_API_KEY if set, else OIDC. On Vercel the OIDC token comes with
+ * each request rather than always as an env var, so running on Vercel counts. NOTONQ_RESEARCH=0 turns it off. */
+export const researchEnabled = () =>
+  process.env.NOTONQ_RESEARCH !== "0" && Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || process.env.VERCEL === "1");
 export const DAILY_CAP = Number(process.env.NOTONQ_RESEARCH_DAILY ?? 40);
 
 export type ResearchDeps = {
