@@ -108,4 +108,56 @@ describe("era, genre and place insights", () => {
     expect(out.servedBy).toBe("mixed");
     expect((out.body as { results: { entities: { name: string }[] } }).results.entities.map((e) => e.name)).toEqual(["Qloo Pick", "Known Act", "Old Band"]);
   });
+
+  it("fills a signalled era request too, and lets Qloo rank its own artists in the fill for that signal (v0.4.0)", async () => {
+    const SEED = qid(40);
+    const { fetch, calls } = fakeFetch(
+      openData((u) => {
+        // Qloo ranks the fill's Qloo artists for the signal when asked with filter.results.entities.
+        if (u.searchParams.get("filter.results.entities")) return json(200, { success: true, results: { entities: [qlooArtist(5, "Known Act")] } });
+        return json(200, { success: true, results: { entities: u.searchParams.get("filter.tags") ? [qlooArtist(9, "Qloo Pick")] : [] } });
+      }),
+    );
+    const out = await handleRest(
+      {
+        path: "v2/insights",
+        params: { "filter.type": "urn:entity:artist", "filter.tags": "urn:tag:genre:music:60s", "signal.interests.entities": SEED, "signal.location.query": "Lagos", take: "10" },
+        apiKey: "k",
+        lastfmKey: "lf",
+      },
+      deps(fetch),
+    );
+    expect(out.servedBy).toBe("mixed");
+    const body = out.body as { results: { entities: { name: string; properties?: { short_description?: string } }[] }; notonq: { request: { taste_signal: boolean }; ranking: { by: string; ranked: number } } };
+    expect(body.results.entities.map((e) => e.name)).toEqual(["Qloo Pick", "Known Act", "Old Band"]);
+    expect(body.results.entities[1].properties?.short_description).toContain("Ranked by Qloo for this request's taste signal.");
+    expect(body.notonq.request.taste_signal).toBe(true);
+    expect(body.notonq.ranking).toMatchObject({ by: "qloo", ranked: 1 });
+    // The ranking call keeps the signal and drops the era filter (the fill already applied it).
+    const rank = new URL(calls.find((c) => c.includes("filter.results.entities"))!);
+    expect(rank.searchParams.get("signal.interests.entities")).toBe(SEED);
+    expect(rank.searchParams.get("filter.tags")).toBeNull();
+    expect(rank.searchParams.get("signal.location.query")).toBeNull();
+    // Only what Qloo ranked says so.
+    expect(body.results.entities[2].properties?.short_description ?? "").not.toContain("Ranked by Qloo");
+  });
+
+  it("never returns the signal's own artist as one of the artists like it", async () => {
+    const { fetch } = fakeFetch(openData(() => json(200, { success: true, results: { entities: [] } })));
+    const out = await handleRest(
+      { path: "v2/insights", params: { "filter.type": "urn:entity:artist", "filter.tags": "urn:tag:genre:music:60s", "signal.interests.entities": qid(5), "signal.location.query": "Lagos" }, apiKey: "k", lastfmKey: "lf" },
+      deps(fetch),
+    );
+    expect((out.body as { results: { entities: { name: string }[] } }).results.entities.map((e) => e.name)).toEqual(["Old Band"]);
+  });
+
+  it("adds the era tag to a tag signal for the honesty check, keeping the caller's tags", async () => {
+    const { fetch, calls } = fakeFetch(openData(() => json(200, { success: true, results: { entities: [] } })));
+    await handleRest(
+      { path: "v2/insights", params: { "filter.type": "urn:entity:artist", "filter.tags": "urn:tag:genre:music:60s", "signal.interests.tags": "urn:tag:genre:music:highlife", "signal.location.query": "Lagos" }, apiKey: "k", lastfmKey: "lf" },
+      deps(fetch),
+    );
+    const check = calls.map((c) => new URL(c)).find((u) => u.pathname === "/v2/insights" && !u.searchParams.get("filter.tags") && !u.searchParams.get("filter.results.entities"));
+    expect(check?.searchParams.get("signal.interests.tags")).toBe("urn:tag:genre:music:highlife,urn:tag:genre:music:60s");
+  });
 });

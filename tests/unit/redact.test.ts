@@ -38,6 +38,12 @@ describe("redacting Qloo's data", () => {
     });
   });
 
+  it("keeps the ranked-by-Qloo sentence in NotOnQ's label", () => {
+    expect(ourLabelPart("Picked by NotOnQ: Qloo returned 0 artists for this request; this is Qloo's own record (MusicBrainz: Nigeria). Ranked by Qloo for this request's taste signal. Nigerian twin sisters.")).toBe(
+      "Picked by NotOnQ: Qloo returned 0 artists for this request; this is Qloo's own record (MusicBrainz: Nigeria). Ranked by Qloo for this request's taste signal.",
+    );
+  });
+
   it("cuts a picked record's description to NotOnQ's label", () => {
     expect(ourLabelPart(picked.properties.short_description)).toBe(
       "Picked by NotOnQ: Qloo returned 0 artists for this request; this is Qloo's own record (MusicBrainz: Nigeria; active from 1938 to 1997). Qloo has 6 artists for this tag as a taste signal (signal.interests.tags).",

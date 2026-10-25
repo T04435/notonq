@@ -40,7 +40,7 @@ const label = (e: unknown) => String((e as Entity | null)?.properties?.short_des
 
 /** NotOnQ's label, without the Qloo description that follows it on a Qloo record NotOnQ picked (see rest.ts eraAnswer). */
 export function ourLabelPart(description: string) {
-  const m = /^(Picked by NotOnQ:.*?record(?: \(MusicBrainz: [^)]*\))?\.)( Qloo has \d+ artists for this tag as a taste signal \(signal\.interests\.tags\)\.)?/.exec(description);
+  const m = /^(Picked by NotOnQ:.*?record(?: \(MusicBrainz: [^)]*\))?\.(?: Ranked by Qloo for this request's taste signal\.)?)( Qloo has \d+ artists for this tag as a taste signal \(signal\.interests\.tags\)\.)?/.exec(description);
   return m ? `${m[1]}${m[2] ?? ""}` : description;
 }
 

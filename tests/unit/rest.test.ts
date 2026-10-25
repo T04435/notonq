@@ -168,4 +168,53 @@ describe("handleRest", () => {
     const out = await handleRest({ path: "v2/tags", params: { "filter.query": "folk" }, apiKey: "k" }, deps(fetch));
     expect(out).toEqual({ status: 200, body: { results: { tags: [] } }, servedBy: "qloo" });
   });
+
+  // N6 (v0.4.0): every request shape the apps key on an artist works for a NotOnQ artist, through its stand-ins, and
+  // NotOnQ's ID never reaches Qloo.
+  describe.each(["urn:demographics", "urn:heatmap", "urn:audience", "urn:tag", "urn:entity:place", "urn:entity:artist", "urn:entity:movie"])("signal on %s", (type) => {
+    it("asks Qloo for the stand-ins and labels the answer", async () => {
+      const counter = { search: 0, insights: [] as string[] };
+      const { fetch, calls } = fakeFetch([...qlooRoutes(counter), ...openData]);
+      await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+      const from = calls.length; // the fill itself may look its MusicBrainz ID up on Qloo; the request below must not send it
+      const extra: Record<string, string> = type === "urn:heatmap" ? { "filter.location": "POLYGON((-179 -60,179 -60,179 80,-179 80,-179 -60))" } : type === "urn:tag" ? { "filter.tag.types": "urn:tag:genre:music" } : {};
+      const out = await handleRest({ path: "v2/insights", params: { "filter.type": type, "signal.interests.entities": NEW, ...extra }, apiKey: "k", appLabel: "app" }, deps(fetch));
+      expect(out.servedBy).toBe("mixed");
+      expect(counter.insights.at(-1)).toBe(`${qid(1)},${qid(2)}`);
+      expect(calls.slice(from).filter((c) => c.includes("hackathon.api.qloo.com")).some((c) => c.includes(NEW))).toBe(false);
+      expect((out.body as { notonq: { proxy: { replaced: string[] } } }).notonq.proxy.replaced).toEqual([NEW]);
+    });
+  });
+
+  it("ranks a list with a NotOnQ artist in it: Qloo ranks the ones it knows, NotOnQ's follows, unranked", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const sent: string[] = [];
+    const { fetch } = fakeFetch([
+      ["/v2/insights?filter.results", (u) => (sent.push(u.searchParams.get("filter.results.entities") ?? ""), json(200, { success: true, results: { entities: [qlooArtist(8, "B"), qlooArtist(7, "A")] } }))],
+      ...qlooRoutes(counter),
+      ...openData,
+    ]);
+    await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const out = await handleRest(
+      { path: "v2/insights", params: { "filter.results.entities": `${qid(7)},${NEW},${qid(8)}`, "filter.type": "urn:entity:artist", "signal.location": "POINT(144.96 -37.81)" }, apiKey: "k" },
+      deps(fetch),
+    );
+    expect(sent.at(-1)).toBe(`${qid(7)},${qid(8)}`);
+    const body = out.body as { results: { entities: { name: string }[] }; notonq: { unranked: string[] } };
+    expect(body.results.entities.map((e) => e.name)).toEqual(["B", "A", "Newact"]);
+    expect(body.notonq.unranked).toEqual([NEW]);
+    expect(out.servedBy).toBe("mixed");
+  });
+
+  it("ranks a list of only NotOnQ artists without asking Qloo", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const { fetch } = fakeFetch([...qlooRoutes(counter), ...openData]);
+    await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const before = counter.insights.length;
+    const out = await handleRest({ path: "v2/insights", params: { "filter.results.entities": NEW, "filter.type": "urn:entity:artist" }, apiKey: "k" }, deps(fetch));
+    expect(counter.insights.length).toBe(before);
+    expect(out).toMatchObject({ status: 200, servedBy: "fallback" });
+    expect((out.body as { results: { entities: { name: string }[] } }).results.entities.map((e) => e.name)).toEqual(["Newact"]);
+  });
 });
+

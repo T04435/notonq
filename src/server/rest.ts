@@ -159,7 +159,22 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   const replaced = await oursFor(signal, ctx);
   const ours = new Set(replaced.keys());
   let params = withSignal(req.params, signal, replaced);
-  if (signal.length && !params["signal.interests.entities"]) return noTasteData(replaced, ctx);
+  // Artists by era, genre and place (v0.3.0), also with a taste signal alongside (v0.4.0): see eraAnswer.
+  const eraTag = req.params["filter.type"] === ARTIST ? (req.params["filter.tags"] ?? "").split(",").map((t) => t.trim()).find((t) => parseMusicTag(t)) : undefined;
+  if (signal.length && !params["signal.interests.entities"]) {
+    if (!eraTag) return noTasteData(replaced, ctx);
+    // Only NotOnQ artists with no stand-ins: the era and place still stand on their own.
+    params = Object.fromEntries(Object.entries(params).filter(([k]) => k !== "signal.interests.entities"));
+  }
+  // Ranking a given list (filter.results.entities, the harness's qloo_rank): Qloo can't score NotOnQ's artists, so they
+  // leave the list Qloo sees and follow Qloo's ranking, labelled unranked.
+  const options = (req.params["filter.results.entities"] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const unranked = options.length ? await oursFor(options, ctx) : new Map<string, StoredFallback>();
+  if (unranked.size) {
+    const rest = options.filter((id) => !unranked.has(id));
+    if (!rest.length) return unrankedAnswer(null, unranked, replaced, ctx);
+    params = { ...params, "filter.results.entities": rest.join(",") };
+  }
   let res = await ctx.qloo.get("/v2/insights", params);
 
   // G2: Qloo knows these IDs but can't use them. Swap each for its stand-ins and ask once more.
@@ -172,9 +187,8 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
     res = await ctx.qloo.get("/v2/insights", params);
   }
 
-  // Artists by era, genre and place: when Qloo has nothing or little for the exact request, fill it (v0.3.0).
-  const eraTag = req.params["filter.type"] === ARTIST && !signal.length ? (req.params["filter.tags"] ?? "").split(",").map((t) => t.trim()).find((t) => parseMusicTag(t)) : undefined;
-  if (eraTag) return eraAnswer(req, ctx, res, eraTag);
+  if (eraTag) return eraAnswer(req, params, ctx, res, eraTag, replaced);
+  if (unranked.size) return unrankedAnswer(res, unranked, replaced, ctx);
 
   if (!replaced.size) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
   for (const f of replaced.values())
@@ -194,6 +208,32 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
       },
     },
     servedBy: "mixed",
+  };
+}
+
+/** Qloo's ranking of the options it knows (or none, when every option is NotOnQ's), then NotOnQ's options, unranked:
+ * Qloo has no taste data to score them with, and NotOnQ doesn't pretend to. */
+async function unrankedAnswer(res: Awaited<ReturnType<Ctx["qloo"]["get"]>> | null, unranked: Map<string, StoredFallback>, replaced: Map<string, StoredFallback>, ctx: Ctx): Promise<RestResponse> {
+  if (res && !res.ok) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+  for (const f of [...unranked.values(), ...replaced.values()])
+    await logRequest(ctx.sql, { nameKey: f.nameKey, entityId: f.id, endpoint: ctx.endpoint, servedBy: res ? "mixed" : "fallback", gapKind: f.gapKind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: true });
+  const base = res?.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { success: true };
+  const results = base.results && typeof base.results === "object" ? (base.results as Record<string, unknown>) : {};
+  const qloo = res ? entitiesOf(res.json) : [];
+  const ours = [...unranked.values()].flatMap((f) => (f.entity ? [f.entity] : []));
+  return {
+    status: 200,
+    body: {
+      ...base,
+      results: { ...results, entities: [...qloo, ...ours] },
+      notonq: {
+        served_by: res ? "mixed" : "fallback",
+        unranked: [...unranked.keys()],
+        ...(replaced.size ? { proxy: { replaced: [...replaced.keys()], stand_ins: [...replaced.values()].flatMap(standInsOf) } } : {}),
+        note: "Qloo ranked the options it knows; NotOnQ's artists follow, unranked: Qloo has no taste data to score them with.",
+      },
+    },
+    servedBy: res ? "mixed" : "fallback",
   };
 }
 
@@ -229,8 +269,20 @@ const ERA_TTL_MS = 7 * 24 * 3600 * 1000;
 const ERA_EMPTY_TTL_MS = 24 * 3600 * 1000;
 
 /** Qloo's answer for an era/genre/place artist request, with NotOnQ's artists after Qloo's when Qloo had few or none,
- * or erred. Qloo's own entities stay first and unchanged; the Ledger records the gap by request shape. */
-async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx["qloo"]["get"]>>, tag: string): Promise<RestResponse> {
+ * or erred. Qloo's own entities stay first and unchanged; the Ledger records the gap by request shape.
+ *
+ * With a taste signal alongside (signal.interests.entities or .tags, as apps send for "artists like the family's
+ * favourite, from her 1960s Lagos"), the era fill is the same, and Qloo itself ranks the Qloo artists in it for that
+ * signal (filter.results.entities): NotOnQ picks who fits the era and place, Qloo says who fits the taste. `sent` is
+ * what Qloo was asked, with NotOnQ's IDs already swapped for their stand-ins. */
+async function eraAnswer(
+  req: RestRequest,
+  sent: Record<string, string>,
+  ctx: Ctx,
+  res: Awaited<ReturnType<Ctx["qloo"]["get"]>>,
+  tag: string,
+  replaced: Map<string, StoredFallback>,
+): Promise<RestResponse> {
   const take = Math.max(1, Math.min(Number(req.params.take) || 20, 50));
   const qlooEntities = res.ok ? entitiesOf(res.json) : [];
   if (res.ok && qlooEntities.length >= Math.min(THIN, take)) return { status: res.status, body: res.json, servedBy: "qloo" };
@@ -245,15 +297,37 @@ async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx
     await saveShapeFill(ctx.sql, key, fill);
   }
   const f = fill!;
-  const ours = f.entities.filter((e) => !qlooEntities.some((q) => q.entity_id === (e as { entity_id: string }).entity_id));
-  const filled = ours.filter((e) => String((e as { properties?: { short_description?: string } }).properties?.short_description ?? "").startsWith("Not in Qloo"));
+  const signalIds = new Set([...(sent["signal.interests.entities"] ?? "").split(","), ...replaced.keys()].map((s) => s.trim()).filter(Boolean));
+  const hasSignal = signalIds.size > 0 || !!sent["signal.interests.tags"];
+  const idOf = (e: unknown) => String((e as { entity_id?: string }).entity_id ?? "");
+  const notInQloo = (e: unknown) => String((e as { properties?: { short_description?: string } }).properties?.short_description ?? "").startsWith("Not in Qloo");
+  // Never the signal's own artists back as the answer to "artists like them".
+  let ours = f.entities.filter((e) => !qlooEntities.some((q) => q.entity_id === idOf(e)) && !signalIds.has(idOf(e)));
+  const rankedIds = new Set<string>();
+  if (hasSignal) {
+    const known = ours.filter((e) => !notInQloo(e)).map(idOf);
+    if (known.length) {
+      // Taste only: the fill already applied the era and place, and a location here makes Qloo drop artists it has
+      // no location data for (checked 27 Oct 2026: 3 of 3 ranked without Lagos, 1 of 3 with it).
+      const ranked = await ctx.qloo.get("/v2/insights", {
+        ...Object.fromEntries(Object.entries(sent).filter(([k]) => k !== "filter.tags" && k !== "operator.filter.tags" && !/^(signal|filter)\.location/.test(k))),
+        "filter.results.entities": known.join(","),
+        take: String(known.length),
+      });
+      const order = ranked.ok ? entitiesOf(ranked.json).map((e) => e.entity_id) : [];
+      for (const id of order) if (known.includes(id)) rankedIds.add(id);
+      const pos = (e: unknown) => (order.includes(idOf(e)) ? order.indexOf(idOf(e)) : notInQloo(e) ? Infinity : order.length);
+      ours = [...ours].sort((a, b) => pos(a) - pos(b));
+    }
+  }
+  const filled = ours.filter(notInQloo);
   await saveCandidateRefs(ctx.sql, filled.map((e) => ({ id: (e as { entity_id: string }).entity_id, key: `mb:${(e as { entity_id: string }).entity_id}`, name: (e as { name: string }).name })));
 
   // Honesty check: Qloo may answer the same tag as a taste signal (signal.interests.tags) even when the filter is
   // empty. Report how many it has that way, so a client sees what Qloo offers before using NotOnQ's fill.
   const asSignal = await ctx.qloo.get("/v2/insights", {
-    ...Object.fromEntries(Object.entries(req.params).filter(([k]) => k !== "filter.tags" && k !== "operator.filter.tags")),
-    "signal.interests.tags": tag,
+    ...Object.fromEntries(Object.entries(sent).filter(([k]) => k !== "filter.tags" && k !== "operator.filter.tags")),
+    "signal.interests.tags": sent["signal.interests.tags"] ? `${sent["signal.interests.tags"]},${tag}` : tag,
   });
   const qlooAsSignal = asSignal.ok ? entitiesOf(asSignal.json).length : undefined;
 
@@ -266,13 +340,14 @@ async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx
     const description = String(x.properties?.short_description ?? "");
     if (description.startsWith("Not in Qloo")) return { ...x, properties: { ...x.properties, short_description: `${description}${hint}` } };
     const evidence = f.facts?.[String((e as { entity_id?: string }).entity_id)];
-    const picked = `Picked by NotOnQ: Qloo returned ${qlooEntities.length} artists for this request; this is Qloo's own record${evidence ? ` (MusicBrainz: ${evidence})` : ""}.${hint}`;
+    const rank = rankedIds.has(idOf(e)) ? " Ranked by Qloo for this request's taste signal." : "";
+    const picked = `Picked by NotOnQ: Qloo returned ${qlooEntities.length} artists for this request; this is Qloo's own record${evidence ? ` (MusicBrainz: ${evidence})` : ""}.${rank}${hint}`;
     return { ...x, properties: { ...x.properties, short_description: description ? `${picked} ${description}` : picked } };
   });
 
   const label = [tag.split(":").pop(), place].filter(Boolean).join(" · ");
   const servedBy = !ours.length ? "qloo" : qlooEntities.length ? "mixed" : "fallback";
-  await logRequest(ctx.sql, { nameKey: label, query: `${tag}${place ? ` @ ${place}` : ""}`, endpoint: ctx.endpoint, servedBy: servedBy === "qloo" ? "fallback" : servedBy, gapKind: "G4", callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit });
+  await logRequest(ctx.sql, { nameKey: label, query: `${tag}${place ? ` @ ${place}` : ""}${hasSignal ? " + taste signal" : ""}`, endpoint: ctx.endpoint, servedBy: servedBy === "qloo" ? "fallback" : servedBy, gapKind: "G4", callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit });
 
   const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { success: true };
   const results = base.results && typeof base.results === "object" ? (base.results as Record<string, unknown>) : {};
@@ -284,7 +359,9 @@ async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx
       notonq: {
         served_by: servedBy,
         gap: { kind: "G4", qloo_status: res.status, qloo_message: qlooMessage(res.json), reason: `Qloo returned ${qlooEntities.length} artists for ${tag}${place ? ` in ${place}` : ""}`, qloo_as_signal: qlooAsSignal },
-        request: { tag, place, country: f.country, query: f.query },
+        request: { tag, place, country: f.country, query: f.query, taste_signal: hasSignal },
+        ...(hasSignal ? { ranking: { by: "qloo", ranked: rankedIds.size, note: "Qloo ranked its own artists in NotOnQ's era fill for this request's taste signal (filter.results.entities). Artists not in Qloo follow, by listeners." } } : {}),
+        ...(replaced.size ? { proxy: { replaced: [...replaced.keys()], stand_ins: [...replaced.values()].flatMap(standInsOf) } } : {}),
         cache: { hit: cacheHit },
         provenance: f.provenance,
         note: [
