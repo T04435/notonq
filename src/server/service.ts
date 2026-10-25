@@ -1,0 +1,152 @@
+// The service every door uses (playground, REST and the Qloo harness through it): look up an artist with the cache in front, record demand,
+// hand back candidates when the name is ambiguous, and close the loop when Qloo finally knows an artist we filled in.
+import { createHash } from "node:crypto";
+import { type ResolveOptions, resolveArtist, SOURCE_ERROR } from "@/server/engine/artist";
+import { type Candidate, idForKey, slug } from "@/server/engine/candidates";
+import type { Fetch } from "@/server/http";
+import { applyClaims } from "@/server/research/apply";
+import { needsResearch, type ResearchDeps, researchEnabled, runResearch } from "@/server/research/run";
+import { entitiesOf, type QlooClient, type QlooEntity } from "@/server/qloo/client";
+import { type Gap, nameKey } from "@/server/qloo/gap";
+import type { Sql } from "@/server/store/db";
+import { claimsFor, type Demand, demandFor, findFallback, logRequest, markResolvedByQloo, saveFallback, type StoredFallback, updateFill } from "@/server/store/repo";
+
+export type Ctx = {
+  sql: Sql;
+  qloo: QlooClient;
+  lastfmKey?: string;
+  callerHash: string;
+  appLabel?: string;
+  endpoint: string;
+  fetch?: Fetch;
+  /** Runs a task after the response (next/server `after` in routes). Without it, research is never started. */
+  defer?: (task: () => Promise<unknown>) => void;
+  /** Research deps for tests (an injected agent); in the app, research runs when an AI Gateway credential exists. */
+  research?: Omit<ResearchDeps, "sql" | "qloo">;
+};
+
+type GapInfo = Pick<Gap, "kind"> & Partial<Gap>;
+
+export type Lookup =
+  | { servedBy: "qloo"; nameKey: string; entity: QlooEntity }
+  | { servedBy: "needs_choice"; nameKey: string; gap: GapInfo; candidates: Candidate[]; demand: Demand }
+  | { servedBy: "fallback"; nameKey: string; cacheHit: boolean; gap: GapInfo; fallback: StoredFallback; demand: Demand };
+
+/** Fallback data is ours (open sources), so it is shared across callers. Filled entities refresh weekly; "nothing
+ * found", or a fill where a source failed, is retried after a day. */
+export const FALLBACK_TTL_MS = 7 * 24 * 3600 * 1000;
+export const EMPTY_TTL_MS = 24 * 3600 * 1000;
+
+export const hashCaller = (key: string, salt: string) => createHash("sha256").update(`${salt}:${key}`).digest("hex").slice(0, 32);
+
+const partial = (f: StoredFallback) => !f.entity || f.unavailable.some((u) => u.includes(SOURCE_ERROR));
+const isFresh = (f: StoredFallback) => !f.resolvedByQlooAt && Date.now() - Date.parse(f.refreshedAt) < (partial(f) ? EMPTY_TTL_MS : FALLBACK_TTL_MS);
+
+export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions = {}): Promise<Lookup> {
+  const key = nameKey(name);
+  const cached = opts.candidateKey
+    ? ((await findFallback(ctx.sql, { candidateKey: opts.candidateKey })) ?? (await findFallback(ctx.sql, { id: idForKey(opts.candidateKey) })))
+    : opts.choose
+      ? null
+      : await findFallback(ctx.sql, { nameKey: key });
+
+  if (cached && isFresh(cached)) {
+    await log(ctx, name, key, cached, true);
+    scheduleResearch(cached, ctx);
+    return { servedBy: "fallback", nameKey: key, cacheHit: true, gap: { kind: cached.gapKind }, fallback: cached, demand: await demandFor(ctx.sql, key) };
+  }
+
+  const r = await resolveArtist(name, { qloo: ctx.qloo, lastfmKey: ctx.lastfmKey, fetch: ctx.fetch }, opts);
+  if (r.servedBy === "qloo") {
+    // Qloo now knows an artist we used to fill in: close the ticket and step aside.
+    if (cached && !cached.resolvedByQlooAt) await markResolvedByQloo(ctx.sql, cached.id, r.entity.entity_id);
+    await logRequest(ctx.sql, { nameKey: key, query: name, entityId: r.entity.entity_id, endpoint: ctx.endpoint, servedBy: "qloo", callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: false });
+    return { servedBy: "qloo", nameKey: key, entity: r.entity };
+  }
+
+  // An untyped search that turned up no artist with any evidence wasn't about an artist: no Ledger entry, nothing added.
+  if (r.servedBy === "needs_choice" && opts.untyped && !r.candidates.length) return { servedBy: "needs_choice", nameKey: key, gap: r.gap, candidates: [], demand: await demandFor(ctx.sql, key) };
+  if (r.servedBy === "needs_choice") {
+    await logRequest(ctx.sql, { nameKey: key, query: name, endpoint: ctx.endpoint, servedBy: "needs_choice", gapKind: r.gap.kind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: false });
+    return { servedBy: "needs_choice", nameKey: key, gap: r.gap, candidates: r.candidates, demand: await demandFor(ctx.sql, key) };
+  }
+
+  const id = r.entity?.entity_id ?? idForKey(`name:${slug(name)}`);
+  const before = await findFallback(ctx.sql, { id });
+  let stored = await saveFallback(ctx.sql, {
+    id,
+    nameKey: key,
+    name: r.entity?.name ?? name,
+    mbid: r.entity?.properties.external.musicbrainz?.id,
+    qid: r.entity?.properties.external.wikidata?.id,
+    spotifyId: r.entity?.properties.external.spotify?.id,
+    gapKind: r.gap.kind === "G2" ? "G2" : "G1",
+    qlooEntityId: r.qlooEntity?.entity_id,
+    candidateKey: r.candidateKey,
+    chosen: !!opts.candidateKey,
+    confidence: r.confidence,
+    entity: r.entity,
+    provenance: r.provenance,
+    standIns: r.standIns,
+    popularity: r.popularity,
+    unavailable: r.unavailable,
+  });
+  // The weekly rebuild starts from the sources again: put back what research had verified, instead of losing it.
+  if (before?.researchStatus === "done") stored = await reapplyResearch(stored, ctx);
+  await log(ctx, name, key, stored, false);
+  scheduleResearch(stored, ctx);
+  return { servedBy: "fallback", nameKey: key, cacheHit: false, gap: r.gap, fallback: stored, demand: await demandFor(ctx.sql, key) };
+}
+
+async function reapplyResearch(f: StoredFallback, ctx: Ctx): Promise<StoredFallback> {
+  const verified = (await claimsFor(ctx.sql, f.id))
+    .filter((c) => c.verified)
+    .map((c) => ({
+      field: c.field as Parameters<typeof applyClaims>[1][number]["field"],
+      value: c.value,
+      source_url: c.sourceUrl,
+      quote: c.quote,
+      domain: new URL(c.sourceUrl).hostname,
+      confidence: c.confidence === "high" ? ("high" as const) : ("medium" as const),
+    }));
+  const applied = await applyClaims(f, verified, ctx.qloo);
+  await updateFill(ctx.sql, f.id, { entity: applied.entity, provenance: applied.provenance, standIns: applied.standIns, unavailable: applied.unavailable, researchStatus: "done" });
+  return (await findFallback(ctx.sql, { id: f.id })) ?? f;
+}
+
+/** Tier 3 in the background: only for filled entities with gaps left, once per artist, never blocking the answer. */
+function scheduleResearch(f: StoredFallback, ctx: Ctx) {
+  if (!ctx.defer || !needsResearch(f) || !(ctx.research || researchEnabled())) return;
+  ctx.defer(() => runResearch(f.id, { sql: ctx.sql, qloo: ctx.qloo, fetch: ctx.fetch, ...ctx.research }));
+}
+
+function log(ctx: Ctx, query: string, key: string, f: StoredFallback, cacheHit: boolean) {
+  return logRequest(ctx.sql, {
+    nameKey: key,
+    query,
+    entityId: f.id,
+    endpoint: ctx.endpoint,
+    servedBy: "fallback",
+    gapKind: f.gapKind,
+    callerHash: ctx.callerHash,
+    appLabel: ctx.appLabel,
+    cacheHit,
+  });
+}
+
+/** For a G2 Qloo ID (Qloo finds it but can't use it): our fallback for it, building one from Qloo's own name if needed.
+ * Qloo's own record already pins down which artist it is, so an ambiguous name takes the best candidate. */
+export async function fallbackForQlooId(qlooId: string, ctx: Ctx): Promise<StoredFallback | null> {
+  const known = await findFallback(ctx.sql, { qlooEntityId: qlooId });
+  if (known) return known;
+  const lookup = await ctx.qloo.get("/entities", { entity_ids: qlooId });
+  const name = entitiesOf(lookup.json)[0]?.name;
+  if (!name) return null;
+  const first = await lookupArtist(name, ctx);
+  if (first.servedBy === "fallback") return first.fallback;
+  if (first.servedBy === "needs_choice" && first.candidates[0]) {
+    const picked = await lookupArtist(name, ctx, { candidateKey: first.candidates[0].key });
+    return picked.servedBy === "fallback" ? picked.fallback : null;
+  }
+  return null;
+}

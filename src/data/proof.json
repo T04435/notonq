@@ -1,0 +1,44 @@
+{
+  "ranAt": "2026-10-22T14:35:02.700Z",
+  "method": {
+    "samples": {
+      "fresh": "Artists with a release in the last 14 days (ListenBrainz fresh releases, single-artist credits), seeded random sample",
+      "chart": "Last.fm global top artists chart"
+    },
+    "gap": "G1: Qloo has no entity (MusicBrainz ID or exact name). G2: Qloo finds the entity but /v2/insights rejects it as a signal.",
+    "fill": "NotOnQ tiers 1–2 (open data + stand-ins), first 30 gap artists, no research agent",
+    "backtest": "Artists Qloo does know: Qloo's own top-20 'fans also like' vs the answer from up to 5 stand-ins (the artist itself hidden), first 15 with enough stand-ins",
+    "qlooCalls": 303
+  },
+  "coverage": {
+    "fresh": {
+      "artists": 100,
+      "usableInQloo": 37,
+      "unknownG1": 61,
+      "notInTasteGraphG2": 2,
+      "gapRatePct": 63
+    },
+    "chart": {
+      "artists": 100,
+      "usableInQloo": 96,
+      "unknownG1": 3,
+      "notInTasteGraphG2": 1,
+      "gapRatePct": 4
+    }
+  },
+  "fill": {
+    "artists": 30,
+    "entityPct": 100,
+    "standInsPct": 80,
+    "descriptionPct": 3.3,
+    "genresPct": 26.7,
+    "imagePct": 0,
+    "popularityPct": 33.3,
+    "meanSourcedFields": 4.767
+  },
+  "backtest": {
+    "artists": 15,
+    "meanOverlapAt10": 0.287,
+    "meanOverlapAt20": 0.373
+  }
+}

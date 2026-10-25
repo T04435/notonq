@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -43,3 +43,9 @@ next-env.d.ts
 
 # Saved songs and audio in local development (Qloo-derived data stays out of the repo)
 /.data/
+
+# local PGlite database
+/.data/
+
+# machine-specific dev launcher
+/.claude/launch.json

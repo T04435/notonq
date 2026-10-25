@@ -26,7 +26,10 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_BUILT_AT: new Date().toISOString(),
     NEXT_PUBLIC_APP_REPO: "https://github.com/T04435/notonq",
   },
+  // PGlite loads its WASM from its own package path; bundling it breaks that, so Node loads it as-is.
+  serverExternalPackages: ["@electric-sql/pglite"],
   cacheComponents: true,
+  partialPrefetching: true,
   turbopack: {
     rules: {
       "*.css": {
