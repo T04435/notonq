@@ -38,6 +38,29 @@ CREATE INDEX IF NOT EXISTS fallback_entities_name_key ON fallback_entities (name
 CREATE INDEX IF NOT EXISTS fallback_entities_mbid ON fallback_entities (mbid);
 CREATE INDEX IF NOT EXISTS fallback_entities_qloo ON fallback_entities (qloo_entity_id);
 
+-- Every request, recorded for the Ledger's replay: an Ask run's streamed steps (with timing) or one API/MCP request
+-- and its response. Replaying shows these recorded steps again; nothing is re-run. Caller keys are hashed, never stored.
+CREATE TABLE IF NOT EXISTS runs (
+  id           text PRIMARY KEY,
+  kind         text NOT NULL,                  -- ask | api
+  title        text NOT NULL,                  -- the question, or "GET /q/v2/insights?..."
+  summary      text,
+  served_by    text,                           -- qloo | fallback | mixed | needs_choice (api), or the final source (ask)
+  app_label    text,
+  caller_hash  text NOT NULL,
+  events       jsonb NOT NULL,
+  ms           integer,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS runs_created ON runs (created_at DESC);
+
+-- Fills for a whole request shape (v0.3.0: artists by era, genre and place), shared like other open-data fills
+CREATE TABLE IF NOT EXISTS shape_fills (
+  key           text PRIMARY KEY,
+  body          jsonb NOT NULL,
+  refreshed_at  timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS requests (
   id           bigserial PRIMARY KEY,
   name_key     text NOT NULL,

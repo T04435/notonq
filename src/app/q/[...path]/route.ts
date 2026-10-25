@@ -1,6 +1,10 @@
 import { after } from "next/server";
 import { env } from "@/server/env";
 import { handleRest } from "@/server/rest";
+import { hashCaller } from "@/server/service";
+import { redactBody } from "@/server/redact";
+import { shorten } from "@/server/shorten";
+import { saveRun } from "@/server/store/repo";
 import { db } from "@/server/store/db";
 
 // Drop-in for the Qloo API: point a client (or the official harness via QLOO_BASE_URL + QLOO_TRUSTED_BASE_URL)
@@ -23,6 +27,7 @@ async function handle(request: Request, ctx: RouteContext<"/q/[...path]">, body?
   const fromPath = first === "app" && label ? label : undefined;
   const path = fromPath ? rest : segments;
   const url = new URL(request.url);
+  const started = Date.now();
   const out = await handleRest(
     {
       path: path.join("/"),
@@ -35,6 +40,31 @@ async function handle(request: Request, ctx: RouteContext<"/q/[...path]">, body?
     },
     { sql: await db(), baseUrl: env.QLOO_BASE_URL, salt: env.NOTONQ_SALT, defer: after },
   );
+  // Every request is recorded for the Ledger's replay: the request without its key, and the response with Qloo's own
+  // data redacted (the caller gets it in full; the public Ledger never does) and long lists cut for reading.
+  // The Ask page's own calls are part of its run, recorded there, so they are not recorded twice.
+  const appLabel = (request.headers.get("x-notonq-app") ?? fromPath)?.slice(0, 64) || undefined;
+  const apiKey = request.headers.get("x-api-key");
+  if (apiKey && !appLabel?.startsWith("playground-")) {
+    const ms = Date.now() - started;
+    const title = `${request.method} /q/${path.join("/")}${url.search ? `?${decodeURIComponent(url.searchParams.toString())}` : ""}`;
+    after(async () =>
+      saveRun(await db(), {
+        id: crypto.randomUUID(),
+        kind: "api",
+        title,
+        summary: `${out.status} · ${out.servedBy}`,
+        servedBy: out.servedBy,
+        appLabel,
+        callerHash: hashCaller(apiKey, env.NOTONQ_SALT),
+        ms,
+        events: [
+          { t: 0, type: "request", method: request.method, path: `/q/${path.join("/")}`, params: Object.fromEntries(url.searchParams), body: body ?? null },
+          { t: ms, type: "response", status: out.status, servedBy: out.servedBy, body: shorten(redactBody(out.body)) as never },
+        ],
+      }),
+    );
+  }
   return Response.json(out.body, {
     status: out.status,
     headers: { "Cache-Control": "no-store", "X-NotOnQ-Served-By": out.servedBy },

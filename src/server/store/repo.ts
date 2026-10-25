@@ -375,3 +375,53 @@ export async function qlooCachePut(sql: Sql, callerHash: string, reqHash: string
     [callerHash, reqHash, status, JSON.stringify(body), String(ttlHours)],
   );
 }
+
+export async function findShapeFill<T>(sql: Sql, key: string, maxAgeMs: number): Promise<T | null> {
+  const [r] = await sql(`SELECT body, refreshed_at FROM shape_fills WHERE key = $1`, [key]);
+  if (!r || Date.now() - Date.parse(String(iso(r.refreshed_at))) > maxAgeMs) return null;
+  return json<T | null>(r.body, null);
+}
+
+export async function saveShapeFill(sql: Sql, key: string, body: unknown) {
+  await sql(`INSERT INTO shape_fills (key, body) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET body = EXCLUDED.body, refreshed_at = now()`, [key, JSON.stringify(body)]);
+}
+
+/** One recorded step of a run, at `t` ms after it started. */
+export type RunEvent = { t: number } & Record<string, unknown>;
+export type Run = { id: string; kind: "ask" | "api"; title: string; summary?: string; servedBy?: string; appLabel?: string; ms?: number; createdAt: string; events: RunEvent[] };
+
+export async function saveRun(sql: Sql, r: Omit<Run, "createdAt"> & { callerHash: string }) {
+  await sql(`INSERT INTO runs (id, kind, title, summary, served_by, app_label, caller_hash, events, ms) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`, [
+    r.id,
+    r.kind,
+    r.title.slice(0, 500),
+    r.summary ?? null,
+    r.servedBy ?? null,
+    r.appLabel ?? null,
+    r.callerHash,
+    JSON.stringify(r.events),
+    r.ms ?? null,
+  ]);
+}
+
+const toRun = (r: Row, withEvents: boolean): Run => ({
+  id: String(r.id),
+  kind: r.kind as Run["kind"],
+  title: String(r.title),
+  summary: (r.summary as string) ?? undefined,
+  servedBy: (r.served_by as string) ?? undefined,
+  appLabel: (r.app_label as string) ?? undefined,
+  ms: r.ms === null || r.ms === undefined ? undefined : Number(r.ms),
+  createdAt: iso(r.created_at)!,
+  events: withEvents ? json(r.events, []) : [],
+});
+
+export async function listRuns(sql: Sql, limit = 200): Promise<Run[]> {
+  const rows = await sql(`SELECT id, kind, title, summary, served_by, app_label, ms, created_at FROM runs ORDER BY created_at DESC LIMIT $1`, [limit]);
+  return rows.map((r) => toRun(r, false));
+}
+
+export async function getRun(sql: Sql, id: string): Promise<Run | null> {
+  const [r] = await sql(`SELECT * FROM runs WHERE id = $1`, [id]);
+  return r ? toRun(r, true) : null;
+}

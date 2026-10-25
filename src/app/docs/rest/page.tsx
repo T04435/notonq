@@ -86,6 +86,7 @@ export default function RestReference() {
             ["GET /v2/insights", "Any filter.type. NotOnQ IDs, and Qloo IDs Qloo rejects as a signal, become their stand-ins; Qloo answers. No stand-ins: an empty answer."],
             ["POST /v2/insights", "The same, with a JSON body; { id, weight } objects stay weighted (scaled by each stand-in's match)."],
             ["GET /v2/analysis/compare", "NotOnQ artists in either group become their stand-ins."],
+            ["GET /v2/insights · artists by music tag and place", "filter.tags=urn:tag:genre:music:60s (any decade or genre) with signal.location.query: when Qloo returns fewer than 5 artists, NotOnQ adds artists from that era, genre and country after Qloo's (Qloo-known ones first, as Qloo entities)."],
             ["Everything else", "Passes through unchanged (cached per key): /, /v2/tags, /v2/audiences, /v2/trending, other entity types."],
           ]}
         />

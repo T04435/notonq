@@ -72,7 +72,7 @@ export const OPENAPI = {
   openapi: "3.1.0",
   info: {
     title: "NotOnQ",
-    version: "0.2.0",
+    version: "0.3.0",
     description:
       "A drop-in layer in front of the Qloo API (hackathon host). Qloo answers first with your own key; when Qloo has no data for an artist, NotOnQ adds a Qloo-shaped answer from open sources after Qloo's results, with a source on every value. NotOnQ entity IDs are UUIDs; their properties.short_description starts \"Not in Qloo\". Artists only. Works with the Qloo API; not affiliated with or endorsed by Qloo.",
     license: { name: "MIT" },
@@ -114,7 +114,7 @@ export const OPENAPI = {
     },
     "/v2/insights": {
       get: {
-        summary: "Insights; NotOnQ IDs and unusable Qloo IDs in signal.interests.entities become stand-ins",
+        summary: "Insights; NotOnQ IDs and unusable Qloo IDs in signal.interests.entities become stand-ins; thin artist answers for a music genre tag (decade or genre) and place are filled from open data",
         parameters: [{ name: "signal.interests.entities", in: "query", schema: { type: "string" } }, { name: "filter.type", in: "query", required: true, schema: { type: "string" } }],
         responses: { "200": qlooResponse("Qloo's answer; served_by mixed when stand-ins were used; empty results when a NotOnQ artist has none."), ...common },
       },

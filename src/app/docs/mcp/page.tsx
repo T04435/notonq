@@ -88,7 +88,7 @@ export default function McpReference() {
           ]}
         />
         <p className="text-sm text-muted-foreground">
-          Sources for every value are on the REST response (<code>notonq.provenance</code>), in the playground and on each artist&apos;s Ledger page.
+          Sources for every value are on the REST response (<code>notonq.provenance</code>), on the Ask page and on each artist&apos;s Ledger page.
         </p>
       </section>
 

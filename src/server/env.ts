@@ -8,10 +8,10 @@ const optional = z
   .transform((v) => (v && v !== "SET_ME" ? v : undefined));
 
 const Env = z.object({
-  /** Our own Qloo key: used only by the playground. REST callers always bring their own. */
+  /** Our own Qloo key: used only by the Ask page. REST callers always bring their own. */
   QLOO_API_KEY: optional,
   QLOO_BASE_URL: z.string().url().default("https://hackathon.api.qloo.com"),
-  /** Our own Last.fm key: the playground, and REST callers who send no X-Lastfm-Key (hackathon demo). */
+  /** Our own Last.fm key: the Ask page, and REST callers who send no X-Lastfm-Key (hackathon demo). */
   LASTFM_API_KEY: optional,
   /** Neon in deployed envs. Unset locally → an embedded PGlite database in .data/. */
   DATABASE_URL: optional,

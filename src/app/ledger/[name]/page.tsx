@@ -9,6 +9,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { storedView } from "@/server/playground";
+import { redactQlooIds } from "@/server/redact";
 import { db } from "@/server/store/db";
 import { claimsFor, demandByApp, demandFor, findFallback } from "@/server/store/repo";
 
@@ -37,7 +38,8 @@ async function Entry({ params }: { params: PageProps<"/ledger/[name]">["params"]
   const nameKey = decodeURIComponent((await params).name);
   const sql = await db();
   const [f, demand, origin] = await Promise.all([findFallback(sql, { nameKey }), demandFor(sql, nameKey), demandByApp(sql, nameKey)]);
-  const play = (extra: Record<string, string> = {}) => `/?${new URLSearchParams({ q: origin.query, ...extra })}`;
+  // Ask about this artist on the home page, side by side with Qloo (prefilled; asking stays a click).
+  const ask = `/?${new URLSearchParams({ q: `Tell me about the artist ${origin.query}: who are they, and what artists would their fans like?` })}`;
 
   if (origin.latest === "qloo")
     return (
@@ -48,7 +50,7 @@ async function Entry({ params }: { params: PageProps<"/ledger/[name]">["params"]
         </EmptyHeader>
         <EmptyContent>
           <Button asChild>
-            <Link href={play()}>See Qloo&apos;s answer in the playground</Link>
+            <Link href={ask}>Ask about it, side by side with Qloo</Link>
           </Button>
         </EmptyContent>
       </Empty>
@@ -65,7 +67,7 @@ async function Entry({ params }: { params: PageProps<"/ledger/[name]">["params"]
         </EmptyHeader>
         <EmptyContent>
           <Button asChild>
-            <Link href={play(f ? {} : { choose: "1" })}>{f ? "Try again in the playground" : "Choose the artist in the playground"}</Link>
+            <Link href={ask}>Ask about it, side by side with Qloo</Link>
           </Button>
         </EmptyContent>
       </Empty>
@@ -77,11 +79,11 @@ async function Entry({ params }: { params: PageProps<"/ledger/[name]">["params"]
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{f.name}</h1>
         <Button asChild variant="outline" size="sm">
-          <Link href={play(f.candidateKey ? { candidate: f.candidateKey } : {})}>Open in the playground</Link>
+          <Link href={ask}>Ask about it, side by side with Qloo</Link>
         </Button>
       </header>
 
-      <Result view={storedView(f, demand)} />
+      <Result view={redactQlooIds(storedView(f, demand))} />
 
       <div className="flex flex-col gap-2">
         <h2 className="font-medium">Where the demand came from</h2>

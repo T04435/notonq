@@ -9,7 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { db } from "@/server/store/db";
-import { type Answer, ledger, type LedgerRow } from "@/server/store/repo";
+import { type Answer, ledger, type LedgerRow, listRuns, type Run } from "@/server/store/repo";
 
 export const metadata = { title: "Ledger · NotOnQ" };
 
@@ -26,8 +26,8 @@ export default function LedgerPage() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">Ledger</h1>
         <p className="text-muted-foreground">
-          Every artist looked up through NotOnQ, from any app, and who answered it. Where Qloo had the artist, Qloo answered; where it didn&apos;t,
-          NotOnQ did, with a source on every value. Click an artist for the full answer.
+          Every request made through NotOnQ: questions asked on the Ask page, and calls from apps and Qloo&apos;s MCP. Open one to replay it step by
+          step, with its original results. The Artists tab counts every artist looked up, and who answered it.
         </p>
       </header>
       <Suspense fallback={<Spinner />}>
@@ -40,13 +40,73 @@ export default function LedgerPage() {
 
 async function Rows() {
   await connection();
-  const rows = await ledger(await db());
+  const sql = await db();
+  const [rows, runs] = await Promise.all([ledger(sql), listRuns(sql)]);
+  return (
+    <Tabs defaultValue="requests">
+      <TabsList>
+        <TabsTrigger value="requests">Requests ({runs.length})</TabsTrigger>
+        <TabsTrigger value="artists">Artists ({rows.length})</TabsTrigger>
+      </TabsList>
+      <TabsContent value="requests">
+        <Requests runs={runs} />
+      </TabsContent>
+      <TabsContent value="artists">
+        <Artists rows={rows} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function Requests({ runs }: { runs: Run[] }) {
+  if (!runs.length)
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>No requests yet</EmptyTitle>
+          <EmptyDescription>Ask a question on the home page, or call the drop-in API or Qloo&apos;s MCP through NotOnQ.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>When (UTC)</TableHead>
+          <TableHead>Kind</TableHead>
+          <TableHead>Request</TableHead>
+          <TableHead>App</TableHead>
+          <TableHead>Result</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {runs.map((r) => (
+          <TableRow key={r.id}>
+            <TableCell className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{r.createdAt.slice(0, 16).replace("T", " ")}</TableCell>
+            <TableCell>
+              <Badge variant="outline">{r.kind === "ask" ? "Ask" : "API"}</Badge>
+            </TableCell>
+            <TableCell className="max-w-md font-medium whitespace-normal break-words">
+              <Link href={`/ledger/run/${r.id}`} className="underline-offset-4 hover:underline">
+                {r.title}
+              </Link>
+            </TableCell>
+            <TableCell className="font-mono text-xs">{r.appLabel ?? "unlabelled"}</TableCell>
+            <TableCell className="max-w-sm text-xs whitespace-normal text-muted-foreground">{r.summary ?? r.servedBy ?? ""}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function Artists({ rows }: { rows: LedgerRow[] }) {
   if (!rows.length)
     return (
       <Empty>
         <EmptyHeader>
           <EmptyTitle>No lookups yet</EmptyTitle>
-          <EmptyDescription>Look up an artist in the playground, or call the drop-in API or MCP.</EmptyDescription>
+          <EmptyDescription>Ask a question on the home page, or call the drop-in API or Qloo&apos;s MCP through NotOnQ.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );

@@ -1,0 +1,379 @@
+{
+  "at": "2026-10-25T07:31:05.672Z",
+  "take": 10,
+  "rows": [
+    {
+      "tag": "urn:tag:genre:music:50s",
+      "place": null,
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:60s",
+      "place": null,
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:70s",
+      "place": null,
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:80s",
+      "place": null,
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:bolero",
+      "place": null,
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:rock_70s",
+      "place": null,
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": null,
+      "place": "New York",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": null,
+      "place": "Melbourne",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": null,
+      "place": "Havana",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": null,
+      "place": "Lagos",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": null,
+      "place": "Manila",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": null,
+      "place": "Glasgow",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": null,
+      "place": "Lima",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": null,
+      "place": "Tbilisi",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:50s",
+      "place": "New York",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:50s",
+      "place": "Melbourne",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:50s",
+      "place": "Havana",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:50s",
+      "place": "Lagos",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:50s",
+      "place": "Manila",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:50s",
+      "place": "Glasgow",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:50s",
+      "place": "Lima",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:50s",
+      "place": "Tbilisi",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:60s",
+      "place": "New York",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:60s",
+      "place": "Melbourne",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:60s",
+      "place": "Havana",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:60s",
+      "place": "Lagos",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:60s",
+      "place": "Manila",
+      "status": 200,
+      "count": 5
+    },
+    {
+      "tag": "urn:tag:genre:music:60s",
+      "place": "Glasgow",
+      "status": 200,
+      "count": 9
+    },
+    {
+      "tag": "urn:tag:genre:music:60s",
+      "place": "Lima",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:60s",
+      "place": "Tbilisi",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:70s",
+      "place": "New York",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:70s",
+      "place": "Melbourne",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:70s",
+      "place": "Havana",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:70s",
+      "place": "Lagos",
+      "status": 200,
+      "count": 6
+    },
+    {
+      "tag": "urn:tag:genre:music:70s",
+      "place": "Manila",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:70s",
+      "place": "Glasgow",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:70s",
+      "place": "Lima",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:70s",
+      "place": "Tbilisi",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:80s",
+      "place": "New York",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:80s",
+      "place": "Melbourne",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:80s",
+      "place": "Havana",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:80s",
+      "place": "Lagos",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:80s",
+      "place": "Manila",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:80s",
+      "place": "Glasgow",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:80s",
+      "place": "Lima",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:80s",
+      "place": "Tbilisi",
+      "status": 200,
+      "count": 10
+    },
+    {
+      "tag": "urn:tag:genre:music:bolero",
+      "place": "New York",
+      "status": 200,
+      "count": 4
+    },
+    {
+      "tag": "urn:tag:genre:music:bolero",
+      "place": "Melbourne",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:bolero",
+      "place": "Havana",
+      "status": 200,
+      "count": 9
+    },
+    {
+      "tag": "urn:tag:genre:music:bolero",
+      "place": "Lagos",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:bolero",
+      "place": "Manila",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:bolero",
+      "place": "Glasgow",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:bolero",
+      "place": "Lima",
+      "status": 200,
+      "count": 6
+    },
+    {
+      "tag": "urn:tag:genre:music:bolero",
+      "place": "Tbilisi",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:rock_70s",
+      "place": "New York",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:rock_70s",
+      "place": "Melbourne",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:rock_70s",
+      "place": "Havana",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:rock_70s",
+      "place": "Lagos",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:rock_70s",
+      "place": "Manila",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:rock_70s",
+      "place": "Glasgow",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:rock_70s",
+      "place": "Lima",
+      "status": 200,
+      "count": 0
+    },
+    {
+      "tag": "urn:tag:genre:music:rock_70s",
+      "place": "Tbilisi",
+      "status": 200,
+      "count": 0
+    }
+  ],
+  "note": "Counts only: Qloo's own response data is never stored in this public repo."
+}

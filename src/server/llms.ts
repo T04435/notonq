@@ -25,9 +25,9 @@ Qloo, the same flow would run on Qloo's own licensed sources and taste graph.
 
 ## Optional
 
-- [Ledger]({origin}/ledger): every artist looked up through NotOnQ, which app asked, and whether Qloo or NotOnQ answered
+- [Ledger]({origin}/ledger): every request made through NotOnQ (Ask questions and API/MCP calls), each replayable step by step; an Artists tab counts who answered each artist
 - [Proof]({origin}/proof): live numbers from every lookup, and a dated benchmark run
-- [Playground]({origin}/): look up an artist and see Qloo's answer beside NotOnQ's
+- [Ask]({origin}/): one question; Qloo answers first through its own harness, then NotOnQ checks that answer and adds only what it lacks (every step shown)
 `;
 
 export const LLMS_FULL = `# NotOnQ: full reference
@@ -46,6 +46,7 @@ pass straight through to Qloo unchanged.
 |---|---|---|
 | G1 unknown | /search has no artist with the exact name | Adds a Qloo-shaped artist from open data after Qloo's results, or every artist the name could be when it is ambiguous |
 | G2 not in the taste graph | /v2/insights answers 400 for the artist as a signal | Swaps it for stand-ins: similar artists Qloo knows |
+| G4 thin era/genre/place answer | /v2/insights for artists by a music genre tag (and place) returns fewer than 5 artists | Adds artists from that era, genre and country after Qloo's |
 | none | Qloo answers | Passes Qloo's response through unchanged |
 
 ## Quickstart
@@ -81,6 +82,7 @@ characters; or use the base URL {origin}/q/app/<label>), \`X-Lastfm-Key\` (optio
 | GET /q/search (types=urn:entity:artist, or no types) | Qloo's results first, unchanged. When Qloo has no artist (untyped: nothing) with that exact name, NotOnQ adds the filled artist (served_by fallback/mixed), or every candidate as a Qloo-shaped entry (needs_choice) |
 | GET /q/entities?entity_ids=… | Qloo's IDs from Qloo; NotOnQ's (fills, and offered candidates, filled on first use) from NotOnQ |
 | GET /q/v2/insights | Any filter.type. NotOnQ IDs, and Qloo IDs Qloo rejects as a signal, in signal.interests.entities become stand-ins. No stand-ins: empty answer |
+| GET /q/v2/insights, filter.type=urn:entity:artist with filter.tags=urn:tag:genre:music:<decade or genre> (and signal.location.query) | When Qloo returns fewer than 5 artists or errs: artists active in that decade, in that genre, from that country (MusicBrainz), after Qloo's own. Ones Qloo knows are Qloo's entities, first, by Qloo popularity; the rest labelled Not in Qloo. notonq.gap.kind G4 |
 | POST /q/v2/insights | Same, JSON body. signal.interests.entities may be UUID strings or {"id", "weight"} objects; weighted stand-ins keep weights scaled by their match |
 | GET /q/v2/analysis/compare | NotOnQ artists in a.* or b.* signals become their stand-ins |
 | anything else | Passes through unchanged, cached per key |
@@ -158,7 +160,15 @@ Qloo response data is stored publicly).
 
 - Fallbacks are shared (open data): filled artists refresh weekly; misses and fills with a failed source retry after a day.
 - Qloo responses are cached per caller key only.
-- Every artist lookup counts towards the Ledger ({origin}/ledger) against a salted hash of the key and the app label.
+- Every request is recorded in the Ledger ({origin}/ledger) against a salted hash of the key and the app label, and can
+  be replayed step by step there (recorded results, nothing re-run).
+
+## No raw Qloo responses on NotOnQ's pages
+
+The drop-in API returns Qloo's answer to its caller unchanged. NotOnQ's own pages (Ask, the Ledger, replays) show results
+derived from Qloo (artist names, links, the agent's answer, the final table) but never raw Qloo API responses: those are
+redacted on the server by type ("[redacted string]", "[redacted uuid]", "[redacted number]", "[redacted boolean]"),
+keeping the shape. Qloo entity IDs (upper-case UUIDs) are removed everywhere; NotOnQ's own data is shown in full.
 - Research (when the host has AI Gateway access): runs once per artist in the background after a fill with fields
   missing; the answer never waits for it; the next request gets the result.
 

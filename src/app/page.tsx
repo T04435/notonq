@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Playground } from "@/components/playground";
+import { Ask } from "@/components/ask";
 import { Badge } from "@/components/ui/badge";
 
 export default function Home() {
@@ -8,18 +8,18 @@ export default function Home() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">NotOnQ</h1>
         <p className="text-muted-foreground">
-          When the Qloo API has no data for an artist, NotOnQ returns the same shape from open sources, with a source on every value. Taste data still
-          comes from Qloo, through similar artists it does know. Every answer is cached, and every request counts towards a ranked list of what Qloo
-          is missing.
+          Ask what you would ask Qloo&apos;s own MCP server. Qloo answers first, through its own harness. NotOnQ carries on from that answer and
+          never hides it: it checks whether the answer meets the question, asks Qloo again if not, and only then adds open data, labelled, with a
+          source on every value.
         </p>
         <p className="text-sm text-muted-foreground">
-          <Badge variant="secondary">Artists only</Badge> For the Qloo Agentic Hackathon, NotOnQ fills music artists, where the gap is measured. Every
-          other entity type passes straight through to Qloo, unchanged.
+          <Badge variant="secondary">Artists only</Badge> For the Qloo Agentic Hackathon, NotOnQ fills music artists. Every other entity type passes
+          straight through to Qloo, unchanged.
         </p>
       </header>
-      {/* The playground reads ?q= deep links, so it renders inside a Suspense boundary. */}
+      {/* Ask reads ?q= (links from the Ledger), so it renders inside a Suspense boundary. */}
       <Suspense>
-        <Playground />
+        <Ask />
       </Suspense>
     </section>
   );
