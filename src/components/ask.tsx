@@ -3,6 +3,7 @@
 import { ChevronRightIcon, CircleCheckIcon, CircleDotIcon, CircleXIcon } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { Mark } from "@/components/brand/mark";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
 import { Code } from "@/components/code";
 import { Badge } from "@/components/ui/badge";
@@ -304,14 +305,34 @@ function JudgeBlock({ judgement }: { judgement: Judgement }) {
   );
 }
 
-const FROM: Record<Origin, string> = {
-  qloo: "Qloo's answer",
-  qloo_again: "Qloo, asked again",
-  qloo_lookup: "Looked up by name (agent's pick)",
-  qloo_via_notonq: "Qloo, for NotOnQ's stand-ins",
-  notonq_picked: "NotOnQ: Qloo's record, picked from open data",
-  notonq_added: "NotOnQ: not in Qloo, from open data",
+/** Who an artist came from, at a glance: a plain Qloo badge (never Qloo's logo: not affiliated) or NotOnQ's mark. */
+const FROM: Record<Origin, { who: "qloo" | "notonq"; detail: string }> = {
+  qloo: { who: "qloo", detail: "first answer" },
+  qloo_again: { who: "qloo", detail: "asked again" },
+  qloo_lookup: { who: "qloo", detail: "looked up by a name the agent chose" },
+  qloo_via_notonq: { who: "qloo", detail: "answer for NotOnQ's stand-ins" },
+  notonq_picked: { who: "notonq", detail: "Qloo's record, picked from open data" },
+  notonq_added: { who: "notonq", detail: "not in Qloo, from open data" },
 };
+
+function From({ origin }: { origin: Origin }) {
+  const f = FROM[origin];
+  return (
+    <span className="flex flex-col gap-1">
+      {f.who === "qloo" ? (
+        <Badge variant="secondary" className="w-fit">
+          Qloo
+        </Badge>
+      ) : (
+        <span className="inline-flex w-fit items-center gap-1.5 text-xs font-medium">
+          <Mark size={16} />
+          NotOnQ
+        </span>
+      )}
+      <span className="text-xs text-muted-foreground">{f.detail}</span>
+    </span>
+  );
+}
 const ORDER: Origin[] = ["qloo", "qloo_again", "qloo_lookup", "qloo_via_notonq", "notonq_picked", "notonq_added"];
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 
@@ -357,7 +378,9 @@ function Reconcile({ event }: { event?: { rows: Row[]; places: number } }) {
                       r.name
                     )}
                   </TableCell>
-                  <TableCell className="text-xs whitespace-normal text-muted-foreground">{FROM[r.origin]}</TableCell>
+                  <TableCell className="whitespace-normal">
+                    <From origin={r.origin} />
+                  </TableCell>
                   <TableCell>
                     {r.status === "added" ? <NotOnQBadge>added</NotOnQBadge> : <Badge variant={r.status === "kept" ? "secondary" : "outline"}>{r.status}</Badge>}
                   </TableCell>
