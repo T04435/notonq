@@ -12,7 +12,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
-import type { AskEvent, Column, Constraint, HttpExchange, Judgement, ResultItem } from "@/server/agent/ask";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { AskEvent, Column, Constraint, HttpExchange, Judgement, Origin, ResultItem, Row } from "@/server/agent/ask";
 
 const EXAMPLES = [
   "Where in the US is sombr most popular, and what artists would his fans like?",
@@ -26,7 +27,7 @@ const VERDICT: Record<Judgement["verdict"], { label: string; variant: "secondary
   not_answered: { label: "not answered", variant: "destructive" },
 };
 
-const SOURCE: Record<string, string> = { qloo: "Answer", qloo_better: "Answer: Qloo, asked again", notonq: "Answer: Qloo first, then NotOnQ, labelled" };
+const SOURCE: Record<string, string> = { qloo: "Answer", qloo_better: "In short", notonq: "In short" };
 
 const brief = (input: unknown) =>
   Object.entries((input ?? {}) as Record<string, unknown>)
@@ -176,6 +177,7 @@ function Section({ column, step, title, description, events, running, constraint
             ) : null,
           )}
         </Trace>
+        {column === "notonq" ? <Reconcile event={events.find((e) => e.type === "reconcile") as { rows: Row[]; places: number } | undefined} /> : null}
         {answer ? (
           <div className="flex flex-col gap-2 border-t pt-4">
             <span className="text-xs text-muted-foreground">{SOURCE[answer.source]}</span>
@@ -197,6 +199,7 @@ function CallLine({ call }: { call: { tool: string; input: unknown; status: stri
         <TraceIcon className="mt-0.5">{ok ? <CircleCheckIcon /> : <CircleXIcon />}</TraceIcon>
         <TraceTitle className="whitespace-normal">
           <span className="font-medium text-foreground">{call.tool}</span> {call.status !== "ok" ? `· ${call.status.replace("_", " ")}` : ""}
+          {call.tool === "qloo_describe" ? <span className="text-muted-foreground"> · a lookup by a name the agent chose</span> : null}
         </TraceTitle>
       </TraceLine>
       <span className="pl-6 text-xs break-words text-muted-foreground">{brief(call.input)}</span>
@@ -246,15 +249,25 @@ function CallLine({ call }: { call: { tool: string; input: unknown; status: stri
       ))}
       {call.results.length ? (
         <div className="flex flex-wrap gap-1.5 pl-6">
-          {call.results.slice(0, 10).map((r, i) =>
-            r.label ? (
-              <NotOnQBadge key={i}>{r.name ?? r.location}</NotOnQBadge>
-            ) : (
-              <Badge key={i} variant="secondary" title={r.description}>
-                {r.name ?? r.location}
-              </Badge>
-            ),
-          )}
+          {(call.tool === "qloo_find_tags" ? call.results.filter((r, i, all) => all.findIndex((x) => x.name?.toLowerCase() === r.name?.toLowerCase()) === i) : call.results)
+            .slice(0, 10)
+            .map((r, i) => {
+              const text = r.name ?? r.location;
+              const chip = r.label ? (
+                <NotOnQBadge>{text}</NotOnQBadge>
+              ) : (
+                <Badge variant="secondary" title={r.description}>
+                  {text}
+                </Badge>
+              );
+              return r.link ? (
+                <a key={i} href={r.link} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline" title={r.description}>
+                  {chip}
+                </a>
+              ) : (
+                <span key={i}>{chip}</span>
+              );
+            })}
         </div>
       ) : null}
     </div>
@@ -280,6 +293,93 @@ function JudgeBlock({ judgement }: { judgement: Judgement }) {
           <span className="text-right tabular-nums text-muted-foreground">{Math.round(c.p * 100)}%</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+const FROM: Record<Origin, string> = {
+  qloo: "Qloo's answer",
+  qloo_again: "Qloo, asked again",
+  qloo_lookup: "Looked up by name (agent's pick)",
+  qloo_via_notonq: "Qloo, for NotOnQ's stand-ins",
+  notonq_picked: "NotOnQ: Qloo's record, picked from open data",
+  notonq_added: "NotOnQ: not in Qloo, from open data",
+};
+const ORDER: Origin[] = ["qloo", "qloo_again", "qloo_lookup", "qloo_via_notonq", "notonq_picked", "notonq_added"];
+const pct = (p: number) => `${Math.round(p * 100)}%`;
+
+/** What Qloo returned, what stayed and why, what was removed and why, and what NotOnQ added: built from the data. */
+function Reconcile({ event }: { event?: { rows: Row[]; places: number } }) {
+  if (!event?.rows.length) return null;
+  const rows = event.rows.toSorted((a, b) => ORDER.indexOf(a.origin) - ORDER.indexOf(b.origin));
+  return (
+    <div className="flex flex-col gap-2 border-t pt-4">
+      <span className="text-sm font-medium">Every artist, where it came from, and whether it answers the question</span>
+      <span className="text-xs text-muted-foreground">
+        Each artist is checked on its own against what the question asks for (Jev, met at 60% or more).{event.places ? ` Map answers (${event.places} points) are shown in the steps above.` : ""}
+      </span>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Artist</TableHead>
+              <TableHead>From</TableHead>
+              <TableHead>Result</TableHead>
+              <TableHead>Why</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => {
+              const failed = r.scores.filter((s) => s.p < 0.6);
+              const why =
+                r.status === "removed"
+                  ? `Misses ${failed.map((s) => `${s.kind.replace("_", " ")} ${s.value} (${pct(s.p)})`).join(", ")}`
+                  : r.status === "kept"
+                    ? r.scores.length
+                      ? `Meets ${r.scores.map((s) => `${s.kind.replace("_", " ")} (${pct(s.p)})`).join(", ")}`
+                      : "Returned for the question"
+                    : [r.facts?.join(" · "), r.scores.length ? r.scores.map((s) => `${s.kind.replace("_", " ")} ${pct(s.p)}`).join(", ") : ""].filter(Boolean).join(" · ");
+              return (
+                <TableRow key={r.id}>
+                  <TableCell className="font-medium whitespace-normal">
+                    {r.link ? (
+                      <a href={r.link} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                        {r.name}
+                      </a>
+                    ) : (
+                      r.name
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs whitespace-normal text-muted-foreground">{FROM[r.origin]}</TableCell>
+                  <TableCell>
+                    {r.status === "added" ? <NotOnQBadge>added</NotOnQBadge> : <Badge variant={r.status === "kept" ? "secondary" : "outline"}>{r.status}</Badge>}
+                  </TableCell>
+                  <TableCell className="text-xs whitespace-normal text-muted-foreground">
+                    {why}
+                    {r.sources?.length ? (
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {r.sources.map((s) =>
+                          s.url ? (
+                            <Badge key={s.source} asChild variant="outline" title={s.licence}>
+                              <a href={s.url} target="_blank" rel="noreferrer">
+                                {s.source}
+                              </a>
+                            </Badge>
+                          ) : (
+                            <Badge key={s.source} variant="outline" title={s.licence}>
+                              {s.source}
+                            </Badge>
+                          ),
+                        )}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

@@ -38,7 +38,11 @@ function shorten(json: unknown): unknown {
   return json;
 }
 
-export type ResultItem = { id?: string; name?: string; label?: "not_in_qloo" | "picked"; location?: string; description?: string; sources?: Source[]; facts?: string[] };
+export type ResultItem = { id?: string; name?: string; label?: "not_in_qloo" | "picked"; location?: string; description?: string; sources?: Source[]; facts?: string[]; link?: string };
+
+/** Where an artist in the final table came from. */
+export type Origin = "qloo" | "qloo_lookup" | "qloo_again" | "qloo_via_notonq" | "notonq_added" | "notonq_picked";
+export type Row = { id: string; name: string; origin: Origin; status: "kept" | "removed" | "added"; scores: { kind: string; value: string; p: number }[]; link?: string; facts?: string[]; sources?: Source[] };
 export type Constraint = { kind: (typeof KINDS)[number]; value: string; check: string };
 export type Judgement = { verdict: "answered" | "partly" | "not_answered"; p: Record<string, number>; met: (Constraint & { p: number })[] };
 export type AskEvent =
@@ -47,6 +51,7 @@ export type AskEvent =
   | { type: "constraints"; constraints: Constraint[] }
   | { type: "judge"; stage: string; judgement: Judgement }
   | { type: "answer"; column: Column; text: string; source: "qloo" | "qloo_better" | "notonq" }
+  | { type: "reconcile"; rows: Row[]; summary: string; places: number }
   | { type: "error"; column?: Column; message: string }
   | { type: "done" };
 
@@ -71,6 +76,33 @@ const item = (r: unknown): ResultItem => {
   const label = description?.startsWith("Not in Qloo") ? "not_in_qloo" : description?.startsWith("Picked by NotOnQ") ? "picked" : undefined;
   return { id: x.entity_id, name: x.name, label, description, location: x.location ? `${x.location.latitude.toFixed(2)}, ${x.location.longitude.toFixed(2)}` : undefined };
 };
+
+type External = Record<string, { id?: string | number } | { id?: string | number }[] | undefined>;
+const extId = (ext: External | undefined, ns: string) => {
+  const v = ext?.[ns];
+  const first = Array.isArray(v) ? v[0] : v;
+  return first?.id !== undefined ? String(first.id) : undefined;
+};
+
+/** A link for every artist a step returned: its MusicBrainz record, else Wikidata, else Spotify (from the entity's own
+ * external IDs, fetched through the same base the step used: Qloo's for Qloo's steps, NotOnQ's for NotOnQ's). */
+async function withLinks(items: ResultItem[], base: string, key: string): Promise<ResultItem[]> {
+  const ids = [...new Set(items.filter((i) => i.id && !i.location).map((i) => i.id!))];
+  if (!ids.length) return items;
+  const res = await fetch(`${base}/entities?entity_ids=${encodeURIComponent(ids.slice(0, 25).join(","))}`, { headers: { "X-Api-Key": key } }).catch(() => null);
+  const body = (res?.ok ? await res.json().catch(() => null) : null) as { results?: { entity_id: string; properties?: { external?: External }; external?: External }[] } | null;
+  const results = Array.isArray(body?.results) ? body.results : [];
+  return items.map((i) => {
+    const e = results.find((r) => r.entity_id?.toLowerCase() === i.id?.toLowerCase());
+    if (!e) return i;
+    const ext = { ...(e.external ?? {}), ...(e.properties?.external ?? {}) };
+    const mb = extId(ext, "musicbrainz");
+    const wd = extId(ext, "wikidata");
+    const sp = extId(ext, "spotify");
+    const link = mb ? `https://musicbrainz.org/artist/${mb}` : wd ? `https://www.wikidata.org/wiki/${wd}` : sp ? `https://open.spotify.com/artist/${sp}` : undefined;
+    return link ? { ...i, link } : i;
+  });
+}
 
 const SOURCE_NAMES: Record<string, string> = { musicbrainz: "MusicBrainz", wikidata: "Wikidata", wikipedia: "Wikipedia", lastfm: "Last.fm", deezer: "Deezer", "wikimedia-commons": "Wikimedia Commons", notonq: "NotOnQ (derived)", research: "Research" };
 
@@ -175,31 +207,88 @@ async function judge(question: string, constraints: Constraint[], calls: Call[])
   return { verdict, p: answers.verdict.probabilities ?? {}, met };
 }
 
+/** The same checks, asked of one artist at a time, so the final table can say which artist stayed and why. */
+const ITEM_CHECKS: Partial<Record<Constraint["kind"], (name: string, v: string) => string>> = {
+  era: (n, v) => `Was ${n} active in, or releasing music in, the ${v}? Activity years in the description count.`,
+  place: (n, v) => `Is ${n} from ${v} or its country, or described as popular there?`,
+  genre: (n, v) => `Does ${n} belong to ${v}, by tags or description?`,
+  relation: (n, v) => `Could ${n} be a result derived from ${v} (an artist fans of ${v} would like)?`,
+  named_entity: (n, v) => `Is ${n} the entity "${v}" itself, not a different one with a similar name?`,
+};
+
+async function judgeItems(question: string, constraints: Constraint[], items: { name: string; description?: string }[]) {
+  const checks = constraints.filter((c) => ITEM_CHECKS[c.kind]);
+  const questions = Object.fromEntries(
+    items.flatMap((it, i) => checks.map((c, k) => [`a${i}_${k}`, { type: "boolean" as const, instructions: `${ITEM_CHECKS[c.kind]!(it.name, c.value)} Judge from that artist's entry in the state only.` }])),
+  );
+  if (!Object.keys(questions).length) return items.map(() => [] as Row["scores"]);
+  const state = JSON.parse(JSON.stringify({ user_question: question, artists: items }));
+  const res = await decide({ model: gateway.decisionModel(JUDGE_MODEL), state, questions });
+  const answers = res.answers as Record<string, { probability?: number }>;
+  return items.map((_, i) => checks.map((c, k) => ({ kind: c.kind, value: c.value, p: answers[`a${i}_${k}`]?.probability ?? 0 })));
+}
+
+const ENTITY_TOOLS = new Set(["qloo_recommend", "qloo_rank", "qloo_compare_audiences", "qloo_entity_tags", "qloo_audience_demographics"]);
+
+/** The final table, built from the data rather than written by a model: every artist Qloo returned, kept or removed by
+ * its own scores; artists the agent only looked up by name; and what NotOnQ added, with evidence and sources. */
+async function reconcile(question: string, constraints: Constraint[], stages: { stage: "qloo" | "better" | "notonq"; calls: Call[] }[]) {
+  const seen = new Map<string, Omit<Row, "status" | "scores"> & { description?: string }>();
+  let places = 0;
+  for (const { stage, calls } of stages)
+    for (const c of calls) {
+      if (c.tool === "qloo_find_tags") continue;
+      for (const r of c.results) {
+        if (r.location) {
+          places += 1;
+          continue;
+        }
+        if (!r.id || !r.name) continue;
+        const origin: Origin = r.label === "not_in_qloo" ? "notonq_added" : r.label === "picked" ? "notonq_picked" : c.tool === "qloo_describe" ? "qloo_lookup" : stage === "qloo" ? "qloo" : stage === "better" ? "qloo_again" : "qloo_via_notonq";
+        if (!ENTITY_TOOLS.has(c.tool) && c.tool !== "qloo_describe" && !r.label) continue;
+        const key = r.id.toLowerCase();
+        if (!seen.has(key) || r.label) seen.set(key, { id: r.id, name: r.name, origin, link: r.link, facts: r.facts, sources: r.sources, description: r.description });
+      }
+    }
+  // Up to 12 per origin, so a long Qloo list never pushes NotOnQ's additions out of the table.
+  const all = [...seen.values()];
+  const list = ([...new Set(all.map((r) => r.origin))] as Origin[]).flatMap((o) => all.filter((r) => r.origin === o).slice(0, 12));
+  const scores = await judgeItems(question, constraints, list.map(({ name, description }) => ({ name, description })));
+  const rows: Row[] = list.map(({ id, name, origin, link, facts, sources }, i) => ({
+    id,
+    name,
+    origin,
+    link,
+    facts,
+    sources,
+    scores: scores[i],
+    status: origin.startsWith("notonq") ? "added" : scores[i].every((s) => s.p >= MET) ? "kept" : "removed",
+  }));
+  const count = (o: Origin[], s?: Row["status"]) => rows.filter((r) => o.includes(r.origin) && (!s || r.status === s)).length;
+  const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+  const meet = (k: number) => `${k} ${k === 1 ? "meets" : "meet"} it`;
+  const parts = [
+    `Qloo returned ${n(count(["qloo"]), "artist", "artists")} for the question; ${meet(count(["qloo"], "kept"))}.`,
+    count(["qloo_again"]) ? `Asked again, Qloo returned ${n(count(["qloo_again"]), "artist", "artists")}; ${meet(count(["qloo_again"], "kept"))}.` : "",
+    count(["qloo_lookup"]) ? `The agent also looked up ${n(count(["qloo_lookup"]), "artist", "artists")} in Qloo by names it chose itself.` : "",
+    count(["notonq_added", "notonq_picked"])
+      ? `NotOnQ added ${n(count(["notonq_added", "notonq_picked"]), "artist", "artists")} from open data, labelled, with sources; ${meet(rows.filter((r) => r.origin.startsWith("notonq") && r.scores.every((s) => s.p >= MET)).length)}.`
+      : "NotOnQ added nothing.",
+  ];
+  return { rows, summary: parts.filter(Boolean).join(" "), places };
+}
+
 const decadeTag = (era: string) => {
   const m = /(\d{2})(\d{2})?/.exec(era.replace(/'/g, ""));
   return m ? `urn:tag:genre:music:${(m[2] ?? m[1]).slice(-2)}s` : null;
 };
 
-async function finalAnswer(question: string, sections: { title: string; calls: Call[] }[]) {
-  const { text } = await generateText({
-    model: gateway(AGENT_MODEL),
-    prompt: `Answer the question from these tool results only. Say plainly which names came from Qloo's own answer and which
-NotOnQ added: an entity whose description starts "Not in Qloo" or "Picked by NotOnQ" is NotOnQ's; say so next to it.
-A tool call with status needs_input did not answer: its candidates are Qloo's "did you mean" suggestions, not part of
-Qloo's answer. Never list them as answers; mention them only as names Qloo suggested instead. Likewise, a result about a
-different entity than the one the question names (a look-alike name) is not an answer.
-No names that are not in the results. A short list, one line each, then one sentence on where the data came from.
-Question: ${question}
-${JSON.stringify(sections)}`,
-  });
-  return text;
-}
-
 export async function ask(question: string, d: AskDeps) {
   const qlooCalls: Call[] = [];
-  const onQloo = (c: Call) => {
-    qlooCalls.push(c);
-    d.emit({ type: "call", column: "qloo", stage: "qloo", ...c });
+  const onQloo = async (c: Call) => {
+    const linked = { ...c, results: await withLinks(c.results, d.qlooBase, d.qlooKey) };
+    qlooCalls.push(linked);
+    d.emit({ type: "call", column: "qloo", stage: "qloo", ...linked });
   };
   const qlooRun = agent(d.qlooBase, d.qlooKey, SYSTEM, question, onQloo).then(
     (text) => d.emit({ type: "answer", column: "qloo", text, source: "qloo" }),
@@ -213,32 +302,37 @@ export async function ask(question: string, d: AskDeps) {
   let j = await judge(question, constraints, qlooCalls);
   d.emit({ type: "judge", stage: "qloo", judgement: j });
   if (j.verdict === "answered") {
+    const r = await reconcile(question, constraints, [{ stage: "qloo", calls: qlooCalls }]);
+    d.emit({ type: "reconcile", ...r });
     d.emit({ type: "answer", column: "notonq", text: "Qloo's answer meets every part of the question, so NotOnQ adds nothing.", source: "qloo" });
     return;
   }
 
-  const sections: { title: string; calls: Call[] }[] = [{ title: "Qloo's own answer", calls: qlooCalls }];
+  const stages: { stage: "qloo" | "better" | "notonq"; calls: Call[] }[] = [{ stage: "qloo", calls: qlooCalls }];
   const unmet = j.met.filter((c) => c.p < MET);
   const unknownEntity = unmet.some((c) => c.kind === "named_entity");
 
   if (!unknownEntity) {
     d.emit({ type: "stage", column: "notonq", stage: "better", title: "Asking Qloo again, differently", detail: `Unmet: ${unmet.map((c) => `${c.kind} (${c.value})`).join(", ")}` });
     const calls: Call[] = [];
-    const text = await agent(
+    await agent(
       d.qlooBase,
       d.qlooKey,
       `${SYSTEM}\nQloo was asked once and its answer did not meet: ${unmet.map((c) => `${c.kind}: ${c.value}`).join("; ")}. Ask Qloo differently to meet them: find exact tags with qloo_find_tags (genres or scenes tied to the place and era), use the place as signal_location or filter_location, seed with artists Qloo resolves. Do not use a decade tag as include_tags.`,
       question,
-      (c) => {
-        calls.push(c);
-        d.emit({ type: "call", column: "notonq", stage: "better", ...c });
+      async (c) => {
+        const linked = { ...c, results: await withLinks(c.results, d.qlooBase, d.qlooKey) };
+        calls.push(linked);
+        d.emit({ type: "call", column: "notonq", stage: "better", ...linked });
       },
     );
     j = await judge(question, constraints, calls);
     d.emit({ type: "judge", stage: "better", judgement: j });
-    sections.push({ title: "Qloo, asked again", calls });
+    stages.push({ stage: "better", calls });
     if (j.verdict === "answered") {
-      d.emit({ type: "answer", column: "notonq", text, source: "qloo_better" });
+      const r = await reconcile(question, constraints, stages);
+      d.emit({ type: "reconcile", ...r });
+      d.emit({ type: "answer", column: "notonq", text: r.summary, source: "qloo_better" });
       return;
     }
   }
@@ -248,10 +342,10 @@ export async function ask(question: string, d: AskDeps) {
   const tag = era ? decadeTag(era.value) : null;
   const calls: Call[] = [];
   const onNotOnQ = async (c: Call) => {
-    const [results, http] = await Promise.all([withSources(c.results, d.notonqBase, d.qlooKey), exchanges(c.requests, d.notonqBase, d.qlooKey)]);
-    const sourced = { ...c, results, http };
-    calls.push(sourced);
-    d.emit({ type: "call", column: "notonq", stage: "notonq", ...sourced });
+    const [withSourcesFound, http] = await Promise.all([withSources(c.results, d.notonqBase, d.qlooKey), exchanges(c.requests, d.notonqBase, d.qlooKey)]);
+    const full = { ...c, results: await withLinks(withSourcesFound, d.notonqBase, d.qlooKey), http };
+    calls.push(full);
+    d.emit({ type: "call", column: "notonq", stage: "notonq", ...full });
   };
   if (tag) {
     d.emit({ type: "stage", column: "notonq", stage: "notonq", title: "Decade filter through NotOnQ", detail: `${tag}${place ? ` with ${place.value}` : ""}: NotOnQ fills it only where Qloo returns nothing` });
@@ -263,6 +357,8 @@ export async function ask(question: string, d: AskDeps) {
   }
   j = await judge(question, constraints, calls);
   d.emit({ type: "judge", stage: "notonq", judgement: j });
-  sections.push({ title: tag ? "Decade filter through NotOnQ" : "Through NotOnQ", calls });
-  d.emit({ type: "answer", column: "notonq", text: await finalAnswer(question, sections), source: "notonq" });
+  stages.push({ stage: "notonq", calls });
+  const r = await reconcile(question, constraints, stages);
+  d.emit({ type: "reconcile", ...r });
+  d.emit({ type: "answer", column: "notonq", text: r.summary, source: "notonq" });
 }
