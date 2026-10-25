@@ -13,9 +13,11 @@ import { ARTIST, entitiesOf, type QlooClient, type QlooEntity } from "@/server/q
 
 export type MusicTag = { decade?: number; genre?: string };
 
-/** Qloo's music genre tags, read for a decade and/or a genre: "60s", "1950s", "rock_70s", "rock_of_70s", "bolero". */
+/** Qloo's music genre tags, read for a decade and/or a genre: "60s", "1950s", "rock_70s", "rock_of_70s", "bolero".
+ * The Qloo harness offers the genre:qloo, subgenre:qloo and style:qloo siblings for the same word, so they count too
+ * (checked 25 Oct 2026: for an artist request with a place, those siblings were empty wherever genre:music was). */
 export function parseMusicTag(tag: string): MusicTag | null {
-  const m = /^urn:tag:genre:music:([a-z0-9_]+)$/i.exec(tag.trim());
+  const m = /^urn:tag:(?:genre:music|genre:qloo|subgenre:qloo|style:qloo):([a-z0-9_]+)$/i.exec(tag.trim());
   if (!m) return null;
   let decade: number | undefined;
   const words: string[] = [];

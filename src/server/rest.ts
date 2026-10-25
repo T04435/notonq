@@ -236,7 +236,8 @@ async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx
   if (res.ok && qlooEntities.length >= Math.min(THIN, take)) return { status: res.status, body: res.json, servedBy: "qloo" };
 
   const place = req.params["signal.location.query"] || req.params["filter.location.query"] || undefined;
-  const key = `era:${tag}|${(place ?? "").toLowerCase()}|${take}`;
+  // The version in the key retires fills made by older ranking rules.
+  const key = `era:v2:${tag}|${(place ?? "").toLowerCase()}|${take}`;
   let fill = await findShapeFill<EraFill>(ctx.sql, key, ERA_TTL_MS);
   const cacheHit = !!fill && (fill.entities.length > 0 || !!(await findShapeFill<EraFill>(ctx.sql, key, ERA_EMPTY_TTL_MS)));
   if (!cacheHit) {
@@ -248,6 +249,26 @@ async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx
   const filled = ours.filter((e) => String((e as { properties?: { short_description?: string } }).properties?.short_description ?? "").startsWith("Not in Qloo"));
   await saveCandidateRefs(ctx.sql, filled.map((e) => ({ id: (e as { entity_id: string }).entity_id, key: `mb:${(e as { entity_id: string }).entity_id}`, name: (e as { name: string }).name })));
 
+  // Honesty check: Qloo may answer the same tag as a taste signal (signal.interests.tags) even when the filter is
+  // empty. Report how many it has that way, so a client sees what Qloo offers before using NotOnQ's fill.
+  const asSignal = await ctx.qloo.get("/v2/insights", {
+    ...Object.fromEntries(Object.entries(req.params).filter(([k]) => k !== "filter.tags" && k !== "operator.filter.tags")),
+    "signal.interests.tags": tag,
+  });
+  const qlooAsSignal = asSignal.ok ? entitiesOf(asSignal.json).length : undefined;
+
+  // Every entity NotOnQ added says so where any client shows it (the harness passes only short_description on),
+  // including Qloo's own records NotOnQ picked: Qloo did not return them for this request, so they must not pass
+  // for Qloo's answer. The hint names what Qloo does have.
+  const hint = qlooAsSignal ? ` Qloo has ${qlooAsSignal} artists for this tag as a taste signal (signal.interests.tags).` : "";
+  const labelled = ours.map((e) => {
+    const x = e as { properties?: Record<string, unknown> };
+    const description = String(x.properties?.short_description ?? "");
+    if (description.startsWith("Not in Qloo")) return { ...x, properties: { ...x.properties, short_description: `${description}${hint}` } };
+    const picked = `Picked by NotOnQ: Qloo returned ${qlooEntities.length} artists for this request; this is Qloo's own record of an artist active then and there.${hint}`;
+    return { ...x, properties: { ...x.properties, short_description: description ? `${picked} ${description}` : picked } };
+  });
+
   const label = [tag.split(":").pop(), place].filter(Boolean).join(" · ");
   const servedBy = !ours.length ? "qloo" : qlooEntities.length ? "mixed" : "fallback";
   await logRequest(ctx.sql, { nameKey: label, query: `${tag}${place ? ` @ ${place}` : ""}`, endpoint: ctx.endpoint, servedBy: servedBy === "qloo" ? "fallback" : servedBy, gapKind: "G4", callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit });
@@ -258,16 +279,23 @@ async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx
     status: 200,
     body: {
       ...base,
-      results: { ...results, entities: [...qlooEntities, ...ours].slice(0, take) },
+      results: { ...results, entities: [...qlooEntities, ...labelled].slice(0, take) },
       notonq: {
         served_by: servedBy,
-        gap: { kind: "G4", qloo_status: res.status, qloo_message: qlooMessage(res.json), reason: `Qloo returned ${qlooEntities.length} artists for ${tag}${place ? ` in ${place}` : ""}` },
+        gap: { kind: "G4", qloo_status: res.status, qloo_message: qlooMessage(res.json), reason: `Qloo returned ${qlooEntities.length} artists for ${tag}${place ? ` in ${place}` : ""}`, qloo_as_signal: qlooAsSignal },
         request: { tag, place, country: f.country, query: f.query },
         cache: { hit: cacheHit },
         provenance: f.provenance,
-        note: ours.length
-          ? "Artists after Qloo's own come from NotOnQ: ones Qloo knows are Qloo's entities; the rest are labelled Not in Qloo, with sources."
-          : "No artist found in open data for this era, genre and place.",
+        note: [
+          ours.length
+            ? "Artists after Qloo's own come from NotOnQ: ones Qloo knows are Qloo's entities; the rest are labelled Not in Qloo, with sources."
+            : "No artist found in open data for this era, genre and place.",
+          qlooAsSignal
+            ? `Qloo does have ${qlooAsSignal} artists for this tag as a taste signal: send it as signal.interests.tags instead of filter.tags to get Qloo's own answer.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
       },
     },
     servedBy: servedBy === "qloo" ? "qloo" : servedBy,
