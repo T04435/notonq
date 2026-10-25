@@ -27,9 +27,17 @@ async function connect(databaseUrl?: string): Promise<Sql> {
   return sql;
 }
 
+/** The schema as single statements: comments dropped first, so a "; -- note" line end still splits. */
+export const schemaStatements = (schema = SCHEMA) =>
+  schema
+    .replace(/--[^\n]*/g, "")
+    .split(/;\s*(?:\n|$)/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
 async function migrate(sql: Sql) {
   // The Neon HTTP driver runs one statement per call.
-  for (const statement of SCHEMA.split(/;\s*\n/).map((s) => s.trim()).filter(Boolean)) await sql(statement);
+  for (const statement of schemaStatements()) await sql(statement);
 }
 
 /** Neon in deployed builds. Locally the embedded PGlite, even if `vercel env pull` wrote the production DATABASE_URL
