@@ -26,7 +26,10 @@ preview, then a GitHub release with notes. Versions stay `0.x`.
 
 ## Next
 
-### v0.3.0: artists by era, genre and place
+### v0.3.0: artists by era, genre and place (built 25 Oct 2026)
+
+Measured 25 Oct 2026 (`src/data/era-gaps.json`): 22 of 48 decade/genre × place requests came back empty, 1 thin;
+`50s` and `rock_70s` return no artists anywhere. Where Qloo answers, the place barely changes the list.
 
 Request shapes covered (no new endpoints):
 

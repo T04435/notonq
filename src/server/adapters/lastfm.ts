@@ -18,6 +18,13 @@ export async function artistInfo(artist: string, apiKey: string, { fetch: f }: {
   return a ? { name: a.name, listeners: num(a.stats?.listeners), playcount: num(a.stats?.playcount), url: a.url } : null;
 }
 
+/** Listener counts by MusicBrainz ID: unlike a name, an ID never picks up a famous namesake's numbers. */
+export async function artistInfoByMbid(mbid: string, apiKey: string, { fetch: f }: { fetch?: Fetch } = {}): Promise<LfInfo | null> {
+  const res = await getJson(`${BASE}?${new URLSearchParams({ method: "artist.getinfo", mbid, api_key: apiKey, format: "json" })}`, { fetch: f });
+  const a = (res.json as { artist?: { name?: string; url?: string; stats?: { listeners?: string; playcount?: string } } } | null)?.artist;
+  return a ? { name: a.name, listeners: num(a.stats?.listeners), playcount: num(a.stats?.playcount), url: a.url } : null;
+}
+
 export async function similarArtists(artist: string, apiKey: string, { fetch: f, limit = 30 }: { fetch?: Fetch; limit?: number } = {}): Promise<LfSimilar[]> {
   const res = await call("artist.getsimilar", artist, apiKey, { limit: String(limit) }, f);
   const list = (res.json as { similarartists?: { artist?: { name: string; mbid?: string; match: string; url?: string }[] } } | null)

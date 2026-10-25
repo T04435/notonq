@@ -38,6 +38,13 @@ CREATE INDEX IF NOT EXISTS fallback_entities_name_key ON fallback_entities (name
 CREATE INDEX IF NOT EXISTS fallback_entities_mbid ON fallback_entities (mbid);
 CREATE INDEX IF NOT EXISTS fallback_entities_qloo ON fallback_entities (qloo_entity_id);
 
+-- Fills for a whole request shape (v0.3.0: artists by era, genre and place), shared like other open-data fills
+CREATE TABLE IF NOT EXISTS shape_fills (
+  key           text PRIMARY KEY,
+  body          jsonb NOT NULL,
+  refreshed_at  timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS requests (
   id           bigserial PRIMARY KEY,
   name_key     text NOT NULL,

@@ -14,6 +14,8 @@ const MbArtistJson = z.looseObject({
   disambiguation: z.string().nullish(),
   aliases: z.array(z.looseObject({ name: z.string() })).nullish(),
   tags: z.array(z.looseObject({ name: z.string(), count: z.number().optional() })).nullish(),
+  "life-span": z.looseObject({ begin: z.string().nullish(), end: z.string().nullish() }).nullish(),
+  area: z.looseObject({ name: z.string() }).nullish(),
 });
 type MbArtistJson = z.infer<typeof MbArtistJson>;
 
@@ -27,6 +29,9 @@ export type MbArtist = {
   aliases: string[];
   tags: string[];
   record: string;
+  begin?: string;
+  end?: string;
+  area?: string;
 };
 
 export const mbArtistUrl = (mbid: string) => `https://musicbrainz.org/artist/${mbid}`;
@@ -51,7 +56,40 @@ const toArtist = (a: MbArtistJson): MbArtist => ({
     .slice(0, 8)
     .map((t) => t.name),
   record: mbArtistUrl(a.id),
+  begin: a["life-span"]?.begin ?? undefined,
+  end: a["life-span"]?.end ?? undefined,
+  area: a.area?.name ?? undefined,
 });
+
+/** A raw Lucene artist search (fields like tag:, country:, begin:, end:, type:), in MusicBrainz's own order. */
+export async function searchByQuery(query: string, { fetch: f, limit = 25 }: { fetch?: Fetch; limit?: number } = {}): Promise<MbArtist[]> {
+  const res = await call(`https://musicbrainz.org/ws/2/artist?query=${encodeURIComponent(query)}&fmt=json&limit=${limit}`, f);
+  const list = z.object({ artists: z.array(MbArtistJson) }).safeParse(res.json);
+  return list.success ? list.data.artists.map(toArtist) : [];
+}
+
+const MbAreaJson = z.looseObject({
+  id: z.string(),
+  name: z.string(),
+  type: z.string().nullish(),
+  "iso-3166-1-codes": z.array(z.string()).nullish(),
+  relations: z.array(z.looseObject({ type: z.string(), direction: z.string(), area: z.looseObject({ id: z.string(), name: z.string() }).nullish() })).nullish(),
+});
+
+/** The country a place is in, as MusicBrainz's ISO code and name: climbs "part of" from a city or region (a few hops). */
+export async function countryOf(place: string, { fetch: f }: { fetch?: Fetch } = {}): Promise<{ code: string; name: string } | null> {
+  const found = await call(`https://musicbrainz.org/ws/2/area?query=${encodeURIComponent(place.replace(/"/g, ""))}&fmt=json&limit=1`, f);
+  let id = z.object({ areas: z.array(MbAreaJson) }).safeParse(found.json).data?.areas[0]?.id;
+  for (let hop = 0; id && hop < 5; hop++) {
+    const res = await call(`https://musicbrainz.org/ws/2/area/${id}?inc=area-rels&fmt=json`, f);
+    const area = MbAreaJson.safeParse(res.json).data;
+    if (!area) return null;
+    const code = area["iso-3166-1-codes"]?.[0];
+    if (code) return { code, name: area.name };
+    id = area.relations?.find((r) => r.type === "part of" && r.direction === "backward")?.area?.id;
+  }
+  return null;
+}
 
 /** Everything MusicBrainz thinks could be this name, best first (exact names and near misses). */
 export async function searchArtists(name: string, { fetch: f, limit = 8 }: { fetch?: Fetch; limit?: number } = {}): Promise<MbArtist[]> {

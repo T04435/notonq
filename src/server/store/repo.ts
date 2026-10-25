@@ -375,3 +375,13 @@ export async function qlooCachePut(sql: Sql, callerHash: string, reqHash: string
     [callerHash, reqHash, status, JSON.stringify(body), String(ttlHours)],
   );
 }
+
+export async function findShapeFill<T>(sql: Sql, key: string, maxAgeMs: number): Promise<T | null> {
+  const [r] = await sql(`SELECT body, refreshed_at FROM shape_fills WHERE key = $1`, [key]);
+  if (!r || Date.now() - Date.parse(String(iso(r.refreshed_at))) > maxAgeMs) return null;
+  return json<T | null>(r.body, null);
+}
+
+export async function saveShapeFill(sql: Sql, key: string, body: unknown) {
+  await sql(`INSERT INTO shape_fills (key, body) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET body = EXCLUDED.body, refreshed_at = now()`, [key, JSON.stringify(body)]);
+}

@@ -3,13 +3,14 @@
 // NotOnQ's entity IDs are UUIDs like Qloo's, so they are recognised by lookup (fills and offered candidates), not by form.
 import type { ResolveOptions } from "@/server/engine/artist";
 import { type Candidate, idForCandidate } from "@/server/engine/candidates";
+import { type EraFill, fillEra, parseMusicTag } from "@/server/engine/era";
 import type { Fetch } from "@/server/http";
 import { ARTIST, entitiesOf, qlooClient, qlooMessage } from "@/server/qloo/client";
 import { cachedQloo, QlooBudgetExceeded } from "@/server/qloo/cached";
 import { readInsights, readSearch, sameName } from "@/server/qloo/gap";
 import { blockFor, fallbackBlock, standInsOf } from "@/server/respond";
 import type { Sql } from "@/server/store/db";
-import { demandFor, findOurIds, logRequest, saveCandidateRefs, type StoredFallback } from "@/server/store/repo";
+import { demandFor, findOurIds, findShapeFill, logRequest, saveCandidateRefs, saveShapeFill, type StoredFallback } from "@/server/store/repo";
 import { type Ctx, fallbackForQlooId, hashCaller, lookupArtist } from "@/server/service";
 
 export type RestRequest = {
@@ -171,6 +172,10 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
     res = await ctx.qloo.get("/v2/insights", params);
   }
 
+  // Artists by era, genre and place: when Qloo has nothing or little for the exact request, fill it (v0.3.0).
+  const eraTag = req.params["filter.type"] === ARTIST && !signal.length ? (req.params["filter.tags"] ?? "").split(",").map((t) => t.trim()).find((t) => parseMusicTag(t)) : undefined;
+  if (eraTag) return eraAnswer(req, ctx, res, eraTag);
+
   if (!replaced.size) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
   for (const f of replaced.values())
     await logRequest(ctx.sql, { nameKey: f.nameKey, entityId: f.id, endpoint: ctx.endpoint, servedBy: "mixed", gapKind: f.gapKind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: true });
@@ -215,6 +220,57 @@ async function compare(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
       },
     },
     servedBy: "mixed",
+  };
+}
+
+/** Fewer artists than this from Qloo counts as a thin answer worth filling. */
+export const THIN = 5;
+const ERA_TTL_MS = 7 * 24 * 3600 * 1000;
+const ERA_EMPTY_TTL_MS = 24 * 3600 * 1000;
+
+/** Qloo's answer for an era/genre/place artist request, with NotOnQ's artists after Qloo's when Qloo had few or none,
+ * or erred. Qloo's own entities stay first and unchanged; the Ledger records the gap by request shape. */
+async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx["qloo"]["get"]>>, tag: string): Promise<RestResponse> {
+  const take = Math.max(1, Math.min(Number(req.params.take) || 20, 50));
+  const qlooEntities = res.ok ? entitiesOf(res.json) : [];
+  if (res.ok && qlooEntities.length >= Math.min(THIN, take)) return { status: res.status, body: res.json, servedBy: "qloo" };
+
+  const place = req.params["signal.location.query"] || req.params["filter.location.query"] || undefined;
+  const key = `era:${tag}|${(place ?? "").toLowerCase()}|${take}`;
+  let fill = await findShapeFill<EraFill>(ctx.sql, key, ERA_TTL_MS);
+  const cacheHit = !!fill && (fill.entities.length > 0 || !!(await findShapeFill<EraFill>(ctx.sql, key, ERA_EMPTY_TTL_MS)));
+  if (!cacheHit) {
+    fill = await fillEra(tag, place, take, { qloo: ctx.qloo, lastfmKey: ctx.lastfmKey, fetch: ctx.fetch });
+    await saveShapeFill(ctx.sql, key, fill);
+  }
+  const f = fill!;
+  const ours = f.entities.filter((e) => !qlooEntities.some((q) => q.entity_id === (e as { entity_id: string }).entity_id));
+  const filled = ours.filter((e) => String((e as { properties?: { short_description?: string } }).properties?.short_description ?? "").startsWith("Not in Qloo"));
+  await saveCandidateRefs(ctx.sql, filled.map((e) => ({ id: (e as { entity_id: string }).entity_id, key: `mb:${(e as { entity_id: string }).entity_id}`, name: (e as { name: string }).name })));
+
+  const label = [tag.split(":").pop(), place].filter(Boolean).join(" · ");
+  const servedBy = !ours.length ? "qloo" : qlooEntities.length ? "mixed" : "fallback";
+  await logRequest(ctx.sql, { nameKey: label, query: `${tag}${place ? ` @ ${place}` : ""}`, endpoint: ctx.endpoint, servedBy: servedBy === "qloo" ? "fallback" : servedBy, gapKind: "G4", callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit });
+
+  const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { success: true };
+  const results = base.results && typeof base.results === "object" ? (base.results as Record<string, unknown>) : {};
+  return {
+    status: 200,
+    body: {
+      ...base,
+      results: { ...results, entities: [...qlooEntities, ...ours].slice(0, take) },
+      notonq: {
+        served_by: servedBy,
+        gap: { kind: "G4", qloo_status: res.status, qloo_message: qlooMessage(res.json), reason: `Qloo returned ${qlooEntities.length} artists for ${tag}${place ? ` in ${place}` : ""}` },
+        request: { tag, place, country: f.country, query: f.query },
+        cache: { hit: cacheHit },
+        provenance: f.provenance,
+        note: ours.length
+          ? "Artists after Qloo's own come from NotOnQ: ones Qloo knows are Qloo's entities; the rest are labelled Not in Qloo, with sources."
+          : "No artist found in open data for this era, genre and place.",
+      },
+    },
+    servedBy: servedBy === "qloo" ? "qloo" : servedBy,
   };
 }
 

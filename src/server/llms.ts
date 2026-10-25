@@ -46,6 +46,7 @@ pass straight through to Qloo unchanged.
 |---|---|---|
 | G1 unknown | /search has no artist with the exact name | Adds a Qloo-shaped artist from open data after Qloo's results, or every artist the name could be when it is ambiguous |
 | G2 not in the taste graph | /v2/insights answers 400 for the artist as a signal | Swaps it for stand-ins: similar artists Qloo knows |
+| G4 thin era/genre/place answer | /v2/insights for artists by a music genre tag (and place) returns fewer than 5 artists | Adds artists from that era, genre and country after Qloo's |
 | none | Qloo answers | Passes Qloo's response through unchanged |
 
 ## Quickstart
@@ -81,6 +82,7 @@ characters; or use the base URL {origin}/q/app/<label>), \`X-Lastfm-Key\` (optio
 | GET /q/search (types=urn:entity:artist, or no types) | Qloo's results first, unchanged. When Qloo has no artist (untyped: nothing) with that exact name, NotOnQ adds the filled artist (served_by fallback/mixed), or every candidate as a Qloo-shaped entry (needs_choice) |
 | GET /q/entities?entity_ids=… | Qloo's IDs from Qloo; NotOnQ's (fills, and offered candidates, filled on first use) from NotOnQ |
 | GET /q/v2/insights | Any filter.type. NotOnQ IDs, and Qloo IDs Qloo rejects as a signal, in signal.interests.entities become stand-ins. No stand-ins: empty answer |
+| GET /q/v2/insights, filter.type=urn:entity:artist with filter.tags=urn:tag:genre:music:<decade or genre> (and signal.location.query) | When Qloo returns fewer than 5 artists or errs: artists active in that decade, in that genre, from that country (MusicBrainz), after Qloo's own. Ones Qloo knows are Qloo's entities, first, by Qloo popularity; the rest labelled Not in Qloo. notonq.gap.kind G4 |
 | POST /q/v2/insights | Same, JSON body. signal.interests.entities may be UUID strings or {"id", "weight"} objects; weighted stand-ins keep weights scaled by their match |
 | GET /q/v2/analysis/compare | NotOnQ artists in a.* or b.* signals become their stand-ins |
 | anything else | Passes through unchanged, cached per key |
