@@ -68,7 +68,7 @@ describe("era, genre and place insights", () => {
     expect(body.results.entities.map((e) => e.name)).toEqual(["Known Act", "Old Band"]);
     expect(body.results.entities[0].entity_id).toBe(qid(5));
     // Qloo's own record, but picked by NotOnQ: labelled, so it can't pass for Qloo's answer to this request.
-    expect(body.results.entities[0].properties?.short_description).toMatch(/^Picked by NotOnQ: Qloo returned 0 artists for this request/);
+    expect(body.results.entities[0].properties?.short_description).toMatch(/^Picked by NotOnQ: Qloo returned 0 artists for this request; this is Qloo's own record \(MusicBrainz: Nigeria; active from 1938\)/);
     expect(body.results.entities[0].properties?.short_description).toContain("Qloo has 2 artists for this tag as a taste signal");
     expect(body.results.entities[1].entity_id).toBe(mbid(1));
     expect(body.results.entities[1].properties?.short_description).toMatch(/^Not in Qloo: found by NotOnQ for 1960s music from Nigeria/);
@@ -77,6 +77,18 @@ describe("era, genre and place insights", () => {
     expect((out.body as { notonq: { gap: { qloo_as_signal: number }; note: string } }).notonq.gap.qloo_as_signal).toBe(2);
     expect((out.body as { notonq: { note: string } }).notonq.note).toContain("signal.interests.tags");
     expect(decodeURIComponent(calls.find((c) => c.includes("ws/2/artist?"))!)).toContain("country:NG");
+  });
+
+  it("adds nothing when the place can't be placed in a country, rather than artists from anywhere", async () => {
+    const routes = openData(() => json(200, { success: true, results: { entities: [] } })).map(([m, r]): [string, (u: URL) => Response] =>
+      m === "musicbrainz.org/ws/2/area?" ? [m, () => json(503, {})] : [m, r],
+    );
+    const { fetch, calls } = fakeFetch(routes);
+    const out = await handleRest({ path: "v2/insights", params: { "filter.type": "urn:entity:artist", "filter.tags": "urn:tag:genre:music:60s", "signal.location.query": "Nowhereville" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const body = out.body as { results: { entities: unknown[] }; notonq: { note: string } };
+    expect(body.results.entities).toEqual([]);
+    expect(body.notonq.note).toContain('could not place "Nowhereville"');
+    expect(calls.some((c) => c.includes("ws/2/artist?"))).toBe(false);
   });
 
   it("leaves a full Qloo answer alone", async () => {

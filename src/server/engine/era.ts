@@ -45,7 +45,8 @@ export function eraQuery({ decade, genre }: MusicTag, country?: string): string 
   return parts.join(" AND ");
 }
 
-export type EraFill = { entities: unknown[]; provenance: ProvenanceMap; country?: { code: string; name: string }; query: string; known: number };
+/** facts: per entity ID, the MusicBrainz evidence that put it in this answer ("Nigeria; active from 1958 to 1997"). */
+export type EraFill = { entities: unknown[]; provenance: ProvenanceMap; country?: { code: string; name: string }; query: string; known: number; facts?: Record<string, string>; unresolvedPlace?: string };
 export type EraDeps = { qloo: QlooClient; lastfmKey?: string; fetch?: Fetch };
 
 const SEARCH = 25;
@@ -56,6 +57,9 @@ export async function fillEra(tag: string, place: string | undefined, take: numb
   const provenance: ProvenanceMap = {};
   if (!parsed) return { entities: [], provenance, query: "", known: 0 };
   const country = place ? ((await mb.countryOf(place, { fetch: deps.fetch })) ?? undefined) : undefined;
+  // A place was asked for but can't be placed in a country (unknown name, or MusicBrainz didn't answer): fill nothing.
+  // Without the country the search returns the most famous artists anywhere, which answers a different question.
+  if (place && !country) return { entities: [], provenance, query: "", known: 0, unresolvedPlace: place };
   const query = eraQuery(parsed, country?.code);
   const found = await mb.searchByQuery(query, { fetch: deps.fetch, limit: SEARCH });
 
@@ -86,9 +90,19 @@ export async function fillEra(tag: string, place: string | undefined, take: numb
   // ties a small artist's MBID to a famous namesake's page, so its numbers only order the ones Qloo can't vouch for.)
   const pop = (a: mb.MbArtist) => known.get(a.mbid)?.popularity ?? 0;
   const chosen = [...ranked.filter((a) => known.has(a.mbid)).toSorted((a, b) => pop(b) - pop(a)), ...ranked.filter((a) => !known.has(a.mbid))].slice(0, take);
+  const evidence: Record<string, string> = {};
+  const factsOf = (a: mb.MbArtist) => {
+    const span = [a.begin && `from ${a.begin.slice(0, 4)}`, a.end && `to ${a.end.slice(0, 4)}`].filter(Boolean).join(" ");
+    return [a.area, span && `active ${span}`].filter(Boolean).join("; ");
+  };
   const entities = chosen.map((a) => {
     const q = known.get(a.mbid);
-    if (q) return q;
+    if (q) {
+      const f = factsOf(a);
+      if (f) evidence[q.entity_id] = f;
+      cite(provenance, `${q.entity_id}.selection`, { source: "musicbrainz", record: a.record, licence: LICENCES.musicbrainz, method: "copied", note: `Chosen for ${tag}${place ? ` in ${place}` : ""}: ${f}` });
+      return q;
+    }
     const id = a.mbid.toLowerCase();
     const info = listeners.get(a.mbid);
     const span = [a.begin && `from ${a.begin.slice(0, 4)}`, a.end && `to ${a.end.slice(0, 4)}`].filter(Boolean).join(" ");
@@ -118,5 +132,5 @@ export async function fillEra(tag: string, place: string | undefined, take: numb
       tags: parsed.genre ? [genreTag(parsed.genre)] : [],
     };
   });
-  return { entities, provenance, country, query, known: chosen.filter((a) => known.has(a.mbid)).length };
+  return { entities, provenance, country, query, known: chosen.filter((a) => known.has(a.mbid)).length, facts: evidence };
 }

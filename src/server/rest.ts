@@ -237,7 +237,7 @@ async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx
 
   const place = req.params["signal.location.query"] || req.params["filter.location.query"] || undefined;
   // The version in the key retires fills made by older ranking rules.
-  const key = `era:v2:${tag}|${(place ?? "").toLowerCase()}|${take}`;
+  const key = `era:v4:${tag}|${(place ?? "").toLowerCase()}|${take}`;
   let fill = await findShapeFill<EraFill>(ctx.sql, key, ERA_TTL_MS);
   const cacheHit = !!fill && (fill.entities.length > 0 || !!(await findShapeFill<EraFill>(ctx.sql, key, ERA_EMPTY_TTL_MS)));
   if (!cacheHit) {
@@ -265,7 +265,8 @@ async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx
     const x = e as { properties?: Record<string, unknown> };
     const description = String(x.properties?.short_description ?? "");
     if (description.startsWith("Not in Qloo")) return { ...x, properties: { ...x.properties, short_description: `${description}${hint}` } };
-    const picked = `Picked by NotOnQ: Qloo returned ${qlooEntities.length} artists for this request; this is Qloo's own record of an artist active then and there.${hint}`;
+    const evidence = f.facts?.[String((e as { entity_id?: string }).entity_id)];
+    const picked = `Picked by NotOnQ: Qloo returned ${qlooEntities.length} artists for this request; this is Qloo's own record${evidence ? ` (MusicBrainz: ${evidence})` : ""}.${hint}`;
     return { ...x, properties: { ...x.properties, short_description: description ? `${picked} ${description}` : picked } };
   });
 
@@ -287,6 +288,7 @@ async function eraAnswer(req: RestRequest, ctx: Ctx, res: Awaited<ReturnType<Ctx
         cache: { hit: cacheHit },
         provenance: f.provenance,
         note: [
+          f.unresolvedPlace ? `NotOnQ could not place "${f.unresolvedPlace}" in a country, so it added nothing rather than artists from anywhere.` : "",
           ours.length
             ? "Artists after Qloo's own come from NotOnQ: ones Qloo knows are Qloo's entities; the rest are labelled Not in Qloo, with sources."
             : "No artist found in open data for this era, genre and place.",
