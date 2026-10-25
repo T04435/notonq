@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Logo } from "@/components/brand/mark";
-import { SiteNav } from "@/components/brand/site-nav";
+import { SiteNav, SiteNavLinks } from "@/components/brand/site-nav";
 import { VersionBadge } from "@/components/version-badge";
 import { versionText } from "@/lib/version";
 import "./globals.css";
@@ -26,7 +27,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" aria-label="NotOnQ home">
               <Logo />
             </Link>
-            <SiteNav />
+            <Suspense fallback={<SiteNavLinks />}>
+              <SiteNav />
+            </Suspense>
           </nav>
         </header>
         <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{children}</main>

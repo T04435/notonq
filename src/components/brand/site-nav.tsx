@@ -12,9 +12,14 @@ const LINKS = [
   { href: "/docs", label: "/docs" },
 ];
 
+/** The links with the current page marked. Reads the URL, so it renders inside <Suspense> (see SiteNavLinks). */
 export function SiteNav() {
-  const path = usePathname();
-  const active = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  return <SiteNavLinks path={usePathname()} />;
+}
+
+/** The same links without a current page: the prerendered fallback until the URL is known. */
+export function SiteNavLinks({ path }: { path?: string }) {
+  const active = (href: string) => !!path && (href === "/" ? path === "/" : path.startsWith(href));
   return (
     <div className="flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
       {LINKS.map((l) => (
