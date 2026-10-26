@@ -16,6 +16,7 @@ const MbArtistJson = z.looseObject({
   tags: z.array(z.looseObject({ name: z.string(), count: z.number().optional() })).nullish(),
   "life-span": z.looseObject({ begin: z.string().nullish(), end: z.string().nullish() }).nullish(),
   area: z.looseObject({ name: z.string() }).nullish(),
+  "begin-area": z.looseObject({ name: z.string() }).nullish(),
 });
 type MbArtistJson = z.infer<typeof MbArtistJson>;
 
@@ -32,6 +33,8 @@ export type MbArtist = {
   begin?: string;
   end?: string;
   area?: string;
+  /** Where the artist started (a city, for most): MusicBrainz's begin area. */
+  beginArea?: string;
 };
 
 export const mbArtistUrl = (mbid: string) => `https://musicbrainz.org/artist/${mbid}`;
@@ -59,6 +62,7 @@ const toArtist = (a: MbArtistJson): MbArtist => ({
   begin: a["life-span"]?.begin ?? undefined,
   end: a["life-span"]?.end ?? undefined,
   area: a.area?.name ?? undefined,
+  beginArea: a["begin-area"]?.name ?? undefined,
 });
 
 /** A raw Lucene artist search (fields like tag:, country:, begin:, end:, type:), in MusicBrainz's own order. */

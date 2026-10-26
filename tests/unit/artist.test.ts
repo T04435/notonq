@@ -8,7 +8,7 @@ const NEW = mbid(99);
 const openData: [string, (u: URL) => Response][] = [
   [
     `musicbrainz.org/ws/2/artist/${NEW}`,
-    () => json(200, { id: NEW, name: "Newact", country: "US", disambiguation: "indie band", aliases: [{ name: "New Act" }], tags: [{ name: "indie pop", count: 3 }] }),
+    () => json(200, { id: NEW, name: "Newact", country: "US", "begin-area": { name: "Seattle" }, disambiguation: "indie band", aliases: [{ name: "New Act" }], tags: [{ name: "indie pop", count: 3 }] }),
   ],
   [
     "musicbrainz.org/ws/2/artist",
@@ -85,7 +85,8 @@ describe("resolveArtist", () => {
       types: ["urn:entity:artist"],
       disambiguation: "indie band, US",
       properties: {
-        short_description: "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2, Similar 3. Newact is a band.",
+        short_description: "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2, Similar 3. From Seattle, United States (MusicBrainz). Newact is a band.",
+        "notonq:home": { name: "Seattle", country: "United States", country_code: "US", source: "musicbrainz" },
         akas: [{ value: "New Act", languages: [] }],
         external: { musicbrainz: { id: NEW }, wikidata: { id: "Q1" }, spotify: { id: "spotifyid1" }, lastfm: { listeners: 316228 } },
       },

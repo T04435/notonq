@@ -40,11 +40,25 @@ export type FallbackEntity = {
     };
     image?: { url: string };
     short_description?: string;
+    /** Where the artist is from (Qloo's artist records have no such field, so the key is NotOnQ's). */
+    "notonq:home"?: Home;
   };
   popularity?: number;
   disambiguation?: string;
   tags: { name: string; tag_id: string; type: string; value: string }[];
 };
+
+export type Home = { name: string; country?: string; country_code?: string; source: "musicbrainz" };
+
+/** Where an artist is from, from MusicBrainz: the begin area (usually the city), else the area, with the country. */
+export function homeOf(a: Pick<mb.MbArtist, "beginArea" | "area" | "country">): Home | null {
+  const code = a.country && /^[A-Z]{2}$/.test(a.country) ? a.country : undefined;
+  const country = code ? (new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? undefined) : undefined;
+  const name = a.beginArea ?? a.area ?? country;
+  return name ? { name, ...(country ? { country, country_code: code } : {}), source: "musicbrainz" } : null;
+}
+
+export const describeHome = (h: Home) => (h.country && h.country !== h.name ? `${h.name}, ${h.country}` : h.name);
 
 /** A genre as a Qloo-shaped tag. The ID is ours (prefixed), never passed off as one of Qloo's tag IDs. */
 export const genreTag = (name: string): FallbackEntity["tags"][number] => {
@@ -209,7 +223,12 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
 
   // The label goes where every client shows an entity (the Qloo harness passes short_description to the agent), so
   // an answer built on stand-ins is never mistaken for Qloo's own data about this artist.
-  entity.properties.short_description = notInQlooNote(standIns, summary?.extract);
+  const home = artist ? homeOf(artist) : null;
+  if (home) {
+    entity.properties["notonq:home"] = home;
+    cite(provenance, "properties.notonq:home", { source: "musicbrainz", record: artist!.record, licence: LICENCES.musicbrainz, method: "copied", note: "MusicBrainz begin area (else area) and country" });
+  } else unavailable.push("properties.notonq:home");
+  entity.properties.short_description = notInQlooNote(standIns, summary?.extract, home);
   cite(provenance, "properties.short_description", {
     source: "notonq",
     record: summary?.url ?? artist?.record ?? anchor.links[0]?.url ?? "",
@@ -273,11 +292,12 @@ export async function qlooGenreTags(names: string[], qloo: QlooClient): Promise<
 }
 
 /** The label every NotOnQ entity carries in short_description. */
-export function notInQlooNote(standIns: Pick<StandIn, "name">[], summary?: string) {
+export function notInQlooNote(standIns: Pick<StandIn, "name">[], summary?: string, home?: Home | null) {
   const via = standIns.length
     ? ` Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: ${standIns.slice(0, 3).map((s) => s.name).join(", ")}.`
     : " No similar artist Qloo knows yet, so taste answers are not available.";
-  return `Not in Qloo: filled by NotOnQ from open sources.${via}${summary ? ` ${summary}` : ""}`;
+  const from = home ? ` From ${describeHome(home)} (MusicBrainz).` : "";
+  return `Not in Qloo: filled by NotOnQ from open sources.${via}${from}${summary ? ` ${summary}` : ""}`;
 }
 
 const DEEZER_LOOKUPS = 5;

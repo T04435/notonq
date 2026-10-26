@@ -54,7 +54,8 @@ export async function applyClaims(f: StoredFallback, verified: Verified[], qloo:
     cite(provenance, path, { source: v.domain, record: v.source_url, licence: "quoted from the source page", method: "researched", note: `"${v.quote}" (${v.confidence} confidence)` });
 
   // The label is rebuilt at the end (research can add stand-ins), around the summary already there or a researched one.
-  const label = notInQlooNote(f.standIns);
+  const home = entity.properties["notonq:home"];
+  const label = notInQlooNote(f.standIns, undefined, home);
   const current = entity.properties.short_description ?? "";
   let summary = current.startsWith(label) ? current.slice(label.length).trim() : current;
   for (const v of sorted) {
@@ -117,7 +118,7 @@ export async function applyClaims(f: StoredFallback, verified: Verified[], qloo:
     filled.add("standIns");
   }
 
-  if (current.startsWith(label) || !current) entity.properties.short_description = notInQlooNote(standIns, summary || undefined);
+  if (current.startsWith(label) || !current) entity.properties.short_description = notInQlooNote(standIns, summary || undefined, home);
 
   const unavailable = f.unavailable.filter((u) => {
     const base = u.split(" ")[0];
