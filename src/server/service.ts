@@ -40,7 +40,10 @@ export const EMPTY_TTL_MS = 24 * 3600 * 1000;
 export const hashCaller = (key: string, salt: string) => createHash("sha256").update(`${salt}:${key}`).digest("hex").slice(0, 32);
 
 const partial = (f: StoredFallback) => !f.entity || f.unavailable.some((u) => u.includes(SOURCE_ERROR));
-const isFresh = (f: StoredFallback) => !f.resolvedByQlooAt && Date.now() - Date.parse(f.refreshedAt) < (partial(f) ? EMPTY_TTL_MS : FALLBACK_TTL_MS);
+/** A fill made before v0.4.0 has neither a home nor a note that none was found (and no genre tags matched to Qloo's):
+ * it is rebuilt once, on its next use, whatever its age. */
+export const isCurrentShape = (f: StoredFallback) => !f.entity || "notonq:home" in f.entity.properties || f.unavailable.some((u) => u.startsWith("properties.notonq:home"));
+const isFresh = (f: StoredFallback) => !f.resolvedByQlooAt && isCurrentShape(f) && Date.now() - Date.parse(f.refreshedAt) < (partial(f) ? EMPTY_TTL_MS : FALLBACK_TTL_MS);
 
 export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions = {}): Promise<Lookup> {
   const key = nameKey(name);

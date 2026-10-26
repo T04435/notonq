@@ -16,7 +16,7 @@ import { pointOf } from "@/server/engine/geo";
 import * as spotify from "@/server/adapters/spotify";
 import { externalOf } from "@/server/engine/standins";
 import { demandFor, findFallback, findOurIds, findShapeFill, linkSpotify, logRequest, saveCandidateRefs, saveShapeFill, type StoredFallback } from "@/server/store/repo";
-import { type Ctx, fallbackForQlooId, hashCaller, lookupArtist } from "@/server/service";
+import { type Ctx, fallbackForQlooId, hashCaller, isCurrentShape, lookupArtist } from "@/server/service";
 
 export type RestRequest = {
   path: string;
@@ -201,7 +201,7 @@ async function spotifyEntities(req: RestRequest, ctx: Ctx): Promise<RestResponse
 
 async function matchSpotify(id: string, ctx: Ctx): Promise<{ match: SpotifyMatch; entity?: unknown; fill?: StoredFallback }> {
   const linked = await findFallback(ctx.sql, { spotifyId: id });
-  if (linked?.entity && !linked.resolvedByQlooAt) return { match: { spotify_id: id, via: "notonq", entity_id: linked.id }, entity: linked.entity, fill: linked };
+  if (linked?.entity && !linked.resolvedByQlooAt && isCurrentShape(linked)) return { match: { spotify_id: id, via: "notonq", entity_id: linked.id }, entity: linked.entity, fill: linked };
 
   const fillFor = async (name: string, opts: ResolveOptions, via: SpotifyMatch["via"]) => {
     const l = await lookupArtist(name, ctx, opts);

@@ -77,6 +77,19 @@ describe("handleRest", () => {
     expect(row).toMatchObject({ name: "Newact", requests: 2, callers: 2, apps: 2 });
   });
 
+  it("rebuilds a fill made before v0.4.0 (no home, no note) once, on its next use", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const { fetch, calls } = fakeFetch([...qlooRoutes(counter), ...openData]);
+    const req = { path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" };
+    await handleRest(req, deps(fetch));
+    // Make the stored fill look like one from v0.3.0: no home on the entity and nothing about it in unavailable.
+    await sql(`UPDATE fallback_entities SET entity = entity #- '{properties,notonq:home}', unavailable = '[]'::jsonb`);
+    const before = calls.filter((c) => c.includes("musicbrainz")).length;
+    const again = await handleRest(req, deps(fetch));
+    expect(calls.filter((c) => c.includes("musicbrainz")).length).toBeGreaterThan(before);
+    expect((again.body as { results: { properties: { "notonq:home"?: unknown } }[] }).results[0].properties["notonq:home"]).toMatchObject({ source: "musicbrainz" });
+  });
+
   it("swaps a notonq: ID for its stand-ins on insights and labels the answer", async () => {
     const counter = { search: 0, insights: [] as string[] };
     const { fetch } = fakeFetch([...qlooRoutes(counter), ...openData]);
