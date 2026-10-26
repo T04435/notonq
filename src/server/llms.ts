@@ -81,8 +81,10 @@ characters; or use the base URL {origin}/q/app/<label>), \`X-Lastfm-Key\` (optio
 |---|---|
 | GET /q/search (types=urn:entity:artist, or no types) | Qloo's results first, unchanged. When Qloo has no artist (untyped: nothing) with that exact name, NotOnQ adds the filled artist (served_by fallback/mixed), or every candidate as a Qloo-shaped entry (needs_choice) |
 | GET /q/entities?entity_ids=… | Qloo's IDs from Qloo; NotOnQ's (fills, and offered candidates, filled on first use) from NotOnQ |
+| GET /q/entities?external.spotify.ids=… | Qloo's matches first. A Spotify ID Qloo lacks: the artist MusicBrainz links to that Spotify page (Qloo's record, labelled "Matched by NotOnQ", if Qloo has its MusicBrainz ID; else NotOnQ's fill), else the name on Spotify's public page when it is one confident artist. Up to 5 per request; notonq.spotify says how each matched |
 | GET /q/v2/insights | Any filter.type. NotOnQ IDs, and Qloo IDs Qloo rejects as a signal, in signal.interests.entities become stand-ins. No stand-ins: empty answer |
-| GET /q/v2/insights, filter.type=urn:entity:artist with filter.tags=urn:tag:genre:music:<decade or genre> (and signal.location.query) | When Qloo returns fewer than 5 artists or errs: artists active in that decade, in that genre, from that country (MusicBrainz), after Qloo's own. Ones Qloo knows are Qloo's entities, first, by Qloo popularity; the rest labelled Not in Qloo. notonq.gap.kind G4 |
+| GET /q/v2/insights, filter.type=urn:entity:artist with filter.tags=urn:tag:genre:music:<decade or genre> (and a place: signal.location.query / filter.location.query, or signal.location / filter.location as POINT or a small POLYGON) | When Qloo returns fewer than 5 artists or errs: artists active in that decade, in that genre, from that country (MusicBrainz; a point is placed through OpenStreetMap), after Qloo's own. Ones Qloo knows are Qloo's entities, first, by Qloo popularity; the rest labelled Not in Qloo. With a taste signal (signal.interests.entities or .tags) Qloo ranks its own artists in the fill for that signal (notonq.ranking). notonq.gap.kind G4 |
+| GET /q/v2/insights with filter.results.entities (ranking a list) | NotOnQ artists in the list are kept out of Qloo's call and follow Qloo's ranking, unranked (notonq.unranked) |
 | POST /q/v2/insights | Same, JSON body. signal.interests.entities may be UUID strings or {"id", "weight"} objects; weighted stand-ins keep weights scaled by their match |
 | GET /q/v2/analysis/compare | NotOnQ artists in a.* or b.* signals become their stand-ins |
 | anything else | Passes through unchanged, cached per key |
@@ -119,8 +121,11 @@ Added beside Qloo's response when NotOnQ took part:
 A filled artist has exactly Qloo's keys and types.
 - entity_id: a UUID like Qloo's: the MusicBrainz ID, or a stable name-based UUID of the candidate (Deezer or Last.fm only)
 - properties.short_description: starts "Not in Qloo: filled by NotOnQ from open sources." and names the stand-ins, then
-  the Wikipedia summary when there is one
-- tags[].tag_id: \`notonq:urn:tag:genre:<genre>\` (type \`urn:tag:genre\`)
+  "From <place> (MusicBrainz)." when known, then the Wikipedia summary when there is one
+- tags[]: Qloo's own music genre tag (\`urn:tag:genre:music:<genre>\`) where Qloo has one by that exact name, else
+  \`notonq:urn:tag:genre:<genre>\` (type \`urn:tag:genre\`)
+- properties["notonq:home"]: { name, country, country_code, source: "musicbrainz" } (where the artist is from; Qloo's
+  artist records have no such field)
 - properties.external["notonq:deezer"]: { id, fans }
 
 Send a NotOnQ entity ID back as a signal anywhere Qloo takes one; NotOnQ swaps in its stand-ins.
@@ -153,7 +158,8 @@ each entity's short_description, which is where NotOnQ's "Not in Qloo" label liv
 ## Sources and licences
 
 MusicBrainz core (CC0), Wikidata (CC0), Wikipedia summaries (CC BY-SA 4.0, linked), Wikimedia Commons images (per-file
-licence, linked), Last.fm (powered by AudioScrobbler), Deezer (non-commercial use), Qloo (each caller's own key; no
+licence, linked), Last.fm (powered by AudioScrobbler), Deezer (non-commercial use), OpenStreetMap via Nominatim (ODbL,
+the place at a point), Spotify's public oEmbed (an artist's name for a Spotify ID only), Qloo (each caller's own key; no
 Qloo response data is stored publicly).
 
 ## Caching, demand, research

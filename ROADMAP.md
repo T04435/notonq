@@ -1,7 +1,7 @@
 # Roadmap
 
 NotOnQ is a proof of concept for a Qloo feature: when Qloo has no data, answer in Qloo's shape from open sources,
-label it, cite every value, and step aside once Qloo has it. v0.2.0 does this for music artists.
+label it, cite every value, and step aside once Qloo has it. It does this for music artists.
 
 **NotOnQ stays a pure drop-in. No new endpoints, ever, and nothing specific to one app.** Each release widens
 coverage for the same Qloo requests a client already sends: when Qloo returns an empty or thin answer, or an error,
@@ -24,9 +24,7 @@ preview, then a GitHub release with notes. Versions stay `0.x`.
 - `GET` and `POST /v2/insights` with any `filter.type` and artists in `signal.interests.entities`
 - `GET /v2/analysis/compare` with artists in `a.signal.interests.entities` / `b.signal.interests.entities`
 
-## Next
-
-### v0.3.0: artists by era, genre and place (built 25 Oct 2026)
+### v0.3.0 (26 Oct 2026): artists by era, genre and place
 
 Measured 25 Oct 2026 (`src/data/era-gaps.json`): 22 of 48 decade/genre × place requests came back empty, 1 thin;
 `50s` and `rock_70s` return no artists anywhere. Where Qloo answers, the place barely changes the list.
@@ -46,7 +44,29 @@ When Qloo's answer is empty, thin or an error:
   knows are returned as Qloo's own entities; the rest are labelled and cited.
 - The Ledger records the gap by request shape (tag, location), not only by artist.
 
-### v0.4.0: films and TV by year and place
+## Next
+
+### v0.4.0: the request shapes real apps send, for artists (built 27 Oct 2026, local)
+
+From Busk Map, GhostQ and Front Room's own Qloo calls (plan: Qloo data through NotOnQ and Qloo's harness, no
+fallbacks of their own). Still artists only, still no new endpoints:
+
+- `GET /v2/insights`, era/genre `filter.tags` **with a taste signal** (`signal.interests.entities` or `.tags`): the
+  era fill, then Qloo ranks its own artists in it for that signal (`filter.results.entities`, taste only).
+- The same with the place as **coordinates**: `signal.location` / `filter.location` as `POINT(lon lat)` (with
+  `.radius`) or a small `POLYGON`, placed through OpenStreetMap Nominatim, cached.
+- `filter.results.entities` (the harness's `qloo_rank`) with NotOnQ artists in the list: Qloo ranks the ones it knows,
+  NotOnQ's follow, unranked.
+- `GET /entities` with `external.spotify.ids`: IDs Qloo lacks resolve through MusicBrainz's link to the Spotify page,
+  else the name on Spotify's public oEmbed page when it is one confident artist.
+- Fills carry Qloo's own music genre tags where Qloo has one by that exact name, and where the artist is from
+  (`properties.notonq:home`, MusicBrainz begin area and country).
+- Every artist-signalled `filter.type` (demographics, heatmap, audience, tag, place, artist, movie) is tested to reach
+  Qloo through stand-ins, never with a NotOnQ ID.
+
+### Later, not planned: films and TV by year and place
+
+Out of scope for now: NotOnQ's pitch is artists (decided 26 Oct 2026). Kept for reference:
 
 Request shapes covered (no new endpoints):
 

@@ -37,6 +37,10 @@ export function qlooMessage(json: unknown): string | undefined {
 
 const pacers = new Map<string, ReturnType<typeof pacer>>();
 
+/** Qloo can take well over 15 s on wide heatmaps and tag searches (27 Oct 2026); apps wait about 25 s (GhostQ's
+ * client), so NotOnQ waits a little longer than they do and never times out first. */
+const QLOO_TIMEOUT_MS = 28_000;
+
 export function qlooClient({ apiKey, baseUrl = QLOO_HACKATHON_BASE, fetch: f }: { apiKey: string; baseUrl?: string; fetch?: Fetch }) {
   const pace = pacers.get(apiKey) ?? pacers.set(apiKey, pacer(340)).get(apiKey)!;
 
@@ -44,14 +48,14 @@ export function qlooClient({ apiKey, baseUrl = QLOO_HACKATHON_BASE, fetch: f }: 
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") qs.set(k, String(v));
     const url = `${baseUrl}${path}${qs.size ? `?${qs}` : ""}`;
-    const call = () => pace(() => getJson(url, { fetch: f, headers: { "X-Api-Key": apiKey } }));
+    const call = () => pace(() => getJson(url, { fetch: f, headers: { "X-Api-Key": apiKey }, timeoutMs: QLOO_TIMEOUT_MS }));
     const first = await call();
     return first.status === 429 ? call() : first;
   }
 
   /** POST with a JSON body (Qloo accepts POST on /v2/insights for array and weighted parameters). */
   async function post(path: string, body: Record<string, unknown>): Promise<HttpResult> {
-    const call = () => pace(() => getJson(`${baseUrl}${path}`, { fetch: f, method: "POST", body, headers: { "X-Api-Key": apiKey } }));
+    const call = () => pace(() => getJson(`${baseUrl}${path}`, { fetch: f, method: "POST", body, headers: { "X-Api-Key": apiKey }, timeoutMs: QLOO_TIMEOUT_MS }));
     const first = await call();
     return first.status === 429 ? call() : first;
   }

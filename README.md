@@ -80,6 +80,8 @@ pnpm typecheck && pnpm lint && pnpm test
 - [Wikimedia Commons](https://commons.wikimedia.org) images, per-file licences (linked)
 - [Last.fm](https://www.last.fm) API, powered by AudioScrobbler, used with each caller's own key
 - [Deezer](https://developers.deezer.com) API (non-commercial use)
+- [OpenStreetMap](https://www.openstreetmap.org/copyright) via Nominatim: the place at a point, © OpenStreetMap contributors, ODbL
+- [Spotify](https://developer.spotify.com/documentation/embeds) public oEmbed: an artist's name for a Spotify ID (nothing else from Spotify is used)
 - [ListenBrainz](https://listenbrainz.org) fresh releases (the proof sample)
 - Researched facts: the page cited per value, with the quote checked on that page
 - [Qloo](https://qloo.com) API, with each caller's own key. No Qloo response data is stored in this repo.
