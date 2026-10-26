@@ -10,7 +10,10 @@ import { cachedQloo, QlooBudgetExceeded } from "@/server/qloo/cached";
 import { readInsights, readSearch, sameName } from "@/server/qloo/gap";
 import { blockFor, fallbackBlock, standInsOf } from "@/server/respond";
 import type { Sql } from "@/server/store/db";
-import { demandFor, findOurIds, findShapeFill, logRequest, saveCandidateRefs, saveShapeFill, type StoredFallback } from "@/server/store/repo";
+import * as mb from "@/server/adapters/musicbrainz";
+import * as spotify from "@/server/adapters/spotify";
+import { externalOf } from "@/server/engine/standins";
+import { demandFor, findFallback, findOurIds, findShapeFill, linkSpotify, logRequest, saveCandidateRefs, saveShapeFill, type StoredFallback } from "@/server/store/repo";
 import { type Ctx, fallbackForQlooId, hashCaller, lookupArtist } from "@/server/service";
 
 export type RestRequest = {
@@ -44,6 +47,7 @@ export async function handleRest(req: RestRequest, deps: RestDeps): Promise<Rest
     }
     if (path === "search" && req.params.query && artistScope(req.params.types)) return await search(req, ctx, options);
     if (path === "entities" && req.params.entity_ids) return await entities(req, ctx);
+    if (path === "entities" && req.params["external.spotify.ids"]) return await spotifyEntities(req, ctx);
     if (path === "v2/insights") return await insights(req, ctx);
     if (path === "v2/analysis/compare") return await compare(req, ctx);
     const res = await qloo.get(`/${path}`, req.params);
@@ -151,6 +155,77 @@ async function entities(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   const results = [...(res ? entitiesOf(res.json) : []), ...found.flatMap((f) => (f.entity ? [f.entity] : []))];
   const notonq = Object.fromEntries(await Promise.all(found.map(async (f) => [f.id, fallbackBlock(f, await demandFor(ctx.sql, f.nameKey), { hit: true })])));
   return { status: results.length ? 200 : 404, body: { results, notonq }, servedBy: theirs.length ? "mixed" : "fallback" };
+}
+
+/** How many Spotify IDs one request may resolve outside Qloo (each can cost a MusicBrainz call at 1 per second). */
+const SPOTIFY_LOOKUPS = 5;
+
+type SpotifyMatch = { spotify_id: string; via: "notonq" | "musicbrainz" | "musicbrainz_in_qloo" | "name" | "none"; entity_id?: string; note?: string };
+
+/** /entities by Spotify ID (apps that pick artists on Spotify, like Busk Map and GhostQ). Qloo's own entities first,
+ * unchanged. For each ID Qloo doesn't have: a NotOnQ fill already linked to it; else the artist MusicBrainz links to
+ * that Spotify page (Qloo's own record when Qloo has that MusicBrainz ID, labelled, else NotOnQ's fill); else the name
+ * on Spotify's public page, filled only when that name is one confident artist. */
+async function spotifyEntities(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
+  const ids = req.params["external.spotify.ids"].split(",").map((s) => s.trim()).filter(Boolean);
+  const res = await ctx.qloo.get("/entities", req.params);
+  if (!res.ok && res.status !== 404) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+  const qloo = res.ok ? entitiesOf(res.json) : [];
+  const has = new Set(qloo.flatMap((e) => externalOf(e, "spotify").map((x) => String(x.id))));
+  const missing = ids.filter((id) => !has.has(id) && spotify.isSpotifyId(id));
+  if (!missing.length) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+
+  const ours: unknown[] = [];
+  const matches: SpotifyMatch[] = [];
+  const found: StoredFallback[] = [];
+  for (const id of missing.slice(0, SPOTIFY_LOOKUPS)) {
+    const m = await matchSpotify(id, ctx);
+    matches.push(m.match);
+    if (m.entity) ours.push(m.entity);
+    if (m.fill) found.push(m.fill);
+  }
+  for (const id of missing.slice(SPOTIFY_LOOKUPS)) matches.push({ spotify_id: id, via: "none", note: `Over ${SPOTIFY_LOOKUPS} lookups in one request: ask again for this ID.` });
+
+  const servedBy = !ours.length ? "qloo" : qloo.length ? "mixed" : "fallback";
+  const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : {};
+  const notonq: Record<string, unknown> = {
+    served_by: servedBy,
+    spotify: matches,
+    note: "Artists after Qloo's own were matched by NotOnQ to Spotify IDs Qloo has no record for: through MusicBrainz's link to the Spotify page, or by the name on it when that name is one confident artist.",
+  };
+  for (const f of found) notonq[f.id] = fallbackBlock(f, await demandFor(ctx.sql, f.nameKey), { hit: true });
+  return { status: ours.length || qloo.length ? 200 : res.status, body: { ...base, results: [...qloo, ...ours], notonq }, servedBy };
+}
+
+async function matchSpotify(id: string, ctx: Ctx): Promise<{ match: SpotifyMatch; entity?: unknown; fill?: StoredFallback }> {
+  const linked = await findFallback(ctx.sql, { spotifyId: id });
+  if (linked?.entity && !linked.resolvedByQlooAt) return { match: { spotify_id: id, via: "notonq", entity_id: linked.id }, entity: linked.entity, fill: linked };
+
+  const fillFor = async (name: string, opts: ResolveOptions, via: SpotifyMatch["via"]) => {
+    const l = await lookupArtist(name, ctx, opts);
+    if (l.servedBy !== "fallback" || !l.fallback.entity) return null;
+    await linkSpotify(ctx.sql, l.fallback.id, id);
+    const entity = { ...l.fallback.entity, properties: { ...l.fallback.entity.properties, external: { ...l.fallback.entity.properties.external, spotify: { id } } } };
+    return { match: { spotify_id: id, via, entity_id: l.fallback.id }, entity, fill: l.fallback };
+  };
+
+  const artist = await mb.artistForUrl(spotify.spotifyArtistUrl(id), { fetch: ctx.fetch });
+  if (artist) {
+    const inQloo = entitiesOf((await ctx.qloo.entitiesByMbids([artist.mbid])).json).find((e) => externalOf(e, "musicbrainz").some((x) => String(x.id).toLowerCase() === artist.mbid));
+    if (inQloo) {
+      const d = String(inQloo.properties?.short_description ?? "");
+      const label = `Matched by NotOnQ: Qloo has this artist but not under this Spotify ID; MusicBrainz links the Spotify page to this record (${mb.mbArtistUrl(artist.mbid)}).`;
+      return { match: { spotify_id: id, via: "musicbrainz_in_qloo", entity_id: inQloo.entity_id }, entity: { ...inQloo, properties: { ...inQloo.properties, short_description: d ? `${label} ${d}` : label } } };
+    }
+    const filled = await fillFor(artist.name, { candidateKey: `mb:${artist.mbid}` }, "musicbrainz");
+    if (filled) return filled;
+  }
+  const name = await spotify.artistName(id, { fetch: ctx.fetch });
+  if (name) {
+    const filled = await fillFor(name, {}, "name");
+    if (filled) return filled;
+  }
+  return { match: { spotify_id: id, via: "none", note: name ? `"${name}" is more than one artist (or one Qloo has under that name without this Spotify ID): search for it to choose.` : "Neither MusicBrainz nor Spotify's public page names this artist." } };
 }
 
 async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {

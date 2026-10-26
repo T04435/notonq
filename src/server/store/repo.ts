@@ -60,9 +60,11 @@ function toFallback(r: Row): StoredFallback {
   };
 }
 
-export async function findFallback(sql: Sql, by: { nameKey?: string; id?: string; qlooEntityId?: string; mbid?: string; candidateKey?: string }) {
+export async function findFallback(sql: Sql, by: { nameKey?: string; id?: string; qlooEntityId?: string; mbid?: string; candidateKey?: string; spotifyId?: string }) {
   const [col, val] = by.id
     ? ["id", by.id]
+    : by.spotifyId
+      ? ["spotify_id", by.spotifyId]
     : by.candidateKey
       ? ["candidate_key", by.candidateKey]
     : by.qlooEntityId
@@ -73,6 +75,17 @@ export async function findFallback(sql: Sql, by: { nameKey?: string; id?: string
   const onlyDefault = col === "name_key" ? " AND NOT chosen" : "";
   const rows = await sql(`SELECT * FROM fallback_entities WHERE ${col} = $1${onlyDefault} ORDER BY refreshed_at DESC LIMIT 1`, [val]);
   return rows[0] ? toFallback(rows[0]) : null;
+}
+
+/** Records the Spotify ID an app asked for on a fill (found through MusicBrainz or by name), in the column and in the
+ * entity's own external IDs, so the next /entities?external.spotify.ids= lookup is one query. */
+export async function linkSpotify(sql: Sql, id: string, spotifyId: string) {
+  await sql(
+    `UPDATE fallback_entities SET spotify_id = $2,
+       entity = CASE WHEN entity IS NULL THEN NULL ELSE jsonb_set(entity, '{properties,external,spotify}', jsonb_build_object('id', $2::text)) END
+     WHERE id = $1`,
+    [id, spotifyId],
+  );
 }
 
 export async function saveFallback(sql: Sql, f: Omit<StoredFallback, "createdAt" | "refreshedAt" | "resolvedByQlooAt">) {

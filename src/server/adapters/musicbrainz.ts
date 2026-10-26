@@ -112,3 +112,13 @@ export async function getArtist(mbid: string, { fetch: f }: { fetch?: Fetch } = 
   const a = MbArtistJson.safeParse(res.json);
   return a.success ? toArtist(a.data) : null;
 }
+
+const MbUrlJson = z.looseObject({ relations: z.array(z.looseObject({ artist: z.looseObject({ id: z.string(), name: z.string() }).nullish() })).nullish() });
+
+/** The artist MusicBrainz links to a page (e.g. a Spotify artist URL), from its URL relations. One artist only:
+ * a page linked to several artists is no identity. */
+export async function artistForUrl(url: string, { fetch: f }: { fetch?: Fetch } = {}): Promise<{ mbid: string; name: string } | null> {
+  const res = await call(`https://musicbrainz.org/ws/2/url?resource=${encodeURIComponent(url)}&inc=artist-rels&fmt=json`, f);
+  const artists = [...new Map((MbUrlJson.safeParse(res.json).data?.relations ?? []).flatMap((r) => (r.artist ? [[r.artist.id, r.artist] as const] : []))).values()];
+  return artists.length === 1 ? { mbid: artists[0].id, name: artists[0].name } : null;
+}

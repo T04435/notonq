@@ -216,5 +216,54 @@ describe("handleRest", () => {
     expect(out).toMatchObject({ status: 200, servedBy: "fallback" });
     expect((out.body as { results: { entities: { name: string }[] } }).results.entities.map((e) => e.name)).toEqual(["Newact"]);
   });
+
+  // N3 (v0.4.0): /entities by Spotify ID for artists Qloo has no record of.
+  describe("entities by Spotify ID", () => {
+    const SP = "1234567890abcdefghijkl";
+    const mbUrl = (artist: { id: string; name: string } | null): [string, (u: URL) => Response] => ["musicbrainz.org/ws/2/url", () => json(200, { relations: artist ? [{ artist }] : [] })];
+    const noSpotifyInQloo: [string, (u: URL) => Response] = ["/entities?external.spotify.ids", () => json(200, { results: [] })];
+
+    it("fills the artist MusicBrainz links to the Spotify page, then serves it from the link", async () => {
+      const counter = { search: 0, insights: [] as string[] };
+      const { fetch, calls } = fakeFetch([noSpotifyInQloo, mbUrl({ id: NEW, name: "Newact" }), ...qlooRoutes(counter), ...openData]);
+      const req = { path: "entities", params: { "external.spotify.ids": SP }, apiKey: "k", lastfmKey: "lf", appLabel: "busk-map" };
+      const first = await handleRest(req, deps(fetch));
+      expect(first).toMatchObject({ status: 200, servedBy: "fallback" });
+      const body = first.body as { results: { entity_id: string; properties: { external: { spotify?: { id: string } } } }[]; notonq: { spotify: { via: string }[] } };
+      expect(body.results[0].entity_id).toBe(NEW);
+      expect(body.results[0].properties.external.spotify).toEqual({ id: SP });
+      expect(body.notonq.spotify[0]).toMatchObject({ via: "musicbrainz", entity_id: NEW });
+
+      const urlCalls = calls.filter((c) => c.includes("ws/2/url")).length;
+      const second = await handleRest(req, deps(fetch));
+      expect((second.body as { notonq: { spotify: { via: string }[] } }).notonq.spotify[0].via).toBe("notonq");
+      expect(calls.filter((c) => c.includes("ws/2/url")).length).toBe(urlCalls);
+    });
+
+    it("returns Qloo's own record, labelled, when Qloo has the MusicBrainz ID but not the Spotify ID", async () => {
+      const counter = { search: 0, insights: [] as string[] };
+      const { fetch } = fakeFetch([noSpotifyInQloo, mbUrl({ id: mbid(1), name: "Similar 1" }), ...qlooRoutes(counter), ...openData]);
+      const out = await handleRest({ path: "entities", params: { "external.spotify.ids": SP }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+      const body = out.body as { results: { entity_id: string; properties: { short_description: string } }[]; notonq: { spotify: { via: string }[] } };
+      expect(body.results[0].entity_id).toBe(qid(1));
+      expect(body.results[0].properties.short_description).toMatch(/^Matched by NotOnQ: Qloo has this artist but not under this Spotify ID/);
+      expect(body.notonq.spotify[0].via).toBe("musicbrainz_in_qloo");
+    });
+
+    it("leaves Qloo's answer alone when Qloo has every Spotify ID", async () => {
+      const qlooHas = { results: [{ ...qlooArtist(3, "Known"), properties: { external: { spotify: { id: SP } } } }] };
+      const { fetch, calls } = fakeFetch([["/entities?external.spotify.ids", () => json(200, qlooHas)]]);
+      const out = await handleRest({ path: "entities", params: { "external.spotify.ids": SP }, apiKey: "k" }, deps(fetch));
+      expect(out).toMatchObject({ servedBy: "qloo", body: JSON.parse(JSON.stringify(qlooHas)) });
+      expect(calls.some((c) => c.includes("musicbrainz") || c.includes("spotify.com"))).toBe(false);
+    });
+
+    it("says so when no source names the artist", async () => {
+      const { fetch } = fakeFetch([noSpotifyInQloo, mbUrl(null), ["open.spotify.com/oembed", () => json(404, {})]]);
+      const out = await handleRest({ path: "entities", params: { "external.spotify.ids": SP }, apiKey: "k" }, deps(fetch));
+      expect((out.body as { notonq: { spotify: { via: string }[] } }).notonq.spotify[0].via).toBe("none");
+      expect(out.servedBy).toBe("qloo");
+    });
+  });
 });
 

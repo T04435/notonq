@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS candidate_refs (
 CREATE INDEX IF NOT EXISTS fallback_entities_name_key ON fallback_entities (name_key, refreshed_at DESC);
 CREATE INDEX IF NOT EXISTS fallback_entities_mbid ON fallback_entities (mbid);
 CREATE INDEX IF NOT EXISTS fallback_entities_qloo ON fallback_entities (qloo_entity_id);
+CREATE INDEX IF NOT EXISTS fallback_entities_spotify ON fallback_entities (spotify_id);
 
 -- Every request, recorded for the Ledger's replay: an Ask run's streamed steps (with timing) or one API/MCP request
 -- and its response. Replaying shows these recorded steps again; nothing is re-run. Caller keys are hashed, never stored.
