@@ -43,7 +43,7 @@ export type FallbackEntity = {
   };
   popularity?: number;
   disambiguation?: string;
-  tags: { name: string; tag_id: string; type: "urn:tag:genre"; value: string }[];
+  tags: { name: string; tag_id: string; type: string; value: string }[];
 };
 
 /** A genre as a Qloo-shaped tag. The ID is ours (prefixed), never passed off as one of Qloo's tag IDs. */
@@ -219,13 +219,17 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
   });
   if (!summary && !unavailable.some((u) => u.startsWith("properties.short_description"))) unavailable.push("properties.short_description (no Wikipedia summary)");
 
-  if (wiki?.genres.length) {
-    entity.tags = wiki.genres.map(genreTag);
-    cite(provenance, "tags", { source: "wikidata", record: wiki.record, licence: LICENCES.wikidata, method: "copied" });
-  } else if (artist?.tags.length) {
-    // MusicBrainz tags are supplementary data (CC BY-NC-SA): fine for this non-commercial tool, labelled as such.
-    entity.tags = artist.tags.map(genreTag);
-    cite(provenance, "tags", { source: "musicbrainz", record: artist.record, licence: "CC-BY-NC-SA-3.0", method: "copied" });
+  const genres = wiki?.genres.length ? wiki.genres : (artist?.tags ?? []);
+  if (genres.length) {
+    // Each genre name becomes Qloo's own music genre tag when Qloo has one by that exact name (so apps can send it
+    // straight back as signal.interests.tags or filter.tags); otherwise NotOnQ's own, prefixed, never passed off as Qloo's.
+    entity.tags = await qlooGenreTags(genres, qloo);
+    const matched = entity.tags.filter((t) => !t.tag_id.startsWith(NS)).length;
+    const from = wiki?.genres.length
+      ? { source: "wikidata", record: wiki.record, licence: LICENCES.wikidata }
+      : // MusicBrainz tags are supplementary data (CC BY-NC-SA): fine for this non-commercial tool, labelled as such.
+        { source: "musicbrainz", record: artist!.record, licence: "CC-BY-NC-SA-3.0" };
+    cite(provenance, "tags", { ...from, method: matched ? "derived" : "copied", note: `${matched} of ${entity.tags.length} genre names matched to Qloo's own tags by exact name (/v2/tags)` });
   } else unavailable.push("tags");
 
   if (info?.listeners !== undefined) {
@@ -247,6 +251,25 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
   } else unavailable.push("popularity");
 
   return { entity, candidateKey: anchor.key, confidence: artist ? "high" : "low", standIns, popularity, provenance, unavailable };
+}
+
+const GENRE_LOOKUPS = 6;
+
+/** Genre names as Qloo music genre tags: Qloo's own tag where /v2/tags has one with exactly that name, else NotOnQ's. */
+export async function qlooGenreTags(names: string[], qloo: QlooClient): Promise<FallbackEntity["tags"]> {
+  const out: FallbackEntity["tags"] = [];
+  for (const [i, name] of [...new Set(names)].entries()) {
+    if (i >= GENRE_LOOKUPS) {
+      out.push(genreTag(name));
+      continue;
+    }
+    const res = await qloo.get("/v2/tags", { "filter.query": name, "filter.tag.types": "urn:tag:genre:music", take: 5 });
+    const tags = ((res.json as { results?: { tags?: { id?: string; name?: string; type?: string }[] } } | null)?.results?.tags ?? []).filter((t) => t.id && t.name);
+    const hit = tags.find((t) => sameName(t.name!, name));
+    const tag = hit ? { name: hit.name!, tag_id: hit.id!, type: hit.type ?? "urn:tag:genre:music", value: hit.id! } : genreTag(name);
+    if (!out.some((t) => t.tag_id === tag.tag_id)) out.push(tag);
+  }
+  return out;
 }
 
 /** The label every NotOnQ entity carries in short_description. */

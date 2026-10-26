@@ -100,6 +100,19 @@ describe("resolveArtist", () => {
     expect(out.unavailable).toContain("properties.image");
   });
 
+  it("uses Qloo's own genre tag where Qloo has one by that exact name, NotOnQ's otherwise (v0.4.0)", async () => {
+    const tags = (u: URL) =>
+      json(200, { success: true, results: { tags: u.searchParams.get("filter.query") === "indie pop" ? [{ id: "urn:tag:genre:music:indie_pop", name: "Indie Pop", type: "urn:tag:genre:music" }, { id: "urn:tag:genre:music:pop", name: "Pop", type: "urn:tag:genre:music" }] : [{ id: "urn:tag:genre:music:rock", name: "Rock", type: "urn:tag:genre:music" }] } });
+    const { fetch } = fakeFetch([["/search", () => json(404, { message: "No results" })], ["/v2/tags", tags], ...openData]);
+    const out = await resolveArtist("Newact", { qloo: qlooClient({ apiKey: "k3", fetch }), lastfmKey: "lf", fetch });
+    if (out.servedBy !== "fallback") throw new Error("expected a fallback");
+    expect(out.entity?.tags).toEqual([
+      { name: "alternative rock", tag_id: "notonq:urn:tag:genre:alternative_rock", type: "urn:tag:genre", value: "notonq:urn:tag:genre:alternative_rock" },
+      { name: "Indie Pop", tag_id: "urn:tag:genre:music:indie_pop", type: "urn:tag:genre:music", value: "urn:tag:genre:music:indie_pop" },
+    ]);
+    expect(out.provenance.tags[0].note).toBe("1 of 2 genre names matched to Qloo's own tags by exact name (/v2/tags)");
+  });
+
   it("keeps Qloo's entity and still builds the fallback when Qloo can't use it as a signal (G2)", async () => {
     const { fetch } = fakeFetch([
       ["/search", () => json(200, { results: [qlooArtist(9, "Newact")] })],
