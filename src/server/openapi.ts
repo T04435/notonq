@@ -72,7 +72,7 @@ export const OPENAPI = {
   openapi: "3.1.0",
   info: {
     title: "NotOnQ",
-    version: "0.3.0",
+    version: "0.4.0",
     description:
       "A drop-in layer in front of the Qloo API (hackathon host). Qloo answers first with your own key; when Qloo has no data for an artist, NotOnQ adds a Qloo-shaped answer from open sources after Qloo's results, with a source on every value. NotOnQ entity IDs are UUIDs; their properties.short_description starts \"Not in Qloo\". Artists only. Works with the Qloo API; not affiliated with or endorsed by Qloo.",
     license: { name: "MIT" },
