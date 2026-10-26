@@ -160,4 +160,33 @@ describe("era, genre and place insights", () => {
     const check = calls.map((c) => new URL(c)).find((u) => u.pathname === "/v2/insights" && !u.searchParams.get("filter.tags") && !u.searchParams.get("filter.results.entities"));
     expect(check?.searchParams.get("signal.interests.tags")).toBe("urn:tag:genre:music:highlife,urn:tag:genre:music:60s");
   });
+
+  it("places a request given as coordinates (POINT and a radius, as GhostQ sends) and fills for that country (v0.4.0)", async () => {
+    const { fetch, calls } = fakeFetch([
+      ["nominatim.openstreetmap.org/reverse", () => json(200, { osm_type: "relation", osm_id: 1, address: { city: "Lagos", country: "Nigeria", country_code: "ng" } })],
+      ...openData(() => json(200, { success: true, results: { entities: [] } })),
+    ]);
+    const params = { "filter.type": "urn:entity:artist", "filter.tags": "urn:tag:genre:music:60s", "signal.location": "POINT(3.3792 6.5244)", "signal.location.radius": "15000", take: "10" };
+    const out = await handleRest({ path: "v2/insights", params, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const body = out.body as { results: { entities: { name: string }[] }; notonq: { request: { place: string; country: { code: string }; point: { lat: number } } } };
+    expect(body.results.entities.map((e) => e.name)).toEqual(["Known Act", "Old Band"]);
+    expect(body.notonq.request).toMatchObject({ place: "Lagos, Nigeria", country: { code: "NG" }, point: { lat: 6.52 } });
+    expect(decodeURIComponent(calls.find((c) => c.includes("ws/2/artist?"))!)).toContain("country:NG");
+    // The place at a point is looked up once.
+    await handleRest({ path: "v2/insights", params, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    expect(calls.filter((c) => c.includes("nominatim")).length).toBe(1);
+  });
+
+  it("adds nothing for coordinates no one can name, and ignores areas too wide to be one place", async () => {
+    const { fetch, calls } = fakeFetch([["nominatim.openstreetmap.org/reverse", () => json(200, { error: "Unable to geocode" })], ...openData(() => json(200, { success: true, results: { entities: [] } }))]);
+    const sea = await handleRest({ path: "v2/insights", params: { "filter.type": "urn:entity:artist", "filter.tags": "urn:tag:genre:music:60s", "signal.location": "POINT(-30 0)" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    expect((sea.body as { results: { entities: unknown[] } }).results.entities).toEqual([]);
+    expect(calls.some((c) => c.includes("ws/2/area") || c.includes("ws/2/artist?"))).toBe(false);
+    const world = await handleRest(
+      { path: "v2/insights", params: { "filter.type": "urn:entity:artist", "filter.tags": "urn:tag:genre:music:60s", "filter.location": "POLYGON((-179 -60,179 -60,179 80,-179 80,-179 -60))" }, apiKey: "k", lastfmKey: "lf" },
+      deps(fetch),
+    );
+    expect((world.body as { notonq: { request: { place?: string } } }).notonq.request.place).toBeUndefined();
+  });
 });
+

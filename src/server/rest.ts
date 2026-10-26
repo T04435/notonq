@@ -11,6 +11,8 @@ import { readInsights, readSearch, sameName } from "@/server/qloo/gap";
 import { blockFor, fallbackBlock, standInsOf } from "@/server/respond";
 import type { Sql } from "@/server/store/db";
 import * as mb from "@/server/adapters/musicbrainz";
+import * as nominatim from "@/server/adapters/nominatim";
+import { pointOf } from "@/server/engine/geo";
 import * as spotify from "@/server/adapters/spotify";
 import { externalOf } from "@/server/engine/standins";
 import { demandFor, findFallback, findOurIds, findShapeFill, linkSpotify, logRequest, saveCandidateRefs, saveShapeFill, type StoredFallback } from "@/server/store/repo";
@@ -262,7 +264,7 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
     res = await ctx.qloo.get("/v2/insights", params);
   }
 
-  if (eraTag) return eraAnswer(req, params, ctx, res, eraTag, replaced);
+  if (eraTag) return eraAnswer(req, params, ctx, res, eraTag, replaced, await placeOf(req.params, ctx));
   if (unranked.size) return unrankedAnswer(res, unranked, replaced, ctx);
 
   if (!replaced.size) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
@@ -338,6 +340,29 @@ async function compare(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   };
 }
 
+type Place = { search: string; label: string; point?: { lat: number; lon: number; record?: string } };
+const GEO_TTL_MS = 30 * 24 * 3600 * 1000;
+
+/** Where a request is about: a place name as given, else the place at its coordinates (signal.location or
+ * filter.location as POINT or a small POLYGON, as apps like GhostQ and Busk Map send), looked up once and kept. A point
+ * nothing can name stays as its coordinates, so the fill adds nothing rather than artists from anywhere. */
+async function placeOf(params: Record<string, string>, ctx: Ctx): Promise<Place | undefined> {
+  const named = params["signal.location.query"] || params["filter.location.query"];
+  if (named) return { search: named, label: named };
+  const wkt = params["signal.location"] || params["filter.location"];
+  const p = wkt ? pointOf(wkt) : null;
+  if (!p) return undefined;
+  const key = `geo:v1:${p.lat},${p.lon}`;
+  let hit = await findShapeFill<nominatim.PointPlace | { none: true }>(ctx.sql, key, GEO_TTL_MS);
+  if (!hit) {
+    hit = (await nominatim.reverse(p.lat, p.lon, { fetch: ctx.fetch })) ?? { none: true };
+    await saveShapeFill(ctx.sql, key, hit);
+  }
+  const coords = `${p.lat},${p.lon}`;
+  if ("none" in hit || !hit.country) return { search: coords, label: coords, point: p };
+  return { search: hit.country, label: [hit.city, hit.country].filter(Boolean).join(", "), point: { ...p, record: hit.record } };
+}
+
 /** Fewer artists than this from Qloo counts as a thin answer worth filling. */
 export const THIN = 5;
 const ERA_TTL_MS = 7 * 24 * 3600 * 1000;
@@ -357,12 +382,14 @@ async function eraAnswer(
   res: Awaited<ReturnType<Ctx["qloo"]["get"]>>,
   tag: string,
   replaced: Map<string, StoredFallback>,
+  at: Place | undefined,
 ): Promise<RestResponse> {
   const take = Math.max(1, Math.min(Number(req.params.take) || 20, 50));
   const qlooEntities = res.ok ? entitiesOf(res.json) : [];
   if (res.ok && qlooEntities.length >= Math.min(THIN, take)) return { status: res.status, body: res.json, servedBy: "qloo" };
 
-  const place = req.params["signal.location.query"] || req.params["filter.location.query"] || undefined;
+  // The fill searches by the place's name (a point is looked up to its country first); labels show it as asked.
+  const place = at?.search;
   // The version in the key retires fills made by older ranking rules.
   const key = `era:v4:${tag}|${(place ?? "").toLowerCase()}|${take}`;
   let fill = await findShapeFill<EraFill>(ctx.sql, key, ERA_TTL_MS);
@@ -420,9 +447,9 @@ async function eraAnswer(
     return { ...x, properties: { ...x.properties, short_description: description ? `${picked} ${description}` : picked } };
   });
 
-  const label = [tag.split(":").pop(), place].filter(Boolean).join(" · ");
+  const label = [tag.split(":").pop(), at?.label].filter(Boolean).join(" · ");
   const servedBy = !ours.length ? "qloo" : qlooEntities.length ? "mixed" : "fallback";
-  await logRequest(ctx.sql, { nameKey: label, query: `${tag}${place ? ` @ ${place}` : ""}${hasSignal ? " + taste signal" : ""}`, endpoint: ctx.endpoint, servedBy: servedBy === "qloo" ? "fallback" : servedBy, gapKind: "G4", callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit });
+  await logRequest(ctx.sql, { nameKey: label, query: `${tag}${at ? ` @ ${at.label}` : ""}${hasSignal ? " + taste signal" : ""}`, endpoint: ctx.endpoint, servedBy: servedBy === "qloo" ? "fallback" : servedBy, gapKind: "G4", callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit });
 
   const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { success: true };
   const results = base.results && typeof base.results === "object" ? (base.results as Record<string, unknown>) : {};
@@ -433,8 +460,8 @@ async function eraAnswer(
       results: { ...results, entities: [...qlooEntities, ...labelled].slice(0, take) },
       notonq: {
         served_by: servedBy,
-        gap: { kind: "G4", qloo_status: res.status, qloo_message: qlooMessage(res.json), reason: `Qloo returned ${qlooEntities.length} artists for ${tag}${place ? ` in ${place}` : ""}`, qloo_as_signal: qlooAsSignal },
-        request: { tag, place, country: f.country, query: f.query, taste_signal: hasSignal },
+        gap: { kind: "G4", qloo_status: res.status, qloo_message: qlooMessage(res.json), reason: `Qloo returned ${qlooEntities.length} artists for ${tag}${at ? ` in ${at.label}` : ""}`, qloo_as_signal: qlooAsSignal },
+        request: { tag, place: at?.label, country: f.country, query: f.query, taste_signal: hasSignal, ...(at?.point ? { point: at.point } : {}) },
         ...(hasSignal ? { ranking: { by: "qloo", ranked: rankedIds.size, note: "Qloo ranked its own artists in NotOnQ's era fill for this request's taste signal (filter.results.entities). Artists not in Qloo follow, by listeners." } } : {}),
         ...(replaced.size ? { proxy: { replaced: [...replaced.keys()], stand_ins: [...replaced.values()].flatMap(standInsOf) } } : {}),
         cache: { hit: cacheHit },
