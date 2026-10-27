@@ -34,6 +34,8 @@ export async function POST(request: Request) {
   const started = Date.now();
   const recorded: RunEvent[] = [];
   const caller = hashCaller(`ask:${clientIp(request)}`, env.NOTONQ_SALT);
+  // The run's id up front, in a header, so the page can link to the run in the Ledger once it's saved.
+  const runId = crypto.randomUUID();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const emit = (e: AskEvent) => {
@@ -50,9 +52,9 @@ export async function POST(request: Request) {
       after(async () => {
         const answer = recorded.findLast((e) => e.type === "answer" && e.column === "notonq") as { text?: string; source?: string } | undefined;
         const summary = (recorded.find((e) => e.type === "reconcile") as { summary?: string } | undefined)?.summary ?? answer?.text;
-        await saveRun(await db(), { id: crypto.randomUUID(), kind: "ask", title: parsed.data.question, subject: parsed.data.question, summary, servedBy: answer?.source, appLabel: app ?? "ask", callerHash: caller, events: recorded, ms: Date.now() - started });
+        await saveRun(await db(), { id: runId, kind: "ask", title: parsed.data.question, subject: parsed.data.question, summary, servedBy: answer?.source, appLabel: app ?? "ask", callerHash: caller, events: recorded, ms: Date.now() - started });
       });
     },
   });
-  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" } });
+  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store", "X-NotOnQ-Run": runId } });
 }

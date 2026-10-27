@@ -28,6 +28,10 @@ const nextConfig: NextConfig = {
   },
   // PGlite loads its WASM from its own package path; bundling it breaks that, so Node loads it as-is.
   serverExternalPackages: ["@electric-sql/pglite", "@qloo/qloo-harness"],
+  // Home is Ask: the old Ask address lands there, a question (?q=) included.
+  async redirects() {
+    return [{ source: "/ask", destination: "/", permanent: true }];
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
