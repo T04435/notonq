@@ -167,7 +167,7 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
   ]);
   const summary = wiki?.enwiki ? await soft("properties.short_description", () => wp.summary(wiki.enwiki!, { fetch: f })) : null;
   const standIns = await findStandIns(lfName, similar, dz, qloo, provenance, f);
-  if (!standIns.length) unavailable.push(lastfmKey || dz ? "standIns (no similar artist known to Qloo)" : "standIns (no Last.fm key)");
+  if (!standIns.length) unavailable.push(lastfmKey ? NO_STAND_INS : "standIns (no Last.fm key; tried Deezer related artists)");
 
   const displayName = artist?.name ?? dz?.name ?? anchor.name;
   const entity: FallbackEntity = {
@@ -300,10 +300,23 @@ export function notInQlooNote(standIns: Pick<StandIn, "name">[], summary?: strin
   return `Not in Qloo: filled by NotOnQ from open sources.${via}${from}${summary ? ` ${summary}` : ""}`;
 }
 
-const DEEZER_LOOKUPS = 5;
+/** Qloo searches by exact name allowed per fill (each costs one call): Last.fm's similar artists get the first
+ * LASTFM_LOOKUPS, Deezer's related artists the rest, so one source never uses up the other's turn (Wampi, 27 Oct:
+ * Last.fm's 10 names took every lookup before Deezer's 6th, El Taiger, the one Qloo knows). */
+export const NAME_LOOKUPS = 12;
+const LASTFM_LOOKUPS = 5;
+/** Stop looking once this many stand-ins are found. */
+const ENOUGH = 3;
+/** The note a fill carries when every source was tried and none gave a similar artist Qloo knows. */
+export const NO_STAND_INS = "standIns (no similar artist known to Qloo; tried Last.fm by MusicBrainz ID and by name, then Deezer related artists)";
 
-/** Last.fm similar artists by MusicBrainz ID (one batch call); topped up from Deezer's related artists by exact
- * name (a few Qloo searches) when Last.fm has too few, which is the usual case for small artists. */
+/**
+ * Similar artists Qloo knows, from every source, in order, until there are enough:
+ * 1. Last.fm's similar artists by MusicBrainz ID (one batch call to Qloo);
+ * 2. Last.fm's similar artists by exact name in Qloo (small artists' similar acts often have no MusicBrainz ID);
+ * 3. Deezer's related artists by exact name in Qloo (the artist's own Deezer record, else found on Deezer by name).
+ * Steps 2 and 3 share NAME_LOOKUPS Qloo searches, best matches first.
+ */
 async function findStandIns(name: string, similar: lastfm.LfSimilar[], dz: deezer.DzArtist | null, qloo: QlooClient, provenance: ProvenanceMap, f?: Fetch) {
   const fromLastfm: Similar[] = similar.flatMap((s) => (s.mbid ? [{ name: s.name, mbid: s.mbid, match: s.match, source: "lastfm" }] : []));
   const batch = lookupBatch(fromLastfm);
@@ -318,23 +331,46 @@ async function findStandIns(name: string, similar: lastfm.LfSimilar[], dz: deeze
       note: `Last.fm match ${s.weight.toFixed(2)}; resolved in Qloo by MusicBrainz ID ${s.mbid}`,
     });
 
-  if (standIns.length >= 3 || !dz) return standIns;
-  const related = await deezer.relatedArtists(dz.id, { fetch: f });
   const seen = new Set(standIns.map((s) => s.entityId));
-  for (const [i, r] of related.slice(0, DEEZER_LOOKUPS).entries()) {
-    const hit = entitiesOf((await qloo.searchArtist(r.name, 3)).json).find((e) => sameName(e.name, r.name));
-    if (!hit || seen.has(hit.entity_id)) continue;
+  const tried = new Set(standIns.map((s) => s.name.toLowerCase()));
+  let lookups = 0;
+  const byName = async (candidate: string) => {
+    if (lookups >= NAME_LOOKUPS || tried.has(candidate.toLowerCase())) return null;
+    tried.add(candidate.toLowerCase());
+    lookups += 1;
+    const hit = entitiesOf((await qloo.searchArtist(candidate, 3)).json).find((e) => sameName(e.name, candidate));
+    if (!hit || seen.has(hit.entity_id)) return null;
     seen.add(hit.entity_id);
-    const weight = Math.round((0.9 - i * 0.1) * 100) / 100;
-    standIns.push({ entityId: hit.entity_id, name: hit.name, weight, source: "deezer", popularity: hit.popularity ?? undefined });
-    cite(provenance, `standIns.${hit.entity_id}`, {
-      source: "deezer",
-      record: `https://www.deezer.com/artist/${dz.id}`,
-      licence: LICENCES.deezer,
-      method: "qloo_proxy",
-      note: `Deezer related artist #${i + 1}; resolved in Qloo by exact name`,
-    });
-    if (standIns.length === 5) break;
+    return hit;
+  };
+
+  // Last.fm's similar artists Qloo didn't match by ID (or that have none), by exact name.
+  for (const s of similar.toSorted((a, b) => b.match - a.match)) {
+    if (standIns.length >= ENOUGH || lookups >= LASTFM_LOOKUPS) break;
+    const hit = await byName(s.name);
+    if (!hit) continue;
+    standIns.push({ entityId: hit.entity_id, name: hit.name, weight: Math.round(s.match * 100) / 100, source: "lastfm", popularity: hit.popularity ?? undefined });
+    cite(provenance, `standIns.${hit.entity_id}`, { source: "lastfm", record: lastfm.lastfmArtistUrl(name), licence: LICENCES.lastfm, method: "qloo_proxy", note: `Last.fm match ${s.match.toFixed(2)}; resolved in Qloo by exact name` });
+  }
+
+  // Deezer's related artists: from the artist's own Deezer record, else the one Deezer lists under exactly this name.
+  if (standIns.length < ENOUGH && lookups < NAME_LOOKUPS) {
+    const own = dz ?? (await deezer.searchArtists(name, { fetch: f })).find((a) => sameName(a.name, name)) ?? null;
+    const related = own ? await deezer.relatedArtists(own.id, { fetch: f, limit: NAME_LOOKUPS }) : [];
+    for (const [i, r] of related.entries()) {
+      if (standIns.length >= 5 || lookups >= NAME_LOOKUPS) break;
+      const hit = await byName(r.name);
+      if (!hit) continue;
+      const weight = Math.round(Math.max(0.3, 0.9 - i * 0.06) * 100) / 100;
+      standIns.push({ entityId: hit.entity_id, name: hit.name, weight, source: "deezer", popularity: hit.popularity ?? undefined });
+      cite(provenance, `standIns.${hit.entity_id}`, {
+        source: "deezer",
+        record: `https://www.deezer.com/artist/${own!.id}`,
+        licence: LICENCES.deezer,
+        method: "qloo_proxy",
+        note: `Deezer related artist #${i + 1}; resolved in Qloo by exact name`,
+      });
+    }
   }
   return standIns;
 }

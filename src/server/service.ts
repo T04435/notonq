@@ -1,7 +1,7 @@
 // The service every door uses (playground, REST and the Qloo harness through it): look up an artist with the cache in front, record demand,
 // hand back candidates when the name is ambiguous, and close the loop when Qloo finally knows an artist we filled in.
 import { createHash } from "node:crypto";
-import { type ResolveOptions, resolveArtist, SOURCE_ERROR } from "@/server/engine/artist";
+import { NO_STAND_INS, type ResolveOptions, resolveArtist, SOURCE_ERROR } from "@/server/engine/artist";
 import { type Candidate, idForKey, slug } from "@/server/engine/candidates";
 import type { Fetch } from "@/server/http";
 import { applyClaims } from "@/server/research/apply";
@@ -42,7 +42,11 @@ export const hashCaller = (key: string, salt: string) => createHash("sha256").up
 const partial = (f: StoredFallback) => !f.entity || f.unavailable.some((u) => u.includes(SOURCE_ERROR));
 /** A fill made before v0.4.0 has neither a home nor a note that none was found (and no genre tags matched to Qloo's):
  * it is rebuilt once, on its next use, whatever its age. */
-export const isCurrentShape = (f: StoredFallback) => !f.entity || "notonq:home" in f.entity.properties || f.unavailable.some((u) => u.startsWith("properties.notonq:home"));
+export const isCurrentShape = (f: StoredFallback) =>
+  !f.entity ||
+  (("notonq:home" in f.entity.properties || f.unavailable.some((u) => u.startsWith("properties.notonq:home"))) &&
+    // A fill that found no similar artist before every source was searched (v0.4.1) is searched again.
+    (f.standIns.length > 0 || f.unavailable.some((u) => u === NO_STAND_INS || u.startsWith("standIns (no Last.fm key; tried"))));
 const isFresh = (f: StoredFallback) => !f.resolvedByQlooAt && isCurrentShape(f) && Date.now() - Date.parse(f.refreshedAt) < (partial(f) ? EMPTY_TTL_MS : FALLBACK_TTL_MS);
 
 export async function lookupArtist(name: string, ctx: Ctx, opts: ResolveOptions = {}): Promise<Lookup> {
