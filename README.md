@@ -1,13 +1,13 @@
 # NotOnQ
 
-When the [Qloo](https://qloo.com) taste API has no data for an artist, NotOnQ returns the same shape from open sources,
-with a source on every value. It caches the answer and counts how often each missing artist is asked for, so the gaps
-developers actually hit can be ranked for import.
+NotOnQ fills in artists for the [Qloo](https://qloo.com) taste API from open sources, in Qloo's own shape, with a source
+on every value. It caches each answer and counts how often each artist we filled in is asked for, so the artists
+developers actually ask for can be ranked for import.
 
 Built for the Qloo Agentic Hackathon 2026. Works with the Qloo API; not affiliated with or endorsed by Qloo.
 
-> **Scope: artists only.** For the hackathon, NotOnQ fills gaps for music artists (`urn:entity:artist`), where the gap
-> is measured. Every other entity type, and every request Qloo can answer, passes straight through to Qloo unchanged.
+> **Scope: artists only.** For the hackathon, NotOnQ fills in music artists (`urn:entity:artist`), where it is
+> measured. Every other entity type, and every request Qloo can answer, passes straight through to Qloo unchanged.
 
 ## What it proves
 
@@ -15,14 +15,14 @@ Every number on [`/proof`](src/app/proof/page.tsx) is counted from runs in the L
 
 - **Live traffic:** every artist lookup through Ask, the drop-in API and the Qloo harness.
 - **The benchmark batch** (`scripts/benchmark.mts`): real Ask questions and `/q` calls run through the app, labelled
-  `benchmark-fresh`, `benchmark-chart` and `benchmark-fill`. It compares artists with a release in the last 14 days
+  as the app `benchmark` (Proof's app filter shows it on its own). It compares artists with a release in the last 14 days
   against Last.fm's chart artists (usable in Qloo, new to Qloo, or not yet a taste signal), then asks five questions
   about each artist we filled in: who and where from, genre, similar artists, where they're popular, and what ages
   listen. Run it against the deployment whose Proof it feeds, with `NOTONQ_BENCHMARK_TOKEN` set on both sides.
 
 ## Two ways in
 
-1. **Ask** (`/`): a question run through Qloo's own MCP harness, straight to Qloo first; NotOnQ then checks that answer, asks Qloo again if it falls short, and only then adds open data. It ends with a table of every artist: where it came from, kept or removed and why, and what NotOnQ added, with sources.
+1. **Ask** (`/`, the home page): a question run through Qloo's own MCP harness, straight to Qloo first; NotOnQ then checks that answer, asks Qloo again if it falls short, and only then fills in the rest from open sources. The page turns into a chat: the run log streams beside what was found, then the answer, a table of every artist (where it came from, kept or removed and why), the sources, a link to the run in the Ledger, and a follow-up box.
 2. **Drop-in REST and MCP** (`/q/*`): the same paths and parameters as the Qloo API, with your own `X-Api-Key`.
    Qloo's results come first, unchanged; NotOnQ's artists are added after them in exactly Qloo's shape, with UUID IDs
    and a "Not in Qloo" label in `short_description`. For MCP, run the official Qloo harness unchanged:
@@ -34,8 +34,8 @@ Docs live at `/docs` (REST and MCP reference), `/openapi.json`, and for agents `
 
 NotOnQ is a proof of concept for a feature Qloo could build in. It shows the behaviour, not the data pipeline: the open
 sources here stand in for whatever Qloo would use. Built into Qloo, the same flow would run on Qloo's own licensed
-sources and taste graph: fill the gap, label it, answer taste questions through similar artists, and step aside once
-the artist is in the catalogue. The Ledger shows which missing artists people actually ask for. Artists first, for this
+sources and taste graph: fill in the artist, label it, answer taste questions through similar artists, and step aside once
+the artist is in the catalogue. The Ledger shows which artists we filled in that people actually ask for. Artists first, for this
 hackathon; the same pattern fits other entity types.
 
 ## No raw Qloo responses on our pages
@@ -44,7 +44,7 @@ The drop-in API returns Qloo's answer to its caller unchanged. NotOnQ's own page
 derived from Qloo, such as artist names, but never Qloo's raw API responses: those are redacted on the server by type
 (`[redacted string]`, `[redacted uuid]`…) before anything reaches a browser or is stored. NotOnQ's own data is shown in full.
 
-## How it fills a gap
+## How it fills in an artist
 
 1. **Qloo first.** If Qloo knows the artist, its response passes through untouched.
 2. **Who could it be?** MusicBrainz, Last.fm and Deezer matches are merged. Only one confident exact MusicBrainz match
@@ -52,10 +52,10 @@ derived from Qloo, such as artist names, but never Qloo's raw API responses: tho
 3. **Open data** for facts: MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer.
 4. **Stand-ins:** similar artists Qloo *does* know become the taste signal, so affinities, heatmaps and demographics
    still come from Qloo, labelled as coming from the stand-ins.
-5. **Research (tier 3):** for what's still missing, a web research agent returns claims with a URL and an exact quote.
+5. **Research (tier 3):** for fields open data didn't cover, a web research agent returns claims with a URL and an exact quote.
    Plain code re-fetches every page and keeps only quotes it finds there.
-6. **Cache, demand and replay:** every answer is cached, and every request is recorded in the Ledger (`/ledger`): live over a WebSocket (pause any time), calls grouped into visits per app (or per `X-NotOnQ-Trace`), filters and pages in the URL so any view can be shared, each call replayable step by step; its Artists tab is a ranked list of what
-   Qloo is missing. It holds IDs and demand only, never copied data.
+6. **Cache, demand and replay:** every answer is cached, and every request is recorded in the Ledger (`/ledger`): live through Neon Realtime (pause any time), calls grouped into visits per app (or per `X-NotOnQ-Trace`), filters and pages in the URL so any view can be shared, each call replayable step by step; a filter by artist puts the most asked one click away, and
+   the artists panel ranks every artist, most asked first. It holds IDs and demand only, never copied data.
 
 Anything else is marked `unavailable`. Nothing is invented.
 

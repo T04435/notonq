@@ -14,7 +14,7 @@ const mono = JetBrains_Mono({ variable: "--font-sans", subsets: ["latin"], weigh
 export const metadata: Metadata = {
   title: "NotOnQ",
   description:
-    "When the Qloo API has no data for an artist, NotOnQ returns the same shape from open sources, with a source on every value.",
+    "NotOnQ fills in artists from open sources, in the Qloo API's own shape, with a source on every value.",
   other: { "app-version": versionText() },
 };
 

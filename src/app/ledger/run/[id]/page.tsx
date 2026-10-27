@@ -45,7 +45,7 @@ async function RunBody({ params }: { params: PageProps<"/ledger/run/[id]">["para
         <h1 className="text-2xl leading-[1.25] font-bold tracking-[-0.03em] break-words sm:text-[32px]">{run.title}</h1>
         {run.summary ? <p className="max-w-[80ch] text-sm text-subtle">{run.summary}</p> : null}
         <p className="max-w-[80ch] text-xs text-muted-foreground">
-          A replay of what happened. Nothing is re-run. Raw Qloo API responses are redacted on the server, here as on the Ask page; artist
+          A replay of what happened. Nothing is re-run. Raw Qloo API responses are redacted on the server, here as on Ask (the home page); artist
           names and NotOnQ&apos;s additions, checks and verdicts are shown in full.
         </p>
       </header>

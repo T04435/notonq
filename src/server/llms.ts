@@ -25,9 +25,9 @@ Qloo, the same flow would run on Qloo's own licensed sources and taste graph.
 
 ## Optional
 
-- [Ledger]({origin}/ledger): every request made through NotOnQ (Ask questions and API/MCP calls), each replayable step by step; an Artists tab counts who answered each artist
-- [Proof]({origin}/proof): live numbers from every lookup, and a dated benchmark run
-- [Ask]({origin}/): one question; Qloo answers first through its own harness, then NotOnQ checks that answer and adds only what it lacks (every step shown)
+- [Ledger]({origin}/ledger): every request made through NotOnQ (Ask questions and API/MCP calls), each replayable step by step; a filter by artist and a ranked artists panel count who answered each artist
+- [Proof]({origin}/proof): live numbers from every lookup, filterable by app (the benchmark batch is the app "benchmark")
+- [Ask]({origin}/): one question; Qloo answers first through its own harness, then NotOnQ checks that answer and fills in the rest from open sources (every step shown)
 `;
 
 export const LLMS_FULL = `# NotOnQ: full reference

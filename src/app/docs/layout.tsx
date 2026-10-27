@@ -11,7 +11,7 @@ export default function DocsLayout({ children }: LayoutProps<"/docs">) {
       <Alert>
         <AlertTitle>Artists only, for this hackathon</AlertTitle>
         <AlertDescription>
-          NotOnQ fills gaps for music artists (<code>urn:entity:artist</code>). Requests for any other entity type, and any request Qloo can answer, pass
+          NotOnQ fills in music artists (<code>urn:entity:artist</code>). Requests for any other entity type, and any request Qloo can answer, pass
           straight through to Qloo unchanged.
         </AlertDescription>
       </Alert>

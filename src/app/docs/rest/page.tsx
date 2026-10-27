@@ -111,7 +111,7 @@ export default function RestReference() {
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">GET and POST /v2/insights</h2>
-        <Code code={INSIGHTS} language="bash" title="Stand-ins answer for artists Qloo can't use" />
+        <Code code={INSIGHTS} language="bash" title="Stand-ins answer for artists not yet a taste signal" />
         <p className="text-sm text-muted-foreground">
           The response is Qloo&apos;s, plus <code>notonq.proxy</code> listing what was replaced and by which stand-ins.
         </p>
@@ -144,7 +144,7 @@ export default function RestReference() {
           head={["Code", "When"]}
           mono={[0]}
           rows={[
-            ["200", "Qloo answered, or NotOnQ filled the gap, or returned candidates"],
+            ["200", "Qloo answered, or NotOnQ filled in the artist, or returned candidates"],
             ["400", "Bad request body; or Qloo's own 400, passed through"],
             ["401", "No X-Api-Key"],
             ["404", "Qloo's 404 when nothing could be filled"],

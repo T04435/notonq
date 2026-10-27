@@ -22,7 +22,7 @@ export default function DocsOverview() {
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">Quickstart</h2>
         <p className="text-sm text-muted-foreground">
-          Change one base URL. Qloo always answers first with your own key; NotOnQ only adds to the response when Qloo has a gap for an artist, and
+          Change one base URL. Qloo always answers first with your own key; NotOnQ only adds to the response when it fills in an artist, and
           never removes or reorders anything Qloo returned.
         </p>
         <Tabs defaultValue="harness">
@@ -47,11 +47,11 @@ export default function DocsOverview() {
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-medium">When NotOnQ steps in</h2>
         <SimpleTable
-          head={["Gap", "How Qloo shows it", "What NotOnQ does"]}
+          head={["Case", "How Qloo shows it", "What NotOnQ does"]}
           rows={[
-            ["Unknown (G1)", "/search has no artist with the exact name (404 or other names only)", "Adds the artist after Qloo's results, filled from open data, or every artist the name could be when it is ambiguous"],
-            ["Not in the taste graph (G2)", "Search finds it, but /v2/insights answers 400 for it as a signal", "Swaps it for stand-ins: similar artists Qloo does know"],
-            ["None", "Qloo answers", "Steps aside: Qloo's response passes through unchanged"],
+            ["New to Qloo (G1)", "/search has no artist with the exact name (404 or other names only)", "Adds the artist after Qloo's results, filled in from open sources, or every artist the name could be when it is ambiguous"],
+            ["Not yet a taste signal (G2)", "Search finds it, but /v2/insights answers 400 for it as a signal", "Answers through stand-ins: similar artists Qloo knows"],
+            ["Qloo answers", "Qloo answers", "Steps aside: Qloo's response passes through unchanged"],
           ]}
         />
       </section>
@@ -134,12 +134,12 @@ export default function DocsOverview() {
         <h2 className="text-lg font-medium">Inside Qloo</h2>
         <p className="text-sm text-muted-foreground">
           NotOnQ shows the behaviour, not the data pipeline. The open sources it uses here (MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer) stand in
-          for whatever Qloo would use. Built into Qloo, the same flow would run on Qloo&apos;s own licensed sources and taste graph: fill the gap, label
+          for whatever Qloo would use. Built into Qloo, the same flow would run on Qloo&apos;s own licensed sources and taste graph: fill in the artist, label
           it, answer taste questions through similar artists, and step aside once the artist is in the catalogue. The{" "}
           <Link href="/ledger" className="underline">
             Ledger
           </Link>{" "}
-          shows which missing artists people actually ask for. Artists first, for this hackathon; the same pattern fits other entity types.
+          shows which artists we filled in that people actually ask for. Artists first, for this hackathon; the same pattern fits other entity types.
         </p>
       </section>
 
