@@ -270,6 +270,10 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   if (!replaced.size) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
   for (const f of replaced.values())
     await logRequest(ctx.sql, { nameKey: f.nameKey, entityId: f.id, endpoint: ctx.endpoint, servedBy: "mixed", gapKind: f.gapKind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: true });
+  // The stand-ins' own audience may be empty too (Qloo has no ages for El Taiger, 27 Oct). Then Qloo is asked for the
+  // audience of the stand-ins' music genres instead (Qloo answers demographics for a genre tag), and says so.
+  const viaGenres = req.params["filter.type"] === "urn:demographics" && res.ok && !demographicsOf(res.json).length ? await genreAudience(req.params, replaced, ctx) : null;
+  if (viaGenres) res = viaGenres.res;
   const body = res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { message: qlooMessage(res.json) };
   return {
     status: res.status || 502,
@@ -280,12 +284,43 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
         proxy: {
           replaced: [...replaced.keys()],
           stand_ins: [...replaced.values()].flatMap(standInsOf),
+          ...(viaGenres ? { genres: viaGenres.tags } : {}),
         },
-        note: "Results are Qloo's answer for the stand-ins listed, used in place of artists Qloo has no taste data for.",
+        note: viaGenres
+          ? `Qloo has no audience data for the stand-ins listed, so these are Qloo's demographics for their music genres (${viaGenres.tags.map((t) => t.split(":").pop()).join(", ")}).`
+          : "Results are Qloo's answer for the stand-ins listed, used in place of artists Qloo has no taste data for.",
       },
     },
     servedBy: "mixed",
   };
+}
+
+const demographicsOf = (json: unknown) => {
+  const d = (json as { results?: { demographics?: unknown[] } } | null)?.results?.demographics;
+  return Array.isArray(d) ? d : [];
+};
+
+/** Qloo's demographics for the music genres of the stand-ins (their own Qloo tags, as urn:tag:genre:music:<genre>,
+ * the form Qloo answers for), or null when none gives an answer. */
+async function genreAudience(params: Record<string, string>, replaced: Map<string, StoredFallback>, ctx: Ctx) {
+  const ids = [...replaced.values()].flatMap((f) => f.standIns.map((s) => s.entityId)).slice(0, 5);
+  if (!ids.length) return null;
+  const rows = entitiesOf((await ctx.qloo.get("/entities", { entity_ids: ids.join(",") })).json);
+  const genres = [
+    ...new Set(
+      rows.flatMap((e) =>
+        ((e as { tags?: { tag_id?: string; id?: string; type?: string }[] }).tags ?? [])
+          .map((t) => /^urn:tag:genre:(?:qloo:|music:)?([a-z0-9_]+)$/.exec(t.tag_id ?? t.id ?? "")?.[1])
+          .filter((g): g is string => !!g)
+          .map((g) => `urn:tag:genre:music:${g}`),
+      ),
+    ),
+  ].slice(0, 3);
+  for (const tag of genres) {
+    const res = await ctx.qloo.get("/v2/insights", { ...Object.fromEntries(Object.entries(params).filter(([k]) => k !== "signal.interests.entities")), "signal.interests.tags": tag });
+    if (res.ok && demographicsOf(res.json).length) return { res, tags: [tag] };
+  }
+  return null;
 }
 
 /** Qloo's ranking of the options it knows (or none, when every option is NotOnQ's), then NotOnQ's options, unranked:

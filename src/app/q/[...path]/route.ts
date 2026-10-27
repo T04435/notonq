@@ -4,6 +4,7 @@ import { handleRest } from "@/server/rest";
 import { hashCaller } from "@/server/service";
 import { redactBody } from "@/server/redact";
 import { shorten } from "@/server/shorten";
+import { wktSpaces } from "@/server/engine/geo";
 import { isHelped, saveRun } from "@/server/store/repo";
 import { db } from "@/server/store/db";
 
@@ -31,7 +32,7 @@ async function handle(request: Request, ctx: RouteContext<"/q/[...path]">, body?
   const out = await handleRest(
     {
       path: path.join("/"),
-      params: Object.fromEntries(url.searchParams),
+      params: wktSpaces(Object.fromEntries(url.searchParams)),
       apiKey: request.headers.get("x-api-key") ?? undefined,
       // The caller's own Last.fm key if sent; otherwise ours (for the hackathon demo, non-Qloo keys are NotOnQ's).
       lastfmKey: request.headers.get("x-lastfm-key") ?? env.LASTFM_API_KEY,

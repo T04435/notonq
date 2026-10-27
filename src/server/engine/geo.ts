@@ -15,3 +15,8 @@ export function pointOf(wkt: string): { lat: number; lon: number } | null {
   const p = { lat: Math.round(mid(lats) * 100) / 100, lon: Math.round(mid(lons) * 100) / 100 };
   return ok(p) ? p : null;
 }
+
+/** A space inside a POINT or POLYGON can reach NotOnQ as a literal "+" (a proxy re-encoding a form-encoded space: seen
+ * under \`vc dev\`, 27 Oct). "+" is never valid in WKT, so it is a space again before Qloo sees it (Qloo answers 400). */
+export const wktSpaces = (params: Record<string, string>) =>
+  Object.fromEntries(Object.entries(params).map(([k, v]) => [k, /^\s*(POINT|POLYGON|MULTIPOLYGON)\s*\(/i.test(v) ? v.replace(/\+/g, " ") : v]));

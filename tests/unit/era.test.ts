@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { eraQuery, parseMusicTag } from "@/server/engine/era";
+import { wktSpaces } from "@/server/engine/geo";
 import { handleRest } from "@/server/rest";
 import { memoryDb, type Sql } from "@/server/store/db";
 import { fakeFetch, json, mbid, qid, qlooArtist } from "./fixtures";
@@ -187,6 +188,16 @@ describe("era, genre and place insights", () => {
       deps(fetch),
     );
     expect((world.body as { notonq: { request: { place?: string } } }).notonq.request.place).toBeUndefined();
+  });
+});
+
+describe("map shapes", () => {
+  it("turns literal plus signs inside a POINT or POLYGON back into spaces, and leaves other values alone", () => {
+    expect(wktSpaces({ "filter.location": "POLYGON((-179+-60,+179+-60))", "signal.location": "POINT(144.96+-37.81)", query: "Taylor+Swift" })).toEqual({
+      "filter.location": "POLYGON((-179 -60, 179 -60))",
+      "signal.location": "POINT(144.96 -37.81)",
+      query: "Taylor+Swift",
+    });
   });
 });
 

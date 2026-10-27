@@ -278,5 +278,30 @@ describe("handleRest", () => {
       expect(out.servedBy).toBe("qloo");
     });
   });
+
+  it("answers demographics through the stand-ins' genre when Qloo has no audience for the stand-ins (v0.4.1)", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const tagAsked: string[] = [];
+    const { fetch } = fakeFetch([
+      [
+        "/v2/insights?filter.type=urn%3Ademographics",
+        (u) => {
+          const tag = u.searchParams.get("signal.interests.tags");
+          if (tag) tagAsked.push(tag);
+          return json(200, { success: true, results: { demographics: tag === "urn:tag:genre:music:reggaeton" ? [{ query: { age: { "25_to_29": 0.7 } } }] : [] } });
+        },
+      ],
+      [`/entities?entity_ids=${encodeURIComponent(`${qid(1)},${qid(2)}`)}`, () => json(200, { results: [{ ...qlooArtist(1, "Similar 1"), tags: [{ tag_id: "urn:tag:genre:reggaeton", name: "Reggaeton" }] }] })],
+      ...qlooRoutes(counter),
+      ...openData,
+    ]);
+    await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const out = await handleRest({ path: "v2/insights", params: { "filter.type": "urn:demographics", "signal.interests.entities": NEW }, apiKey: "k" }, deps(fetch));
+    const body = out.body as { results: { demographics: unknown[] }; notonq: { proxy: { genres?: string[] }; note: string } };
+    expect(body.results.demographics).toHaveLength(1);
+    expect(body.notonq.proxy.genres).toEqual(["urn:tag:genre:music:reggaeton"]);
+    expect(body.notonq.note).toContain("demographics for their music genres (reggaeton)");
+    expect(tagAsked).toEqual(["urn:tag:genre:music:reggaeton"]);
+  });
 });
 
