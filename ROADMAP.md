@@ -46,7 +46,11 @@ When Qloo's answer is empty, thin or an error:
 
 ## Next
 
-### v0.4.0: the request shapes real apps send, for artists (built 27 Oct 2026, local)
+### v0.5.0 release candidate (28 Oct 2026, local): everything below ships together
+
+v0.4.0 and v0.4.1 were built but never released on their own; v0.5.0 ships them with the redesign.
+
+#### The request shapes real apps send, for artists (built as v0.4.0)
 
 From Busk Map, GhostQ and Front Room's own Qloo calls (plan: Qloo data through NotOnQ and Qloo's harness, no
 fallbacks of their own). Still artists only, still no new endpoints:
@@ -64,16 +68,27 @@ fallbacks of their own). Still artists only, still no new endpoints:
 - Every artist-signalled `filter.type` (demographics, heatmap, audience, tag, place, artist, movie) is tested to reach
   Qloo through stand-ins, never with a NotOnQ ID.
 
-### v0.4.1: a live, shareable Ledger (built 27 Oct 2026, local)
+#### A live, shareable Ledger (built as v0.4.1)
 
 - Live by default through Neon Realtime: the page subscribes to the newest visit change, Neon pushes it the moment a
   call is recorded on any instance, and the page fetches just the rows that match its filters. Nothing polls, and open
   pages don't keep the database awake. Pause holds the page still and offers "N new since you paused".
-- Calls grouped into visits (same app and caller less than 2 minutes apart, or the same `X-NotOnQ-Trace`); "NotOnQ
-  helped" first; real counts and pages of 50; a 24 h strip with the artists Qloo lacks that callers ask for most.
-- The whole view in the URL (tab, view, app, kind, result, search, page, "as of", live, open visit): a shared link
-  opens the same view. Calls where Qloo answered alone keep a one-line summary instead of the body.
+- Calls grouped into visits (same app and caller less than 2 minutes apart, or the same `X-NotOnQ-Trace`); "where we
+  filled in" first; real counts and pages of 50; a "Filter by artist" bar (top 5, and every artist, most asked first).
+- The whole view in the URL (view, app, kind, result, search, page, "as of", live, open visit, artists panel): a shared
+  link opens the same view. Calls where Qloo answered alone keep a one-line summary instead of the body.
 - Rows animate in (none with reduced motion).
+
+#### Ask-first home, the Console brand, and Proof from the Ledger
+
+- Home is Ask: the question box is the hero, with example questions; asking turns the page into a chat with Qloo's own
+  harness (Qloo first, then what we fill in, in amber, with sources). No separate Ask page.
+- The Console look across the site: dark ground, amber for everything NotOnQ fills in.
+- Proof counts every number from runs in the Ledger, across every app or filtered to one. The benchmark batch
+  (`scripts/benchmark.mts`) is the app "benchmark": real Ask questions and /q calls, nothing frozen in the repo.
+- Copy leads with what we do: "filled in by NotOnQ, from open sources"; "new to Qloo", "not yet a taste signal".
+- Neon everywhere: local development uses the Neon dev branch; the app refuses the production database outside Vercel
+  production.
 
 ### Later, not planned: films and TV by year and place
 
@@ -93,7 +108,7 @@ When Qloo's answer is empty, thin or an error:
   genre, cast) and Wikipedia summaries (CC BY-SA, linked); TMDB or OMDb only if their terms allow this use.
 - Fill in Qloo's shape for these types, with UUID IDs, the label and sources, as for artists.
 
-### v0.5.0: one gap engine for every request shape
+### v0.6.0: one gap engine for every request shape
 
 - One engine for gap detection, candidates, labels, stand-ins, cache and Ledger, keyed by request shape, instead of
   one code path per entity type.
