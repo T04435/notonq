@@ -69,10 +69,10 @@ cp .env.example .env.local   # then add your own keys
 pnpm dev                     # http://localhost:3400
 ```
 
-The live Ledger uses Neon Realtime: Neon pushes each new call to open pages, and nothing polls. It needs Neon
-(`NOTONQ_USE_NEON=1` locally) with `NEON_REALTIME_URL` and `NEON_REALTIME_SECRET` from the branch's Realtime settings,
-and the page's origin in Realtime's allowed origins. On the embedded PGlite the page says live updates are unavailable
-and shows what it rendered.
+The live Ledger uses Neon Realtime: Neon pushes each new call to open pages, and nothing polls. It needs
+`NEON_REALTIME_URL` and `NEON_REALTIME_SECRET` from the branch's Realtime settings, and the page's origin in
+Realtime's allowed origins. Local development uses the Neon dev branch (`.env.development.local`); the app refuses the
+production database outside Vercel production.
 
 Quality gates (run before every push):
 

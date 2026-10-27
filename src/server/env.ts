@@ -13,7 +13,7 @@ const Env = z.object({
   QLOO_BASE_URL: z.string().url().default("https://hackathon.api.qloo.com"),
   /** Our own Last.fm key: the Ask page, and REST callers who send no X-Lastfm-Key (hackathon demo). */
   LASTFM_API_KEY: optional,
-  /** Neon in deployed envs. Unset locally → an embedded PGlite database in .data/. */
+  /** Neon: the dev branch locally (.env.development.local), the branch Vercel's integration sets when deployed. */
   DATABASE_URL: optional,
   /** Salt for hashing caller keys in the demand ledger. Set a random value in every deployed environment. */
   NOTONQ_SALT: z.string().default("notonq-local-salt"),

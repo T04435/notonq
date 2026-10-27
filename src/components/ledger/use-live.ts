@@ -19,7 +19,7 @@ async function capability(): Promise<Capability | null> {
  * The Ledger's live updates. The page subscribes through Neon Realtime to the newest visit change (renewing the 60 s
  * capability before it expires); each time Neon pushes a change, it asks /api/ledger/changes for what changed since
  * its last answer, for its current view, so nothing is missed or repeated across reconnects. Nothing polls. Where
- * Realtime isn't set up (local PGlite) it reports "unavailable" and the page keeps what it rendered.
+ * Realtime isn't set up it reports "unavailable" and the page keeps what it rendered.
  */
 export function useLive(params: LedgerParams, renderedAt: string, onChanges: (c: LedgerChanges) => void): LiveStatus {
   const [status, setStatus] = useState<LiveStatus>("connecting");
