@@ -293,14 +293,24 @@ export type LedgerRow = {
   apps: string[];
   lastRequested: string;
   resolvedByQlooAt?: string;
+  /** Position in the filtered list, in the order asked for (1 = first). */
+  rank: number;
 };
 
 /** The Ledger: every artist looked up through NotOnQ (any door) and how its latest lookup was answered: by NotOnQ,
  * by Qloo, waiting for someone to choose which artist, or nothing found yet. Newest first. */
-export type ArtistFilters = { app?: string[]; result?: Answer; q?: string; before?: string; limit?: number };
+export type ArtistFilters = {
+  app?: string[];
+  result?: Answer;
+  q?: string;
+  /** recent: latest lookup first, paged by "<lastRequested>~<nameKey>"; asked: most lookups first, paged by "<lookups>~<nameKey>". */
+  order?: "recent" | "asked";
+  before?: string;
+  limit?: number;
+};
 
 /** Artists looked up, newest first, filtered as the Ledger's URL says; total is the count before paging. */
-export async function ledger(sql: Sql, f: ArtistFilters = {}): Promise<LedgerRow[] & { total?: number }> {
+export async function ledger(sql: Sql, f: ArtistFilters = {}): Promise<LedgerRow[] & { total?: number; filled?: number }> {
   const args: unknown[] = [];
   const arg = (v: unknown) => `$${args.push(v)}`;
   const where: string[] = [];
@@ -323,16 +333,22 @@ export async function ledger(sql: Sql, f: ArtistFilters = {}): Promise<LedgerRow
        FROM lk GROUP BY name_key
      )
      SELECT a.*, l.outcome, l.entity_id, l.query, f.name, f.confidence, f.stand_ins, f.resolved_by_qloo_at, f.entity IS NOT NULL AS filled,
-            count(*) OVER ()::int AS total
+            count(*) OVER ()::int AS total,
+            count(*) FILTER (WHERE l.outcome = 'fallback' AND f.entity IS NOT NULL) OVER ()::int AS filled_total
      FROM agg a JOIN latest l USING (name_key) LEFT JOIN fallback_entities f ON f.id = l.entity_id
      ${all}
-     ORDER BY a.last DESC, a.name_key DESC`,
+     ORDER BY ${f.order === "asked" ? "a.requests DESC, a.name_key ASC" : "a.last DESC, a.name_key DESC"}`,
     args,
   );
   const total = rows.length ? Number(rows[0].total) : 0;
+  const filled = rows.length ? Number(rows[0].filled_total) : 0;
   // Paging after the count, so the total is the filtered total whatever page this is.
   const [bAt, bKey] = f.before?.split("~") ?? [];
-  const paged = (bAt ? rows.filter((r) => iso(r.last)! < bAt || (iso(r.last) === bAt && String(r.name_key) < bKey)) : rows).slice(0, f.limit ?? 50);
+  const after =
+    f.order === "asked"
+      ? (r: Record<string, unknown>) => Number(r.requests) < Number(bAt) || (Number(r.requests) === Number(bAt) && String(r.name_key) > bKey)
+      : (r: Record<string, unknown>) => iso(r.last)! < bAt || (iso(r.last) === bAt && String(r.name_key) < bKey);
+  const paged = (bAt ? rows.filter(after) : rows).slice(0, f.limit ?? 50);
   const out = paged.map((r) => {
     const outcome = String(r.outcome);
     const answer: Answer = outcome === "qloo" ? "qloo" : outcome === "needs_choice" ? "choice" : r.filled ? "notonq" : "none";
@@ -348,10 +364,15 @@ export async function ledger(sql: Sql, f: ArtistFilters = {}): Promise<LedgerRow
       apps: (Array.isArray(r.apps) ? r.apps : json<string[]>(r.apps, [])).map(String),
       lastRequested: iso(r.last)!,
       resolvedByQlooAt: iso(r.resolved_by_qloo_at),
+      rank: rows.indexOf(r) + 1,
     };
   });
-  return Object.assign(out, { total });
+  return Object.assign(out, { total, filled });
 }
+
+/** The cursor for the page after this row, in the order the rows were listed. */
+export const artistCursor = (r: Pick<LedgerRow, "requests" | "lastRequested" | "nameKey">, order: ArtistFilters["order"] = "recent") =>
+  order === "asked" ? `${r.requests}~${r.nameKey}` : `${r.lastRequested}~${r.nameKey}`;
 
 export async function totals(sql: Sql) {
   const [r] = await sql(

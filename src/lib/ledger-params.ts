@@ -8,13 +8,16 @@ const list = z
 const iso = z.string().datetime({ offset: true });
 
 export const ledgerParams = z.object({
-  tab: z.enum(["requests", "artists"]).catch("requests"),
   /** helped: visits where NotOnQ added or swapped data; qloo: Qloo answered alone; all. */
   view: z.enum(["helped", "qloo", "all"]).catch("helped"),
   app: list.catch([]),
   kind: z.enum(["api", "ask"]).optional().catch(undefined),
-  /** Artists tab: who answered the artist's latest lookup. */
+  /** The ranked artists panel (most asked first) is open. Closed by default. */
+  artists: z.preprocess((v) => v === "open" || v === true, z.boolean()).catch(false),
+  /** Artists panel: who answered the artist's latest lookup. */
   result: z.enum(["notonq", "qloo", "choice", "none"]).optional().catch(undefined),
+  /** Artists panel, later pages: the last artist shown, as "<lookups>~<nameKey>". */
+  apage: z.string().regex(/^\d+~.+$/).max(200).optional().catch(undefined),
   q: z.string().trim().max(80).optional().catch(undefined),
   /** Older pages: the last row shown, as "<lastAt>~<id>". */
   before: z.string().regex(/^[^~]+~.+$/).max(200).optional().catch(undefined),
@@ -35,6 +38,9 @@ export function parseLedgerParams(raw: Raw): LedgerParams {
   const set = (k: string, v: string) => (o[k] = k === "app" ? [...((o[k] as string[]) ?? []), ...v.split(",")] : v);
   if (raw instanceof URLSearchParams) raw.forEach((v, k) => set(k, v));
   else for (const [k, v] of Object.entries(raw)) for (const x of v === undefined ? [] : Array.isArray(v) ? v : [v]) set(k, x);
+  // Links from before the artists panel replaced the Artists tab: ?tab=artists opens the panel.
+  if (o.tab === "artists" && o.artists === undefined) o.artists = "open";
+  delete o.tab;
   return ledgerParams.parse(o);
 }
 
@@ -42,11 +48,12 @@ export function parseLedgerParams(raw: Raw): LedgerParams {
 export function toLedgerSearch(p: Partial<LedgerParams>): string {
   const s = new URLSearchParams();
   const v = { ...DEFAULTS, ...p };
-  if (v.tab !== DEFAULTS.tab) s.set("tab", v.tab);
   if (v.view !== DEFAULTS.view) s.set("view", v.view);
   if (v.app.length) s.set("app", [...new Set(v.app)].sort().join(","));
   if (v.kind) s.set("kind", v.kind);
+  if (v.artists) s.set("artists", "open");
   if (v.result) s.set("result", v.result);
+  if (v.apage) s.set("apage", v.apage);
   if (v.q) s.set("q", v.q);
   if (v.before) s.set("before", v.before);
   if (v.at) s.set("at", v.at);

@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { DEFAULTS, matchVisit, parseLedgerParams, toLedgerSearch } from "@/lib/ledger-params";
 import { memoryDb, type Sql } from "@/server/store/db";
-import { saveRun } from "@/server/store/repo";
+import { artistCursor, ledger, logRequest, saveRun } from "@/server/store/repo";
 import { SCHEMA } from "@/server/store/schema";
-import { listVisits, visitCalls, visitsChangedSince } from "@/server/store/visits";
+import { ledgerApps, ledgerChanges, listVisits, visitCalls, visitsChangedSince } from "@/server/store/visits";
 
 let sql: Sql;
 beforeEach(async () => {
@@ -84,14 +84,57 @@ describe("visits", () => {
   });
 });
 
+describe("the Ledger's artists and live changes", () => {
+  const lookup = (name: string, n: number, servedBy: "qloo" | "fallback" = "qloo") =>
+    Promise.all(Array.from({ length: n }, (_, i) => logRequest(sql, { nameKey: name.toLowerCase(), query: name, endpoint: "/search", servedBy, callerHash: `c${i}`, appLabel: "ghostq", cacheHit: false })));
+
+  it("ranks artists most asked first, with a rank and a cursor for the next page", async () => {
+    await lookup("Rare", 1);
+    await lookup("Busy", 3);
+    await lookup("Middle", 2);
+    const top = await ledger(sql, { order: "asked", limit: 2 });
+    expect(top.map((r) => [r.name, r.requests, r.rank])).toEqual([
+      ["Busy", 3, 1],
+      ["Middle", 2, 2],
+    ]);
+    expect(top.total).toBe(3);
+    const next = await ledger(sql, { order: "asked", limit: 2, before: artistCursor(top[1], "asked") });
+    expect(next.map((r) => [r.name, r.rank])).toEqual([["Rare", 3]]);
+    // The default order stays newest lookup first.
+    expect((await ledger(sql)).map((r) => r.name)[0]).toBe("Middle");
+  });
+
+  it("sends live rows for every view (no tab special case) and lists apps busiest first", async () => {
+    const since = new Date(Date.now() - 1000).toISOString();
+    await call({ subject: "Fcukers" });
+    await call({ callerHash: "c2", appLabel: "busk-map", subject: "sombr" });
+    await call({ callerHash: "c3", appLabel: "busk-map", subject: "Wampi" });
+    const c = await ledgerChanges(sql, { ...DEFAULTS, artists: true }, since);
+    expect(c.rows.map((v) => v.subject).sort()).toEqual(["Fcukers", "Wampi", "sombr"]);
+    expect(c).toMatchObject({ total: 3, helped: 3, artists: true });
+    expect(c).not.toHaveProperty("summary");
+    expect((await ledgerChanges(sql, { ...DEFAULTS, before: "2026-10-27T00:00:00.000Z~x" }, since)).rows).toEqual([]);
+    expect(await ledgerApps(sql)).toEqual(["busk-map", "ghostq"]);
+  });
+});
+
 describe("the Ledger's URL", () => {
   it("round-trips every filter, writing only what differs from the defaults", () => {
-    const p = parseLedgerParams(new URLSearchParams("view=all&app=ghostq,busk-map&kind=api&q=fcukers&live=0&open=v-1&tab=artists&result=notonq&at=2026-10-27T01:00:00.000Z"));
-    expect(p).toMatchObject({ view: "all", app: ["busk-map", "ghostq"], kind: "api", q: "fcukers", live: false, open: "v-1", tab: "artists", result: "notonq" });
-    expect(toLedgerSearch(p)).toBe("?tab=artists&view=all&app=busk-map%2Cghostq&kind=api&result=notonq&q=fcukers&at=2026-10-27T01%3A00%3A00.000Z&live=0&open=v-1");
+    const p = parseLedgerParams(new URLSearchParams("view=all&app=ghostq,busk-map&kind=api&q=fcukers&live=0&open=v-1&artists=open&result=notonq&apage=12~sombr&at=2026-10-27T01:00:00.000Z"));
+    expect(p).toMatchObject({ view: "all", app: ["busk-map", "ghostq"], kind: "api", q: "fcukers", live: false, open: "v-1", artists: true, result: "notonq", apage: "12~sombr" });
+    expect(toLedgerSearch(p)).toBe("?view=all&app=busk-map%2Cghostq&kind=api&artists=open&result=notonq&apage=12%7Esombr&q=fcukers&at=2026-10-27T01%3A00%3A00.000Z&live=0&open=v-1");
     expect(parseLedgerParams(new URLSearchParams(toLedgerSearch(p)))).toEqual(p);
     expect(toLedgerSearch(DEFAULTS)).toBe("");
     expect(parseLedgerParams({ view: "nonsense", live: "1" })).toMatchObject({ view: "helped", live: true });
+  });
+
+  it("keeps the artists panel closed by default and reads old ?tab=artists links as the panel open", () => {
+    expect(DEFAULTS.artists).toBe(false);
+    expect(parseLedgerParams(new URLSearchParams("tab=artists"))).toMatchObject({ artists: true });
+    expect(parseLedgerParams({ tab: "artists" })).toMatchObject({ artists: true });
+    expect(parseLedgerParams(new URLSearchParams("tab=requests"))).toEqual(DEFAULTS);
+    expect(toLedgerSearch(parseLedgerParams(new URLSearchParams("tab=artists")))).toBe("?artists=open");
+    expect(parseLedgerParams({ artists: "yes", apage: "not-a-cursor" })).toMatchObject({ artists: false, apage: undefined });
   });
 
   it("matches pushed rows with the same filter the server uses", () => {

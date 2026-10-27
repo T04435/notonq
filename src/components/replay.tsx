@@ -28,7 +28,10 @@ export function Replay({ run }: { run: Run }) {
   const done = shown >= steps.length;
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 border border-strong bg-surface p-3">
+        <span className="eyebrow mr-auto text-fill tabular-nums">
+          Replay · step {Math.min(shown, steps.length)} of {steps.length}
+        </span>
         <Button size="sm" variant="outline" onClick={() => setPlaying((p) => !p)} disabled={done}>
           {playing && !done ? <PauseIcon /> : <PlayIcon />}
           {playing && !done ? "Pause" : "Play"}
@@ -48,13 +51,10 @@ export function Replay({ run }: { run: Run }) {
           <SkipForwardIcon />
           Skip to the end
         </Button>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          step {Math.min(shown, steps.length)} of {steps.length}
-          {run.ms ? ` · originally took ${(run.ms / 1000).toFixed(1)} s` : ""}
-        </span>
+        <span className="w-full text-xs text-muted-foreground">Recorded as it ran, not run again.{run.ms ? ` ${(run.ms / 1000).toFixed(1)} s in all.` : ""}</span>
       </div>
       {run.kind === "ask" ? (
-        <RunView events={steps.slice(0, shown) as unknown as AskEvent[]} running={!done} />
+        <RunView events={steps.slice(0, shown) as unknown as AskEvent[]} times={steps.slice(0, shown).map((s) => s.t)} running={!done} />
       ) : (
         <ApiSteps steps={steps.slice(0, shown)} />
       )}
@@ -77,7 +77,7 @@ function ApiSteps({ steps }: { steps: RunEvent[] }) {
           <div key={i} className="flex flex-col gap-2">
             <div className="flex items-center gap-2 text-sm">
               Response <Badge variant="outline">{String(s.status)}</Badge>
-              <Badge variant={s.servedBy === "qloo" ? "secondary" : "notonq"}>
+              <Badge variant={s.servedBy === "qloo" ? "outline" : "notonq"}>
                 {s.servedBy === "qloo" ? "Qloo answered" : `NotOnQ: ${String(s.servedBy)}`}
               </Badge>
               <span className="text-xs text-muted-foreground">after {Math.round(s.t)} ms</span>

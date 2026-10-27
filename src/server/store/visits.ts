@@ -1,4 +1,4 @@
-// The Ledger's Requests tab: visits (calls from one app and caller close together, or one Ask question), filtered as
+// The Ledger's visits list: visits (calls from one app and caller close together, or one Ask question), filtered as
 // the URL says, with real counts, keyset pages and a live tail. The same filter runs in SQL here and in matchVisit for
 // rows pushed live.
 import { type LedgerParams, matchVisit, PAGE, type Visit } from "@/lib/ledger-params";
@@ -94,50 +94,24 @@ export async function visitCalls(sql: Sql, id: string): Promise<VisitCall[]> {
   }));
 }
 
-export type LedgerSummary = {
-  visits: number;
-  helped: number;
-  calls: number;
-  apps: { app: string; calls: number; helped: number }[];
-  missing: { nameKey: string; name: string; requests: number }[];
-};
-
-/** The last 24 hours, for the strip above the table, and the artists Qloo lacks that callers ask for most. */
-export async function ledgerSummary(sql: Sql): Promise<LedgerSummary> {
-  const [[v], apps, missing] = await Promise.all([
-    sql(`SELECT count(*)::int AS visits, count(*) FILTER (WHERE helped > 0)::int AS helped, coalesce(sum(calls), 0)::int AS calls FROM visits WHERE last_at > now() - interval '24 hours'`),
-    sql(
-      `SELECT coalesce(app_label, 'unlabelled') AS app, count(*)::int AS calls, count(*) FILTER (WHERE helped)::int AS helped
-       FROM runs WHERE created_at > now() - interval '24 hours' GROUP BY 1 ORDER BY calls DESC LIMIT 6`,
-    ),
-    sql(
-      `SELECT r.name_key, coalesce(max(f.name), max(r.query), r.name_key) AS name, count(*)::int AS requests
-       FROM requests r LEFT JOIN fallback_entities f ON f.id = r.entity_id
-       WHERE r.served_by IN ('fallback', 'mixed') AND r.created_at > now() - interval '24 hours' AND (r.gap_kind IS NULL OR r.gap_kind <> 'G4')
-       GROUP BY r.name_key ORDER BY requests DESC LIMIT 5`,
-    ),
-  ]);
-  return {
-    visits: Number(v.visits),
-    helped: Number(v.helped),
-    calls: Number(v.calls),
-    apps: apps.map((a) => ({ app: String(a.app), calls: Number(a.calls), helped: Number(a.helped) })),
-    missing: missing.map((m) => ({ nameKey: String(m.name_key), name: String(m.name), requests: Number(m.requests) })),
-  };
+/** The apps seen in the Ledger, busiest first: the app filter's options. */
+export async function ledgerApps(sql: Sql, limit = 12): Promise<string[]> {
+  const rows = await sql(`SELECT coalesce(app_label, 'unlabelled') AS app, count(*)::int AS n FROM visits GROUP BY 1 ORDER BY n DESC, app LIMIT ${limit}`);
+  return rows.map((r) => String(r.app));
 }
 
 /** What a page sends after "since", for its view: the Ledger's live update. */
-export type LedgerChanges = { rows: Visit[]; total: number; helped: number; summary: LedgerSummary; artists: boolean; at: string };
+export type LedgerChanges = { rows: Visit[]; total: number; helped: number; artists: boolean; at: string };
 
 /**
- * The visits that changed after a moment and match the view, with the view's fresh counts and the summary strip. A
- * paging or "as of" view gets counts only (it shows a fixed slice); the Artists tab only learns that something changed.
+ * The visits that changed after a moment and match the view, with the view's fresh counts. A paging or "as of" view
+ * gets counts only (it shows a fixed slice). `artists` says something changed, so an open artists panel can refresh.
  */
 export async function ledgerChanges(sql: Sql, p: LedgerParams, since: string): Promise<LedgerChanges> {
   const changed = await visitsChangedSince(sql, since);
   const at = changed.at(-1)?.lastAt ?? since;
   const fixed = !!p.before || !!p.at;
-  const rows = p.tab === "artists" || fixed ? [] : changed.filter((v) => matchVisit(v, p));
-  const [{ total, helped }, summary] = await Promise.all([countVisits(sql, { ...p, at: undefined }), ledgerSummary(sql)]);
-  return { rows, total, helped, summary, artists: changed.length > 0, at };
+  const rows = fixed ? [] : changed.filter((v) => matchVisit(v, p));
+  const { total, helped } = await countVisits(sql, { ...p, at: undefined });
+  return { rows, total, helped, artists: changed.length > 0, at };
 }
