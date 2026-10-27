@@ -274,7 +274,10 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   // audience of the stand-ins' music genres instead (Qloo answers demographics for a genre tag), and says so.
   const viaGenres = req.params["filter.type"] === "urn:demographics" && res.ok && !demographicsOf(res.json).length ? await genreAudience(req.params, replaced, ctx) : null;
   if (viaGenres) res = viaGenres.res;
-  const body = res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { message: qlooMessage(res.json) };
+  const body = basisOnRows(res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : { message: qlooMessage(res.json) }, {
+    stand_ins: [...replaced.values()].flatMap((f) => f.standIns.map((x) => x.name)),
+    ...(viaGenres ? { genres: viaGenres.tags } : {}),
+  });
   return {
     status: res.status || 502,
     body: {
@@ -293,6 +296,15 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
     },
     servedBy: "mixed",
   };
+}
+
+/** What a demographics row NotOnQ returns stands for, on the row itself ("notonq:basis"): clients that only see rows
+ * (Qloo's harness passes rows on, not the notonq block) can still say whether the ages are the stand-ins' audience or
+ * their genres'. Other result types are left as Qloo sent them. */
+function basisOnRows(body: Record<string, unknown>, basis: { stand_ins: string[]; genres?: string[] }) {
+  const results = body.results as { demographics?: Record<string, unknown>[] } | undefined;
+  if (!Array.isArray(results?.demographics)) return body;
+  return { ...body, results: { ...results, demographics: results.demographics.map((r) => ({ ...r, "notonq:basis": basis })) } };
 }
 
 const demographicsOf = (json: unknown) => {

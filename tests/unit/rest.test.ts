@@ -302,6 +302,8 @@ describe("handleRest", () => {
     expect(body.notonq.proxy.genres).toEqual(["urn:tag:genre:music:reggaeton"]);
     expect(body.notonq.note).toContain("demographics for their music genres (reggaeton)");
     expect(tagAsked).toEqual(["urn:tag:genre:music:reggaeton"]);
+    // The basis rides on the row too, for clients that only see rows (Qloo's harness).
+    expect((body.results.demographics[0] as Record<string, unknown>)["notonq:basis"]).toEqual({ stand_ins: ["Similar 1", "Similar 2"], genres: ["urn:tag:genre:music:reggaeton"] });
   });
 });
 
