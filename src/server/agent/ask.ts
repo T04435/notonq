@@ -28,7 +28,19 @@ async function exchanges(requests: Request[] | undefined, notonqBase: string, ke
   return out;
 }
 
-export type ResultItem = { id?: string; name?: string; label?: "not_in_qloo" | "picked"; location?: string; description?: string; sources?: Source[]; facts?: string[]; link?: string };
+export type ResultItem = {
+  id?: string;
+  name?: string;
+  label?: "not_in_qloo" | "picked";
+  location?: string;
+  description?: string;
+  sources?: Source[];
+  facts?: string[];
+  link?: string;
+  /** A demographics result: the age bands and gender the fans lean to (Qloo's skews, above zero). */
+  ages?: string[];
+  gender?: string;
+};
 
 /** Where an artist in the final table came from. */
 export type Origin = "qloo" | "qloo_lookup" | "qloo_again" | "qloo_via_notonq" | "notonq_added" | "notonq_picked";
@@ -58,13 +70,37 @@ next to it. Answer briefly: a short list, one line each.`;
 
 export type HttpExchange = { request: string; json: unknown };
 type Request = { method?: string; path?: string; query?: Record<string, unknown> };
-type Call = { tool: string; input: unknown; status: string; results: ResultItem[]; requests?: Request[]; http?: HttpExchange[] };
+type Call = { tool: string; input: unknown; status: string; results: ResultItem[]; requests?: Request[]; http?: HttpExchange[]; standIns?: string[]; genres?: string[] };
+
+const AGE_LABELS: Record<string, string> = { "24_and_younger": "24 and under", "25_to_29": "25–29", "30_to_34": "30–34", "35_to_44": "35–44", "45_to_54": "45–54", "55_and_older": "55 and over" };
 
 const item = (r: unknown): ResultItem => {
-  const x = (r ?? {}) as { entity_id?: string; name?: string; location?: { latitude: number; longitude: number }; properties?: { short_description?: string; description?: string }; description?: string };
+  const x = (r ?? {}) as {
+    entity_id?: string;
+    name?: string;
+    location?: { latitude: number; longitude: number };
+    properties?: { short_description?: string; description?: string };
+    description?: string;
+    query?: { age?: Record<string, number>; gender?: Record<string, number> };
+  };
   const description = String(x.properties?.short_description ?? x.properties?.description ?? x.description ?? "").slice(0, 700) || undefined;
   const label = description?.startsWith("Not in Qloo") ? "not_in_qloo" : description?.startsWith("Picked by NotOnQ") ? "picked" : undefined;
-  return { id: x.entity_id, name: x.name, label, description, location: x.location ? `${x.location.latitude.toFixed(2)}, ${x.location.longitude.toFixed(2)}` : undefined };
+  const ages = x.query?.age
+    ? Object.entries(x.query.age)
+        .filter(([, v]) => v > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 2)
+        .map(([k]) => AGE_LABELS[k] ?? k)
+    : undefined;
+  const g = x.query?.gender ? Object.entries(x.query.gender).sort((a, b) => b[1] - a[1])[0] : undefined;
+  return {
+    id: x.entity_id,
+    name: x.name,
+    label,
+    description,
+    location: x.location ? `${x.location.latitude.toFixed(2)}, ${x.location.longitude.toFixed(2)}` : undefined,
+    ...(ages ? { ages, gender: g && g[1] > 0.05 ? g[0] : undefined } : {}),
+  };
 };
 
 type External = Record<string, { id?: string | number } | { id?: string | number }[] | undefined>;
@@ -273,6 +309,53 @@ async function reconcile(question: string, constraints: Constraint[], stages: { 
   return { rows, summary: parts.filter(Boolean).join(" "), places };
 }
 
+/** The answer to the question itself, built from what the tools returned (never written by a model, so it can't credit
+ * Qloo with what NotOnQ found, or add what nobody found): the named artist as known (Qloo's or NotOnQ's record, with its
+ * facts), then each kind of taste answer the agent asked for (ages, where the fans are), each with where it came from,
+ * or why there is none. List answers keep the reconciliation summary. */
+export function answerOf(constraints: Constraint[], stages: { stage: "qloo" | "better" | "notonq"; calls: Call[] }[], listSummary: string): string {
+  // Only the final stage answers: an earlier one may have resolved a different entity (Qloo took "Wampi" for the band
+  // Wampire, 27 Oct), and its data must never be credited to the one asked about.
+  const calls = stages.at(-1)?.calls ?? [];
+  const named = constraints.find((c) => c.kind === "named_entity")?.value;
+  const same = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+  const entity = named ? calls.flatMap((c) => c.results).findLast((r) => same(r.name, named) && !r.location) : undefined;
+  const standIns = [...new Set(calls.flatMap((c) => c.standIns ?? []))];
+  const via = standIns.length ? ` (Qloo, through similar artists Qloo knows: ${standIns.join(", ")}; via NotOnQ)` : " (Qloo)";
+  const parts: string[] = [];
+
+  if (entity) {
+    const home = /From ([^.]+) \(MusicBrainz\)/.exec(entity.description ?? "")?.[1];
+    const facts = [home && `from ${home}`, ...(entity.facts ?? []).filter((f) => !home || !f.includes(home))].filter(Boolean).join("; ");
+    parts.push(
+      entity.label === "not_in_qloo"
+        ? `${entity.name} isn't in Qloo. NotOnQ's record${facts ? `: ${facts}` : ""}${entity.sources?.length ? ` (${entity.sources.map((s) => s.source).join(", ")})` : ""}.`
+        : `${entity.name} is in Qloo.`,
+    );
+  }
+
+  const demo = calls.filter((c) => c.tool === "qloo_audience_demographics");
+  if (demo.length) {
+    const r = demo.flatMap((c) => c.results).find((x) => x.ages?.length);
+    const genres = [...new Set(demo.flatMap((c) => c.genres ?? []))];
+    const ageVia = genres.length ? ` (Qloo's audience for ${genres.join(", ")}, the genre of the similar artists Qloo knows${standIns.length ? `: ${standIns.join(", ")}` : ""}; via NotOnQ)` : via;
+    parts.push(
+      r
+        ? `Fans lean ${r.ages!.join(" and ")}${r.gender ? `, ${r.gender}` : ""}${ageVia}.`
+        : `No age data for ${named ?? "these fans"}: Qloo has none${standIns.length ? ` for the similar artists it knows (${standIns.join(", ")}) either` : entity?.label === "not_in_qloo" ? ", and NotOnQ found no similar artist Qloo knows" : ""}.`,
+    );
+  }
+  const where = calls.filter((c) => c.tool === "qloo_where_popular");
+  if (where.length) {
+    const cells = where.flatMap((c) => c.results).filter((x) => x.location).length;
+    parts.push(cells ? `Where the fans are: ${cells} ${cells === 1 ? "area" : "areas"} on Qloo's map${via}.` : `No map of where ${named ? `${named}'s` : "the"} fans are: Qloo returned no areas.`);
+  }
+
+  const asked = demo.length || where.length || calls.some((c) => c.tool === "qloo_describe");
+  if (listSummary && (!asked || calls.some((c) => ["qloo_recommend", "qloo_rank", "qloo_compare_audiences"].includes(c.tool)))) parts.push(listSummary);
+  return parts.join(" ") || listSummary;
+}
+
 const decadeTag = (era: string) => {
   const m = /(\d{2})(\d{2})?/.exec(era.replace(/'/g, ""));
   return m ? `urn:tag:genre:music:${(m[2] ?? m[1]).slice(-2)}s` : null;
@@ -353,8 +436,8 @@ export async function ask(question: string, deps: AskDeps) {
     stages.push({ stage: "better", calls });
     if (j.verdict === "answered") {
       const r = await reconcile(question, constraints, stages);
-      d.emit({ type: "reconcile", ...r });
-      d.emit({ type: "answer", column: "notonq", text: r.summary, source: "qloo_better" });
+      d.emit({ type: "reconcile", ...r, summary: answerOf(constraints, stages, r.summary) });
+      d.emit({ type: "answer", column: "notonq", text: answerOf(constraints, stages, r.summary), source: "qloo_better" });
       return;
     }
   }
@@ -365,7 +448,11 @@ export async function ask(question: string, deps: AskDeps) {
   const calls: Call[] = [];
   const onNotOnQ = async (c: Call) => {
     const [withSourcesFound, http] = await Promise.all([withSources(c.results, d.notonqBase, d.qlooKey), exchanges(c.requests, d.notonqBase, d.qlooKey)]);
-    const full = { ...c, results: await withLinks(withSourcesFound, d.notonqBase, d.qlooKey), http };
+    // The similar artists NotOnQ answered through, from its own block in each exchange (names only).
+    const proxies = http.map((h) => (h.json as { notonq?: { proxy?: { stand_ins?: { name?: string }[]; genres?: string[] } } } | null)?.notonq?.proxy);
+    const standIns = proxies.flatMap((p) => (p?.stand_ins ?? []).map((x) => x.name).filter(Boolean) as string[]);
+    const genres = proxies.flatMap((p) => (p?.genres ?? []).map((g) => g.split(":").pop()!));
+    const full = { ...c, results: await withLinks(withSourcesFound, d.notonqBase, d.qlooKey), http, standIns, genres };
     calls.push(full);
     d.emit({ type: "call", column: "notonq", stage: "notonq", ...full });
   };
@@ -381,6 +468,6 @@ export async function ask(question: string, deps: AskDeps) {
   d.emit({ type: "judge", stage: "notonq", judgement: j });
   stages.push({ stage: "notonq", calls });
   const r = await reconcile(question, constraints, stages);
-  d.emit({ type: "reconcile", ...r });
-  d.emit({ type: "answer", column: "notonq", text: r.summary, source: "notonq" });
+  d.emit({ type: "reconcile", ...r, summary: answerOf(constraints, stages, r.summary) });
+  d.emit({ type: "answer", column: "notonq", text: answerOf(constraints, stages, r.summary), source: "notonq" });
 }
