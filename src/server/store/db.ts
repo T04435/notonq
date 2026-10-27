@@ -14,7 +14,7 @@ async function connect(databaseUrl?: string): Promise<Sql> {
     const { neon } = await import("@neondatabase/serverless");
     const client = neon(databaseUrl);
     const sql: Sql = async (text, params = []) => (await client.query(text, params)) as never;
-    await migrate(sql);
+    await migrate(sql, databaseUrl);
     return sql;
   }
   const { PGlite } = await import("@electric-sql/pglite");
@@ -35,7 +35,17 @@ export const schemaStatements = (schema = SCHEMA) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-async function migrate(sql: Sql) {
+/** The production branch's endpoint (Neon main). Local and preview runs use the dev branch; only production may migrate it. */
+const PRODUCTION_ENDPOINT = "ep-green-sunset-b7pj2z61";
+
+/** Throws when a run that isn't Vercel production points at the production database. */
+export function assertMayMigrate(databaseUrl: string, vercelEnv = process.env.VERCEL_ENV) {
+  if (databaseUrl.includes(PRODUCTION_ENDPOINT) && vercelEnv !== "production")
+    throw new Error("Refusing to migrate the production database outside Vercel production (VERCEL_ENV=production). Use the dev branch (.env.development.local).");
+}
+
+async function migrate(sql: Sql, databaseUrl: string) {
+  assertMayMigrate(databaseUrl);
   // The Neon HTTP driver runs one statement per call.
   for (const statement of schemaStatements()) await sql(statement);
 }
