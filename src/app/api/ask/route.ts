@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       after(async () => {
         const answer = recorded.findLast((e) => e.type === "answer" && e.column === "notonq") as { text?: string; source?: string } | undefined;
         const summary = (recorded.find((e) => e.type === "reconcile") as { summary?: string } | undefined)?.summary ?? answer?.text;
-        await saveRun(await db(), { id: crypto.randomUUID(), kind: "ask", title: parsed.data.question, summary, servedBy: answer?.source, appLabel: "ask", callerHash: caller, events: recorded, ms: Date.now() - started });
+        await saveRun(await db(), { id: crypto.randomUUID(), kind: "ask", title: parsed.data.question, subject: parsed.data.question, summary, servedBy: answer?.source, appLabel: "ask", callerHash: caller, events: recorded, ms: Date.now() - started });
       });
     },
   });
