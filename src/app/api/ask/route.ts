@@ -5,21 +5,21 @@ import { env } from "@/server/env";
 import { clientIp, limited } from "@/server/rate-limit";
 import { hashCaller } from "@/server/service";
 import { db } from "@/server/store/db";
-import { BENCHMARK_APPS } from "@/lib/benchmark";
+import { BENCHMARK_APP } from "@/lib/benchmark";
 import { type RunEvent, saveRun } from "@/server/store/repo";
 
 // The Ask playground: one question, answered by Qloo's own harness twice (Qloo alone, and through NotOnQ), streamed
 // as newline-delimited JSON events. Our keys and a model call per step, so it is rate-limited per IP.
 export const maxDuration = 300;
 
-const Body = z.object({ question: z.string().trim().min(3).max(300), app: z.enum(BENCHMARK_APPS).optional() });
+const Body = z.object({ question: z.string().trim().min(3).max(300), app: z.literal(BENCHMARK_APP).optional() });
 const LIMIT = 10;
 
 export async function POST(request: Request) {
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Ask a question (3 to 300 characters)." }, { status: 400 });
-  // The benchmark batch labels its runs (and the harness calls behind them) so Proof can count them apart from real
-  // traffic; only a caller holding NOTONQ_BENCHMARK_TOKEN may.
+  // The benchmark batch labels its runs (and the harness calls behind them) as its own app; only a caller holding
+  // NOTONQ_BENCHMARK_TOKEN may.
   const app = parsed.data.app;
   const benchmark = !!app && !!env.NOTONQ_BENCHMARK_TOKEN && request.headers.get("x-notonq-benchmark") === env.NOTONQ_BENCHMARK_TOKEN;
   if (app && !benchmark) return Response.json({ error: "Only the benchmark batch can label a run." }, { status: 403 });

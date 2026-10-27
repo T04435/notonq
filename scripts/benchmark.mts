@@ -1,5 +1,5 @@
 // The benchmark batch: real Ask questions and /q calls sent to a running NotOnQ, so every number on /proof comes from
-// runs in the Ledger. Nothing is written here; the server records each run like any other, labelled benchmark-*.
+// runs in the Ledger. Nothing is written here; the server records each run like any other, under the app "benchmark".
 //
 //   node --import tsx scripts/benchmark.mts [base]      (base defaults to http://localhost:3400)
 //
@@ -10,7 +10,7 @@
 //    shuffle) and Last.fm's global chart. 2. Coverage: per artist, /search through NotOnQ (and, when Qloo finds the
 //    artist, an /v2/insights signal check for G2), one visit per artist (X-NotOnQ-Trace), then the Ask question
 //    "Recommend artists similar to …". 3. Fill: five Ask questions about each of the first artists we filled in.
-import { COVERAGE_QUESTION, FILL_QUESTIONS, type BenchmarkApp } from "@/lib/benchmark";
+import { BENCHMARK_APP, COVERAGE_QUESTION, FILL_QUESTIONS } from "@/lib/benchmark";
 import { getJson } from "@/server/http";
 import { ARTIST, entitiesOf } from "@/server/qloo/client";
 import { sameName } from "@/server/qloo/gap";
@@ -49,8 +49,8 @@ async function chartSample(): Promise<Artist[]> {
   return ((res.json as { artists?: { artist?: { name: string }[] } })?.artists?.artist ?? []).map((a) => ({ name: a.name, sample: "chart" as const }));
 }
 
-const q = async (app: BenchmarkApp, trace: string, path: string, params: Record<string, string | number>) => {
-  const res = await fetch(`${base}/q/app/${app}${path}?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`, {
+const q = async (trace: string, path: string, params: Record<string, string | number>) => {
+  const res = await fetch(`${base}/q/app/${BENCHMARK_APP}${path}?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`, {
     headers: { "X-Api-Key": qlooKey, "X-NotOnQ-Trace": trace },
     signal: AbortSignal.timeout(120_000),
   });
@@ -59,18 +59,17 @@ const q = async (app: BenchmarkApp, trace: string, path: string, params: Record<
 
 /** One coverage visit: is the artist usable in Qloo, new to Qloo (G1), or found but not yet a taste signal (G2)? */
 async function cover(a: Artist): Promise<Covered> {
-  const app: BenchmarkApp = `benchmark-${a.sample}`;
   // Header values must be ASCII, so the name is URL-encoded (Proof decodes it).
   const trace = `${batch}:${a.sample}:${encodeURIComponent(a.name)}`;
   try {
-    const s = await q(app, trace, "/search", { query: a.name, types: ARTIST, take: 5 });
+    const s = await q(trace, "/search", { query: a.name, types: ARTIST, take: 5 });
     const nq = s.body?.notonq as { served_by?: string; gap?: { kind?: string } } | undefined;
     // More than one artist by that name: new to Qloo, waiting for a caller to choose (not filled in, so no fill questions).
     if (nq?.served_by === "needs_choice") return { ...a, status: "G1", ambiguous: true };
     if (nq?.gap?.kind === "G1" || nq?.gap?.kind === "G2") return { ...a, status: nq.gap.kind };
     const hit = entitiesOf(s.body).find((e) => sameName(e.name, a.name));
     if (!hit) return { ...a, status: s.status === 200 ? "G1" : "error" };
-    const i = await q(app, trace, "/v2/insights", { "filter.type": ARTIST, "signal.interests.entities": hit.entity_id, take: 1 });
+    const i = await q(trace, "/v2/insights", { "filter.type": ARTIST, "signal.interests.entities": hit.entity_id, take: 1 });
     return { ...a, status: (i.body?.notonq as { gap?: { kind?: string } } | undefined)?.gap?.kind === "G2" ? "G2" : "usable" };
   } catch {
     return { ...a, status: "error" };
@@ -78,11 +77,11 @@ async function cover(a: Artist): Promise<Covered> {
 }
 
 /** One Ask question, read to the end of its stream (the server saves the run when it finishes). */
-async function ask(question: string, app: BenchmarkApp): Promise<string> {
+async function ask(question: string): Promise<string> {
   const res = await fetch(`${base}/api/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-NotOnQ-Benchmark": token! },
-    body: JSON.stringify({ question, app }),
+    body: JSON.stringify({ question, app: BENCHMARK_APP }),
     signal: AbortSignal.timeout(300_000),
   });
   if (!res.ok) return `HTTP ${res.status}`;
@@ -103,11 +102,11 @@ for (const a of artists) {
   covered.push(await cover(a));
   console.log(`cover ${a.sample} ${a.name}: ${covered.at(-1)!.status}`);
 }
-await inBatches(artists, CAPS.parallelAsks, async (a) => console.log(`ask ${a.name}: ${await ask(COVERAGE_QUESTION(a.name), `benchmark-${a.sample}`)}`));
+await inBatches(artists, CAPS.parallelAsks, async (a) => console.log(`ask ${a.name}: ${await ask(COVERAGE_QUESTION(a.name))}`));
 
 const filled = covered.filter((c) => (c.status === "G1" || c.status === "G2") && !c.ambiguous).sort((x, y) => Number(x.sample === "chart") - Number(y.sample === "chart")).slice(0, CAPS.fill);
 const fillAsks = filled.flatMap((a) => Object.values(FILL_QUESTIONS).map((f) => f(a.name)));
-await inBatches(fillAsks, CAPS.parallelAsks, async (question) => console.log(`ask ${question}: ${await ask(question, "benchmark-fill")}`));
+await inBatches(fillAsks, CAPS.parallelAsks, async (question) => console.log(`ask ${question}: ${await ask(question)}`));
 
 const count = (s: Covered["status"]) => covered.filter((c) => c.status === s).length;
 console.log(`${batch} done in ${Math.round((Date.now() - started) / 60000)} min: usable ${count("usable")}, G1 ${count("G1")}, G2 ${count("G2")} (${covered.filter((c) => c.ambiguous).length} with more than one artist by that name), error ${count("error")}; ${fillAsks.length} fill questions`);

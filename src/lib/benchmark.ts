@@ -1,10 +1,6 @@
-// The benchmark batch (scripts/benchmark.mts): real Ask runs and /q calls, labelled so Proof counts them apart from
-// real traffic. Every number on Proof comes from these runs or from real traffic, all in the Ledger.
-
-/** benchmark-fresh / benchmark-chart: the two coverage samples. benchmark-fill: the questions about artists we filled in. */
-export const BENCHMARK_APPS = ["benchmark-fresh", "benchmark-chart", "benchmark-fill"] as const;
-export type BenchmarkApp = (typeof BENCHMARK_APPS)[number];
-export const isBenchmarkApp = (app?: string | null): app is BenchmarkApp => !!app && (BENCHMARK_APPS as readonly string[]).includes(app);
+// The benchmark batch (scripts/benchmark.mts) is one more app calling NotOnQ: real Ask questions and /q calls under the
+// app label "benchmark", counted on Proof like every other app's runs (Proof filters by app).
+export const BENCHMARK_APP = "benchmark";
 
 export const COVERAGE_QUESTION = (artist: string) => `Recommend artists similar to ${artist}`;
 
