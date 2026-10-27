@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3400",
-    "dev:live": "vercel dev --listen 3400",
     "build": "next build",
     "start": "next start -p 3400",
     "lint": "eslint",
@@ -16,9 +15,9 @@
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.121",
     "@electric-sql/pglite": "^0.5.11",
+    "@neon/realtime": "0.1.2",
     "@neondatabase/serverless": "^1.2.0",
     "@qloo/qloo-harness": "0.1.26",
-    "@vercel/functions": "3.10.1",
     "ai": "^7.0.148",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.0",
@@ -42,7 +41,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/ws": "^8.18.2",
     "conventional-changelog-conventionalcommits": "8.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.2",

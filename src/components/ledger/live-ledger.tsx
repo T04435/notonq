@@ -14,7 +14,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { type LedgerParams, toLedgerSearch, type Visit } from "@/lib/ledger-params";
-import type { ServerMessage } from "@/server/ledger-hub";
 import type { Answer, LedgerRow } from "@/server/store/repo";
 import type { LedgerSummary, VisitCall, VisitPage } from "@/server/store/visits";
 import { type LiveStatus, useLive, useTween } from "./use-live";
@@ -71,17 +70,16 @@ export function LiveLedger({ data }: { data: LedgerData }) {
     setFresh(new Set(incoming.map((v) => v.id)));
   };
 
-  const status = useLive(params, data.renderedAt, (m: ServerMessage) => {
-    if (m.type === "visits") {
-      if (live) {
-        apply(m.rows);
-        setCounts({ total: m.total, helped: m.helped });
-      } else if (!params.before) {
-        setHeld((h) => new Map([...h, ...m.rows.map((v) => [v.id, v] as const)]));
-        setHeldCounts({ total: m.total, helped: m.helped });
-      }
-    } else if (m.type === "summary" && live) setSummary(m.summary);
-    else if (m.type === "artists" && live && params.tab === "artists") startTransition(() => router.refresh());
+  const status = useLive(params, data.renderedAt, (c) => {
+    if (live) {
+      if (c.rows.length) apply(c.rows);
+      setCounts({ total: c.total, helped: c.helped });
+      setSummary(c.summary);
+      if (c.artists && params.tab === "artists") startTransition(() => router.refresh());
+    } else if (!params.before && c.rows.length) {
+      setHeld((h) => new Map([...h, ...c.rows.map((v) => [v.id, v] as const)]));
+      setHeldCounts({ total: c.total, helped: c.helped });
+    }
   });
 
   // Paused: hold still; "Show" brings in what arrived (and the URL moves its "as of" to now, so a shared link matches).

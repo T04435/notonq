@@ -1,7 +1,7 @@
 // The Ledger's Requests tab: visits (calls from one app and caller close together, or one Ask question), filtered as
 // the URL says, with real counts, keyset pages and a live tail. The same filter runs in SQL here and in matchVisit for
 // rows pushed live.
-import { type LedgerParams, PAGE, type Visit } from "@/lib/ledger-params";
+import { type LedgerParams, matchVisit, PAGE, type Visit } from "@/lib/ledger-params";
 import type { Sql } from "@/server/store/db";
 import type { Run } from "@/server/store/repo";
 
@@ -65,9 +65,10 @@ export async function countVisits(sql: Sql, p: LedgerParams): Promise<{ total: n
   return { total, helped };
 }
 
-/** Visits that changed after a moment (new, or a new call in one), oldest change first: the live tail. */
+/** Visits that changed after a moment (new, or a new call in one), oldest change first: the live tail. Compared at
+ * millisecond precision, the precision of the ISO times pages send back, or the newest visit would come back again. */
 export async function visitsChangedSince(sql: Sql, since: string, limit = 200): Promise<Visit[]> {
-  return (await sql(`SELECT * FROM visits WHERE last_at > $1::timestamptz ORDER BY last_at ASC LIMIT ${limit}`, [since])).map(toVisit);
+  return (await sql(`SELECT * FROM visits WHERE date_trunc('milliseconds', last_at) > $1::timestamptz ORDER BY last_at ASC LIMIT ${limit}`, [since])).map(toVisit);
 }
 
 export async function latestChange(sql: Sql): Promise<string> {
@@ -123,4 +124,20 @@ export async function ledgerSummary(sql: Sql): Promise<LedgerSummary> {
     apps: apps.map((a) => ({ app: String(a.app), calls: Number(a.calls), helped: Number(a.helped) })),
     missing: missing.map((m) => ({ nameKey: String(m.name_key), name: String(m.name), requests: Number(m.requests) })),
   };
+}
+
+/** What a page sends after "since", for its view: the Ledger's live update. */
+export type LedgerChanges = { rows: Visit[]; total: number; helped: number; summary: LedgerSummary; artists: boolean; at: string };
+
+/**
+ * The visits that changed after a moment and match the view, with the view's fresh counts and the summary strip. A
+ * paging or "as of" view gets counts only (it shows a fixed slice); the Artists tab only learns that something changed.
+ */
+export async function ledgerChanges(sql: Sql, p: LedgerParams, since: string): Promise<LedgerChanges> {
+  const changed = await visitsChangedSince(sql, since);
+  const at = changed.at(-1)?.lastAt ?? since;
+  const fixed = !!p.before || !!p.at;
+  const rows = p.tab === "artists" || fixed ? [] : changed.filter((v) => matchVisit(v, p));
+  const [{ total, helped }, summary] = await Promise.all([countVisits(sql, { ...p, at: undefined }), ledgerSummary(sql)]);
+  return { rows, total, helped, summary, artists: changed.length > 0, at };
 }

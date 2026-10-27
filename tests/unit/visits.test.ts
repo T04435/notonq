@@ -58,6 +58,13 @@ describe("visits", () => {
     expect(await visitsChangedSince(sql, new Date(Date.now() + 60_000).toISOString())).toEqual([]);
   });
 
+  it("doesn't send the newest visit again when the page resumes from its time (ms vs µs)", async () => {
+    await call();
+    await sql(`UPDATE visits SET last_at = '2026-10-27T12:08:12.141523Z'`);
+    expect(await visitsChangedSince(sql, "2026-10-27T12:08:12.141Z")).toEqual([]);
+    expect(await visitsChangedSince(sql, "2026-10-27T12:08:12.140Z")).not.toEqual([]);
+  });
+
   it("groups runs recorded before visits existed, once", async () => {
     const pg = await (await import("@electric-sql/pglite")).PGlite.create();
     await pg.exec(SCHEMA);

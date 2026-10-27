@@ -1,26 +1,34 @@
 "use client";
 
+import { createRealtimeClient, type LiveQueryState, QueryRefreshController, type SealedLiveQuery } from "@neon/realtime/client";
 import { useEffect, useRef, useState } from "react";
-import type { LedgerParams } from "@/lib/ledger-params";
-import type { ServerMessage } from "@/server/ledger-hub";
+import { type LedgerParams, toLedgerSearch } from "@/lib/ledger-params";
+import type { LatestChange } from "@/server/realtime";
+import type { LedgerChanges } from "@/server/store/visits";
 
 export type LiveStatus = "connecting" | "live" | "reconnecting" | "unavailable";
 
+type Capability = { url: string; query: SealedLiveQuery<LatestChange> };
+
+async function capability(): Promise<Capability | null> {
+  const res = await fetch("/api/ledger/live", { cache: "no-store" });
+  return res.status === 200 ? ((await res.json()) as Capability) : null;
+}
+
 /**
- * The Ledger's WebSocket. One connection for the page's life: it subscribes with the view's filters and the moment the
- * page was rendered, re-subscribes (without reconnecting) when the filters change, and reconnects with backoff (1 s up
- * to 30 s) when the server closes it (Vercel ends a socket at the function's max duration), resuming from the last
- * message so nothing is missed or repeated. After 4 failed tries in a row it reports "unavailable" (for example under
- * `next dev`, which can't upgrade sockets; use `vc dev`).
+ * The Ledger's live updates. The page subscribes through Neon Realtime to the newest visit change (renewing the 60 s
+ * capability before it expires); each time Neon pushes a change, it asks /api/ledger/changes for what changed since
+ * its last answer, for its current view, so nothing is missed or repeated across reconnects. Nothing polls. Where
+ * Realtime isn't set up (local PGlite) it reports "unavailable" and the page keeps what it rendered.
  */
-export function useLive(params: LedgerParams, renderedAt: string, onMessage: (m: ServerMessage) => void): LiveStatus {
+export function useLive(params: LedgerParams, renderedAt: string, onChanges: (c: LedgerChanges) => void): LiveStatus {
   const [status, setStatus] = useState<LiveStatus>("connecting");
-  const ws = useRef<WebSocket | null>(null);
   const since = useRef(renderedAt);
-  const sub = useRef(params);
-  const handler = useRef(onMessage);
+  const view = useRef(params);
+  const handler = useRef(onChanges);
   useEffect(() => {
-    handler.current = onMessage;
+    handler.current = onChanges;
+    view.current = params;
   });
 
   // A new render (filters changed, or "Show" applied) moves the resume point to that render.
@@ -29,42 +37,63 @@ export function useLive(params: LedgerParams, renderedAt: string, onMessage: (m:
   }, [renderedAt]);
 
   useEffect(() => {
-    sub.current = params;
-    if (ws.current?.readyState === WebSocket.OPEN) ws.current.send(JSON.stringify({ type: "subscribe", params, since: since.current }));
-  }, [params]);
-
-  useEffect(() => {
     let closed = false;
-    let delay = 1000;
-    let failures = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const connect = () => {
-      const socket = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/ledger/live`);
-      ws.current = socket;
-      socket.addEventListener("open", () => {
-        delay = 1000;
-        failures = 0;
-        setStatus("live");
-        socket.send(JSON.stringify({ type: "subscribe", params: sub.current, since: since.current }));
-      });
-      socket.addEventListener("message", (e) => {
-        const m = JSON.parse(String(e.data)) as ServerMessage;
-        if ("at" in m && m.type !== "ping" && m.type !== "hello") since.current = m.at;
-        handler.current(m);
-      });
-      socket.addEventListener("close", () => {
-        if (closed) return;
-        failures++;
-        setStatus(failures >= 4 ? "unavailable" : "reconnecting");
-        timer = setTimeout(connect, delay);
-        delay = Math.min(delay * 2, 30_000);
-      });
+    let busy = false;
+    let again = false;
+    // One request at a time; a push that arrives meanwhile asks once more after it.
+    const pull = async () => {
+      if (busy) return void (again = true);
+      busy = true;
+      try {
+        do {
+          again = false;
+          const search = toLedgerSearch(view.current);
+          const res = await fetch(`/api/ledger/changes${search ? `${search}&` : "?"}since=${encodeURIComponent(since.current)}`, { cache: "no-store" });
+          if (!res.ok || closed) break;
+          const c = (await res.json()) as LedgerChanges;
+          since.current = c.at > since.current ? c.at : since.current;
+          handler.current(c);
+        } while (again && !closed);
+      } finally {
+        busy = false;
+      }
     };
-    connect();
+
+    let stop = () => {};
+    capability()
+      .then((cap) => {
+        if (closed) return;
+        if (!cap) return setStatus("unavailable");
+        const client = createRealtimeClient({ url: cap.url });
+        const sub = client.subscribe(cap.query);
+        const refresh = new QueryRefreshController({
+          query: cap.query,
+          refreshQuery: async () => (await capability())?.query ?? Promise.reject(new Error("Realtime isn't set up")),
+          renewSubscription: (q) => sub.renew(q),
+          onRefreshExhausted: () => setStatus("unavailable"),
+          subscription: sub,
+        });
+        refresh.start();
+        const show = (s: LiveQueryState) => setStatus(s.status === "live" ? "live" : s.status === "error" || s.status === "closed" ? "unavailable" : "reconnecting");
+        const offState = sub.onStateChange(show);
+        // The first result and every change after it: catch up on what changed since the render or the last answer.
+        // A result arriving means the subscription is live, even if its state event came first.
+        const offUpdate = sub.onUpdate(() => {
+          setStatus("live");
+          void pull();
+        });
+        stop = () => {
+          offState();
+          offUpdate();
+          refresh.stop();
+          sub.unsubscribe();
+          client.close();
+        };
+      })
+      .catch(() => !closed && setStatus("unavailable"));
     return () => {
       closed = true;
-      clearTimeout(timer);
-      ws.current?.close();
+      stop();
     };
   }, []);
 
