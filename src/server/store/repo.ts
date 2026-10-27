@@ -448,7 +448,7 @@ export async function saveRun(sql: Sql, r: Omit<Run, "createdAt"> & { callerHash
      ON CONFLICT (id) DO UPDATE SET calls = visits.calls + 1, helped = visits.helped + EXCLUDED.helped, last_at = now(),
        subject = coalesce(visits.subject, EXCLUDED.subject)
      RETURNING id`,
-    [r.kind, r.appLabel ?? null, r.callerHash, r.trace ?? null, traced, crypto.randomUUID(), r.subject?.slice(0, 200) ?? null, r.title.slice(0, 500), helped ? 1 : 0],
+    [r.kind, r.appLabel ?? null, r.callerHash, r.trace ?? null, traced, crypto.randomUUID(), r.subject?.replace(/\+/g, " ").trim().slice(0, 200) || null, r.title.slice(0, 500), helped ? 1 : 0],
   );
   await sql(
     `INSERT INTO runs (id, kind, title, summary, served_by, app_label, caller_hash, events, ms, visit_id, helped) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO NOTHING`,

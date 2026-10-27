@@ -148,3 +148,22 @@
     letter-spacing: -0.03em;
   }
 }
+/* Live Ledger: a row that just arrived glows faintly, then settles. Nothing moves with reduced motion. */
+@keyframes ledger-flash {
+  from {
+    background-color: color-mix(in oklab, var(--success) 14%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.ledger-new {
+  animation-name: ledger-flash, enter;
+  animation-duration: 1.6s, 300ms;
+  animation-timing-function: ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ledger-new {
+    animation: none;
+  }
+}

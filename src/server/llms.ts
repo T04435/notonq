@@ -75,7 +75,9 @@ MCP client config:
 ## REST API
 
 Headers: \`X-Api-Key\` (required, your Qloo key, never stored), \`X-NotOnQ-App\` (optional app label, up to 64
-characters; or use the base URL {origin}/q/app/<label>), \`X-Lastfm-Key\` (optional; without it NotOnQ uses its own).
+characters; or use the base URL {origin}/q/app/<label>), \`X-NotOnQ-Trace\` (optional: one ID per user action, so its calls are
+one visit in the Ledger; otherwise calls less than 2 minutes apart are; never sent to Qloo), \`X-Lastfm-Key\` (optional; without
+it NotOnQ uses its own).
 
 | Endpoint | What NotOnQ does |
 |---|---|

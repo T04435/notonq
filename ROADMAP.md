@@ -64,6 +64,17 @@ fallbacks of their own). Still artists only, still no new endpoints:
 - Every artist-signalled `filter.type` (demographics, heatmap, audience, tag, place, artist, movie) is tested to reach
   Qloo through stand-ins, never with a NotOnQ ID.
 
+### v0.4.1: a live, shareable Ledger (built 27 Oct 2026, local)
+
+- Live by default over a WebSocket (`upgradeWebSocket` from `@vercel/functions`, a page-internal route; the drop-in API
+  is untouched). One shared server-side tail per instance pushes the visits that match each viewer's filters. Pause
+  holds the page still and offers "N new since you paused".
+- Calls grouped into visits (same app and caller less than 2 minutes apart, or the same `X-NotOnQ-Trace`); "NotOnQ
+  helped" first; real counts and pages of 50; a 24 h strip with the artists Qloo lacks that callers ask for most.
+- The whole view in the URL (tab, view, app, kind, result, search, page, "as of", live, open visit): a shared link
+  opens the same view. Calls where Qloo answered alone keep a one-line summary instead of the body.
+- Rows animate in (none with reduced motion). Local development runs under `vc dev`.
+
 ### Later, not planned: films and TV by year and place
 
 Out of scope for now: NotOnQ's pitch is artists (decided 26 Oct 2026). Kept for reference:

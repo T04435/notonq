@@ -77,6 +77,7 @@ ALTER TABLE runs ADD COLUMN IF NOT EXISTS visit_id text;
 ALTER TABLE runs ADD COLUMN IF NOT EXISTS helped boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS runs_visit ON runs (visit_id, created_at);
 CREATE INDEX IF NOT EXISTS runs_app ON runs (app_label, created_at DESC);
+UPDATE visits SET subject = replace(subject, '+', ' ') WHERE subject LIKE '%+%';
 -- Runs recorded before visits existed: grouped by the same rule (same kind, app and caller, gaps under 2 minutes;
 -- every Ask question is its own visit). Runs only once per run (visit_id IS NULL).
 WITH ordered AS (
@@ -96,7 +97,7 @@ WITH ordered AS (
 INSERT INTO visits (id, kind, app_label, caller_hash, title, subject, calls, helped, first_at, last_at)
 SELECT vid, min(kind), min(app_label), min(caller_hash), (array_agg(title ORDER BY created_at))[1],
   CASE WHEN min(kind) = 'ask' THEN (array_agg(title ORDER BY created_at))[1]
-       ELSE (array_agg(substring(title from '[?&]query=([^&]+)') ORDER BY created_at) FILTER (WHERE title ~ '[?&]query='))[1] END,
+       ELSE replace((array_agg(substring(title from '[?&]query=([^&]+)') ORDER BY created_at) FILTER (WHERE title ~ '[?&]query='))[1], '+', ' ') END,
   count(*), sum(h::int), min(created_at), max(created_at)
 FROM keyed GROUP BY vid
 ON CONFLICT (id) DO NOTHING;

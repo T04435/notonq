@@ -51,7 +51,7 @@ derived from Qloo, such as artist names, but never Qloo's raw API responses: tho
    still come from Qloo, labelled as coming from the stand-ins.
 5. **Research (tier 3):** for what's still missing, a web research agent returns claims with a URL and an exact quote.
    Plain code re-fetches every page and keeps only quotes it finds there.
-6. **Cache, demand and replay:** every answer is cached, and every request is recorded in the Ledger (`/ledger`), replayable step by step; its Artists tab is a ranked list of what
+6. **Cache, demand and replay:** every answer is cached, and every request is recorded in the Ledger (`/ledger`): live over a WebSocket (pause any time), calls grouped into visits per app (or per `X-NotOnQ-Trace`), filters and pages in the URL so any view can be shared, each call replayable step by step; its Artists tab is a ranked list of what
    Qloo is missing. It holds IDs and demand only, never copied data.
 
 Anything else is marked `unavailable`. Nothing is invented.
@@ -65,6 +65,10 @@ pnpm install
 cp .env.example .env.local   # then add your own keys
 pnpm dev                     # http://localhost:3400
 ```
+
+The live Ledger's WebSocket needs Vercel's dev server (`next dev` can't upgrade sockets; the page then says live
+updates are unavailable): `pnpm dev:live` (Vercel CLI 54.14.2 or later, with the repo linked). Locally the data stays
+in the embedded PGlite either way.
 
 Quality gates (run before every push):
 

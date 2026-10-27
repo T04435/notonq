@@ -55,7 +55,14 @@ export async function listVisits(sql: Sql, p: LedgerParams, limit = PAGE): Promi
     sql<{ n: number }>(`SELECT count(*)::int AS n FROM visits WHERE ${[...hw, "helped > 0"].join(" AND ")}`, helpedArgs),
   ]);
   const page = rows.slice(0, limit).map(toVisit);
-  return { rows: page, total: Number(c.n), helped: Number(h.n), next: rows.length > limit ? `${page.at(-1)!.lastAt}~${page.at(-1)!.id}` : undefined };
+  const last = page.at(-1);
+  return { rows: page, total: Number(c.n), helped: Number(h.n), next: rows.length > limit && last ? `${last.lastAt}~${last.id}` : undefined };
+}
+
+/** Just the counts for a view (for live updates). */
+export async function countVisits(sql: Sql, p: LedgerParams): Promise<{ total: number; helped: number }> {
+  const { total, helped } = await listVisits(sql, { ...p, before: undefined }, 0);
+  return { total, helped };
 }
 
 /** Visits that changed after a moment (new, or a new call in one), oldest change first: the live tail. */

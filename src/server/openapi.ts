@@ -86,6 +86,7 @@ export const OPENAPI = {
     securitySchemes: { qlooKey: key },
     parameters: {
       app: { name: "X-NotOnQ-App", in: "header", required: false, schema: { type: "string", maxLength: 64 }, description: "Your app's label in the Ledger." },
+      trace: { name: "X-NotOnQ-Trace", in: "header", required: false, schema: { type: "string", maxLength: 120 }, description: "Groups your calls for one user action into one visit in the Ledger. Never sent to Qloo." },
       lastfm: { name: "X-Lastfm-Key", in: "header", required: false, schema: { type: "string" }, description: "Your own Last.fm key (optional; NotOnQ uses its own otherwise)." },
     },
     schemas: { NotOnQ: notonqBlock },

@@ -70,6 +70,7 @@ export default function RestReference() {
           rows={[
             ["X-Api-Key", "yes", "Your Qloo key. Forwarded to Qloo per request, never stored."],
             ["X-NotOnQ-App", "no", "A label for your app (up to 64 characters), shown in the Ledger and on Proof. Same as /q/app/<label>."],
+            ["X-NotOnQ-Trace", "no", "An ID for one user action in your app (up to 120 characters). Calls with the same trace are one visit in the Ledger; without it, your calls less than 2 minutes apart are. Never sent to Qloo."],
             ["X-Lastfm-Key", "no", "Your own Last.fm key. Without it NotOnQ uses its own for the hackathon demo."],
           ]}
         />
