@@ -5,8 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import benchmark from "@/data/proof.json";
 import { db } from "@/server/store/db";
+import Link from "next/link";
+import { toLedgerSearch } from "@/lib/ledger-params";
+import { FILL_QUESTIONS, type FillQuestion } from "@/lib/benchmark";
+import { benchmarkStats, type FilledArtist } from "@/server/store/benchmark-stats";
 import { liveStats } from "@/server/store/stats";
 
 export const metadata = { title: "Proof · NotOnQ" };
@@ -19,15 +22,17 @@ export default function ProofPage() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">Proof</h1>
         <p className="text-muted-foreground">
-          Artists only. Live: every artist lookup NotOnQ has handled, through Ask, the drop-in API or the Qloo harness, updating as it happens. Below it, a fixed
-          benchmark run that measures what live traffic can&apos;t.
+          Artists only. Every number here is counted from runs in the <Link href="/ledger" className="underline underline-offset-4">Ledger</Link>: real traffic
+          through Ask, the drop-in API and the Qloo harness, and a benchmark batch of real Ask questions run through the app. Each section links to its runs.
         </p>
       </header>
       <Suspense fallback={<Spinner />}>
         <Live />
       </Suspense>
       <AutoRefresh />
-      <Benchmark />
+      <Suspense fallback={<Spinner />}>
+        <Benchmark />
+      </Suspense>
     </section>
   );
 }
@@ -47,7 +52,7 @@ async function Live() {
   const f = s.filled;
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="font-medium">Live{s.since ? ` · since ${new Date(s.since).toUTCString()}` : ""}</h2>
+      <h2 className="font-medium">Live traffic{s.since ? ` · since ${new Date(s.since).toUTCString()}` : ""}</h2>
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader>
@@ -114,7 +119,11 @@ async function Live() {
           <TableBody>
             {s.apps.map((a) => (
               <TableRow key={a.app}>
-                <TableCell className="font-mono text-xs">{a.app}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  <Link href={`/ledger${toLedgerSearch({ view: "all", app: [a.app] })}`} className="underline-offset-4 hover:underline">
+                    {a.app}
+                  </Link>
+                </TableCell>
                 <TableCell className="text-right">{a.lookups}</TableCell>
                 <TableCell className="text-right">{a.artists}</TableCell>
                 <TableCell className="text-right">{pct(a.gapRatePct)}</TableCell>
@@ -125,20 +134,54 @@ async function Live() {
       )}
       <p className="text-xs text-muted-foreground">
         Each artist counts once, by the outcome of its latest lookup. Apps are the label callers give (/q/app/&lt;label&gt; or X-NotOnQ-App; unlabelled otherwise).
+        The benchmark batch (apps benchmark-*) is counted below, not here.
       </p>
     </div>
   );
 }
 
-function Benchmark() {
-  const { coverage, fill, backtest, method } = benchmark;
+const SAMPLES = {
+  fresh: "Artists with a release in the last 14 days (ListenBrainz fresh releases), seeded random sample",
+  chart: "Last.fm global top artists chart",
+} as const;
+const RECORD: [keyof FilledArtist["record"], string][] = [
+  ["home", "Home"],
+  ["genres", "Genres"],
+  ["similar", "Similar artists Qloo knows"],
+  ["description", "Wikipedia description"],
+  ["image", "Image"],
+  ["popularity", "Popularity"],
+];
+const ledger = (p: Parameters<typeof toLedgerSearch>[0]) => `/ledger${toLedgerSearch({ view: "all", ...p })}`;
+
+async function Benchmark() {
+  await connection();
+  const b = await benchmarkStats(await db());
+  if (!b)
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>No benchmark batch yet</EmptyTitle>
+          <EmptyDescription>
+            Run <code>node --import tsx scripts/benchmark.mts</code> against this deployment: it asks real questions through the app, and its runs land in the Ledger.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  const questions = Object.keys(FILL_QUESTIONS) as FillQuestion[];
+  const share = (k: FillQuestion) => {
+    const asked = b.filled.filter((f) => f.asks[k]);
+    return `${pct(asked.length ? Math.round((asked.filter((f) => f.asks[k]!.answered).length / asked.length) * 1000) / 10 : 0)} of ${asked.length}`;
+  };
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="font-medium">Benchmark run · {new Date(benchmark.ranAt).toUTCString()}</h2>
+      <h2 className="font-medium">
+        Benchmark batch {b.batch} · {new Date(b.ranAt).toUTCString()}
+      </h2>
       <p className="text-sm text-muted-foreground">
-        A fixed sample, so the numbers mean the same thing for everyone. It compares new artists with chart artists, and tests the stand-ins against
-        Qloo&apos;s own answers, which live traffic can&apos;t. It used {method.qlooCalls} Qloo calls; rerun with{" "}
-        <code>node --import tsx scripts/proof.mts</code>.
+        Real questions run through the app, so they are in the Ledger like any other run, labelled benchmark-fresh, benchmark-chart and benchmark-fill. It
+        compares new artists with chart artists, then asks five questions about each artist we filled in. Rerun with{" "}
+        <code>node --import tsx scripts/benchmark.mts</code>.
       </p>
       <Table>
         <TableHeader>
@@ -146,35 +189,97 @@ function Benchmark() {
             <TableHead>Sample</TableHead>
             <TableHead className="text-right">Artists</TableHead>
             <TableHead className="text-right">Usable in Qloo</TableHead>
-            <TableHead className="text-right">Unknown (G1)</TableHead>
-            <TableHead className="text-right">Not in taste graph (G2)</TableHead>
-            <TableHead className="text-right">Gap</TableHead>
+            <TableHead className="text-right">New to Qloo (G1)</TableHead>
+            <TableHead className="text-right">Not yet a taste signal (G2)</TableHead>
+            <TableHead className="text-right">Of those, more than one artist by that name</TableHead>
+            <TableHead className="text-right">Not usable in Qloo</TableHead>
+            <TableHead>Runs</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {(["fresh", "chart"] as const).map((k) => (
             <TableRow key={k}>
-              <TableCell className="whitespace-normal">{method.samples[k]}</TableCell>
-              <TableCell className="text-right">{coverage[k].artists}</TableCell>
-              <TableCell className="text-right">{coverage[k].usableInQloo}</TableCell>
-              <TableCell className="text-right">{coverage[k].unknownG1}</TableCell>
-              <TableCell className="text-right">{coverage[k].notInTasteGraphG2}</TableCell>
-              <TableCell className="text-right">{pct(coverage[k].gapRatePct)}</TableCell>
+              <TableCell className="whitespace-normal">{SAMPLES[k]}</TableCell>
+              <TableCell className="text-right">{b.coverage[k].artists}</TableCell>
+              <TableCell className="text-right">{b.coverage[k].usable}</TableCell>
+              <TableCell className="text-right">{b.coverage[k].G1}</TableCell>
+              <TableCell className="text-right">{b.coverage[k].G2}</TableCell>
+              <TableCell className="text-right">{b.coverage[k].ambiguous}</TableCell>
+              <TableCell className="text-right">{pct(b.coverage[k].gapPct)}</TableCell>
+              <TableCell>
+                <Link href={ledger({ app: [`benchmark-${k}`] })} className="underline underline-offset-4">
+                  benchmark-{k}
+                </Link>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-      <ul className="list-disc pl-5 text-sm text-muted-foreground">
-        <li>
-          Fill ({fill.artists} gap artists, open data and stand-ins only): sourced entity {pct(fill.entityPct)}, stand-ins {pct(fill.standInsPct)},
-          popularity {pct(fill.popularityPct)}, genres {pct(fill.genresPct)}, description {pct(fill.descriptionPct)}, image {pct(fill.imagePct)}.
-        </li>
-        <li>
-          Backtest ({backtest.artists} artists Qloo knows, each hidden): stand-ins alone recover {pct(Math.round(backtest.meanOverlapAt20 * 1000) / 10)} of
-          Qloo&apos;s own top 20 &quot;fans also like&quot; ({pct(Math.round(backtest.meanOverlapAt10 * 1000) / 10)} of the top 10).
-        </li>
-        <li>{method.gap}</li>
-      </ul>
+      <p className="text-sm text-muted-foreground">
+        Each artist is one visit in the Ledger: a /search through NotOnQ, a taste-signal check when Qloo finds the artist, and the Ask question &quot;Recommend
+        artists similar to …&quot;. Of those {b.coverageAsks.runs} questions, Qloo answered {b.coverageAsks.qloo} alone and NotOnQ filled in {b.coverageAsks.notonq}.
+      </p>
+
+      {b.filled.length > 0 && (
+        <>
+          <h3 className="text-sm font-medium">What we filled in, for {b.filled.length} artists new to Qloo</h3>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Artist</TableHead>
+                  {RECORD.map(([k, label]) => (
+                    <TableHead key={k}>{label}</TableHead>
+                  ))}
+                  {questions.map((k) => (
+                    <TableHead key={k} className="whitespace-normal">
+                      {FILL_QUESTIONS[k]("…")}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {b.filled.map((f) => (
+                  <TableRow key={f.name}>
+                    <TableCell>
+                      <Link href={ledger({ app: ["benchmark-fresh", "benchmark-chart"], open: f.visitId })} className="underline-offset-4 hover:underline">
+                        {f.name}
+                      </Link>
+                    </TableCell>
+                    {RECORD.map(([k]) => (
+                      <TableCell key={k}>{f.record[k] ? "yes" : "no"}</TableCell>
+                    ))}
+                    {questions.map((k) => (
+                      <TableCell key={k}>
+                        {f.asks[k] ? (
+                          <Link href={`/ledger/run/${f.asks[k]!.runId}`} className="underline underline-offset-4">
+                            {f.asks[k]!.answered ? "answered" : "no data"}
+                          </Link>
+                        ) : (
+                          "not asked"
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+                <TableRow>
+                  <TableCell className="font-medium">All</TableCell>
+                  {RECORD.map(([k]) => (
+                    <TableCell key={k}>{pct(Math.round((b.filled.filter((f) => f.record[k]).length / b.filled.length) * 1000) / 10)}</TableCell>
+                  ))}
+                  {questions.map((k) => (
+                    <TableCell key={k}>{share(k)}</TableCell>
+                  ))}
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The record columns are what the filled-in record holds, each with a source in its provenance. The question columns link to the Ask run; &quot;answered&quot;
+            means its NotOnQ step got data back from the tool that answers it (for the map and ages, Qloo&apos;s answer for similar artists it knows).
+          </p>
+        </>
+      )}
     </div>
   );
 }

@@ -11,11 +11,14 @@ Built for the Qloo Agentic Hackathon 2026. Works with the Qloo API; not affiliat
 
 ## What it proves
 
-From one measured run ([`/proof`](src/app/proof/page.tsx), `scripts/proof.mts`):
+Every number on [`/proof`](src/app/proof/page.tsx) is counted from runs in the Ledger, and links to them:
 
-- **63%** of artists with a release in the last 14 days are unknown to Qloo or unusable as a taste signal, compared with **4%** of chart artists.
-- NotOnQ builds a **sourced entity for 100%** of those gaps, and finds **stand-ins Qloo can answer for in 80%**.
-- Using stand-ins alone recovers **37%** of Qloo's own top-20 "fans also like" for artists Qloo does know (29% of the top 10).
+- **Live traffic:** every artist lookup through Ask, the drop-in API and the Qloo harness.
+- **The benchmark batch** (`scripts/benchmark.mts`): real Ask questions and `/q` calls run through the app, labelled
+  `benchmark-fresh`, `benchmark-chart` and `benchmark-fill`. It compares artists with a release in the last 14 days
+  against Last.fm's chart artists (usable in Qloo, new to Qloo, or not yet a taste signal), then asks five questions
+  about each artist we filled in: who and where from, genre, similar artists, where they're popular, and what ages
+  listen. Run it against the deployment whose Proof it feeds, with `NOTONQ_BENCHMARK_TOKEN` set on both sides.
 
 ## Two ways in
 

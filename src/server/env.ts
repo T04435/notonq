@@ -17,6 +17,8 @@ const Env = z.object({
   DATABASE_URL: optional,
   /** Salt for hashing caller keys in the demand ledger. Set a random value in every deployed environment. */
   NOTONQ_SALT: z.string().default("notonq-local-salt"),
+  /** Lets the benchmark batch (scripts/benchmark.mts) label its Ask runs benchmark-*. Unset: no Ask run can be labelled. */
+  NOTONQ_BENCHMARK_TOKEN: optional,
 });
 
 export const env = Env.parse(process.env);

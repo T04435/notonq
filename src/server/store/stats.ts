@@ -22,7 +22,9 @@ export type LiveStats = {
 };
 
 const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : 0);
-const LOOKUP = `served_by IN ('qloo', 'fallback', 'needs_choice')`;
+/** Real traffic only: the benchmark batch's runs are counted in their own section (benchmark-stats.ts). */
+const REAL = `coalesce(app_label, '') NOT LIKE 'benchmark-%'`;
+const LOOKUP = `served_by IN ('qloo', 'fallback', 'needs_choice') AND ${REAL}`;
 
 export async function liveStats(sql: Sql): Promise<LiveStats> {
   // Latest outcome per artist name.
@@ -36,7 +38,7 @@ export async function liveStats(sql: Sql): Promise<LiveStats> {
             count(*) FILTER (WHERE served_by = 'fallback')::int AS fallback_requests,
             count(*) FILTER (WHERE served_by = 'fallback' AND cache_hit)::int AS fallback_cache_hits,
             count(*) FILTER (WHERE served_by = 'mixed')::int AS swaps
-     FROM requests`,
+     FROM requests WHERE ${REAL}`,
   );
   const gapNames = latest.filter((r) => r.served_by !== "qloo");
   const entityIds = [...new Set(gapNames.map((r) => r.entity_id).filter(Boolean))] as string[];
