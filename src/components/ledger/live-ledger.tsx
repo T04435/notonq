@@ -1,9 +1,9 @@
 "use client";
 
-import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, Link2Icon, PlayIcon, SearchIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, Link2Icon, PlayIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Mark } from "@/components/brand/mark";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -116,10 +115,9 @@ export function LiveLedger({ data }: { data: LedgerData }) {
   return (
     <div className="flex flex-col gap-9">
       <LiveBar params={params} status={status} live={live} held={held.size} onShow={showHeld} onLive={setLive} go={go} />
-      <ArtistBar top={data.top} params={params} go={go} />
       <section aria-labelledby="visits" className="flex flex-col">
         <Filters params={params} apps={data.apps} go={go} />
-        {data.artists ? <ArtistsPanel data={data.artists} params={params} go={go} /> : null}
+        {data.artists ? <ArtistsPanel data={data.artists} all={data.top.total} params={params} go={go} /> : null}
         <Visits rows={rows} counts={counts} params={params} fresh={fresh} today={today} openCalls={data.openCalls} next={data.visits.next} go={go} />
       </section>
     </div>
@@ -165,57 +163,8 @@ function LiveBar({ params, status, live, held, onShow, onLive, go }: { params: L
   );
 }
 
-/** The most asked artists as one-click filters (q=<name>), and the way into the full ranked list. */
-function ArtistBar({ top, params, go }: { top: LedgerData["top"]; params: LedgerParams; go: (p: Partial<LedgerParams>) => void }) {
-  if (!top.total) return null;
-  const picked = params.q?.toLowerCase();
-  return (
-    <nav aria-label="Filter by artist" className="flex flex-col gap-3 border-b pb-6 sm:flex-row sm:flex-wrap sm:items-center">
-      <h2 className="eyebrow sm:mr-2">Filter by artist</h2>
-      <div className="flex flex-wrap items-center gap-2">
-        {top.rows.map((a) => {
-          const on = picked === a.name.toLowerCase();
-          return (
-            <Button
-              key={a.nameKey}
-              variant="outline"
-              aria-pressed={on}
-              onClick={() => go({ q: on ? undefined : a.name, before: undefined, open: undefined })}
-              className={`h-9 font-normal ${on ? "border-fill bg-fill-ground text-fill" : ""} ${a.answer === "notonq" && !on ? "text-fill" : ""}`}
-            >
-              {a.name}
-              <span className="text-muted-foreground tabular-nums">{a.requests}</span>
-            </Button>
-          );
-        })}
-        <Button
-          variant="ghost"
-          aria-expanded={params.artists}
-          onClick={() => go({ artists: !params.artists, apage: undefined })}
-          className="h-9 font-normal underline underline-offset-[5px]"
-        >
-          All {top.total} artists, most asked first
-          {params.artists ? <ChevronUpIcon /> : <ChevronDownIcon />}
-        </Button>
-      </div>
-    </nav>
-  );
-}
-
-/** The visits filters: what NotOnQ did, search, app and kind. */
+/** The visits filters: what NotOnQ did, the artist (opens the ranked panel), app and kind. */
 function Filters({ params, apps, go }: { params: LedgerParams; apps: string[]; go: (p: Partial<LedgerParams>) => void }) {
-  const [q, setQ] = useState(params.q ?? "");
-  const [urlQ, setUrlQ] = useState(params.q);
-  if (urlQ !== params.q) {
-    setUrlQ(params.q);
-    setQ(params.q ?? "");
-  }
-  useEffect(() => {
-    if ((params.q ?? "") === q) return;
-    const t = setTimeout(() => go({ q: q || undefined, before: undefined, open: undefined }), 300);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
   const appList = useMemo(() => {
     const base = [...new Set([...KNOWN_APPS, ...apps])].slice(0, MAX_APPS);
     return base.concat(params.app.filter((a) => !base.includes(a)));
@@ -229,22 +178,19 @@ function Filters({ params, apps, go }: { params: LedgerParams; apps: string[]; g
       <div className="flex flex-wrap items-center gap-2">
         <ToggleGroup type="single" size="sm" variant="outline" spacing={0} value={params.view} onValueChange={(v) => v && go({ view: v as LedgerParams["view"], before: undefined })} aria-label="Show">
           <ToggleGroupItem value="helped">Where we filled in</ToggleGroupItem>
-          <ToggleGroupItem value="qloo">Qloo alone</ToggleGroupItem>
           <ToggleGroupItem value="all">All</ToggleGroupItem>
         </ToggleGroup>
-        <InputGroup className="h-9 w-full rounded-none border-strong bg-transparent sm:w-56 dark:bg-transparent">
-          <InputGroupAddon>
-            <SearchIcon />
-          </InputGroupAddon>
-          <InputGroupInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Artist or question" aria-label="Search the Ledger" className="text-xs md:text-xs" />
-          {q ? (
-            <InputGroupAddon align="inline-end">
-              <Button variant="ghost" size="icon-xs" aria-label="Clear the search" onClick={() => setQ("")}>
-                <XIcon />
-              </Button>
-            </InputGroupAddon>
-          ) : null}
-        </InputGroup>
+        <Button
+          variant="outline"
+          aria-haspopup="dialog"
+          aria-expanded={params.artists}
+          onClick={() => go(params.artists ? { artists: false, apage: undefined, result: undefined } : { artists: true, apage: undefined, result: params.result ?? "notonq" })}
+          className={`h-9 font-normal ${params.artists || params.q ? "border-fill bg-fill-ground" : ""}`}
+        >
+          <span className="text-muted-foreground">artist</span>
+          <b className={`font-medium ${params.q ? "text-fill" : ""}`}>{params.q ?? "any"}</b>
+          {params.artists ? <ChevronUpIcon /> : <ChevronDownIcon />}
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-9 font-normal">
@@ -297,7 +243,7 @@ function Filters({ params, apps, go }: { params: LedgerParams; apps: string[]; g
 }
 
 /** Every artist looked up, most asked first; pick one to see its visits. Replaces the old Artists tab. */
-function ArtistsPanel({ data, params, go }: { data: NonNullable<LedgerData["artists"]>; params: LedgerParams; go: (p: Partial<LedgerParams>) => void }) {
+function ArtistsPanel({ data, all, params, go }: { data: NonNullable<LedgerData["artists"]>; all: number; params: LedgerParams; go: (p: Partial<LedgerParams>) => void }) {
   const total = useTween(data.total);
   const max = Math.max(1, ...data.rows.map((r) => r.requests));
   const picked = params.q?.toLowerCase();
@@ -308,20 +254,6 @@ function ArtistsPanel({ data, params, go }: { data: NonNullable<LedgerData["arti
           Pick an artist · most asked first
         </h2>
         <div className="flex flex-wrap items-center gap-2">
-          <ToggleGroup
-            type="single"
-            size="sm"
-            variant="outline"
-            spacing={0}
-            value={params.result ?? "any"}
-            onValueChange={(v) => v && go({ result: v === "any" ? undefined : (v as Answer), apage: undefined })}
-            aria-label="Answered by"
-          >
-            <ToggleGroupItem value="any">anyone</ToggleGroupItem>
-            <ToggleGroupItem value="notonq">NotOnQ</ToggleGroupItem>
-            <ToggleGroupItem value="qloo">Qloo</ToggleGroupItem>
-            <ToggleGroupItem value="choice">awaiting a choice</ToggleGroupItem>
-          </ToggleGroup>
           <Button variant="outline" className="h-9 font-normal" aria-expanded="true" onClick={() => go({ artists: false, apage: undefined, result: undefined })}>
             Close
             <ChevronUpIcon />
@@ -329,7 +261,8 @@ function ArtistsPanel({ data, params, go }: { data: NonNullable<LedgerData["arti
         </div>
       </div>
       <p className="text-xs text-muted-foreground tabular-nums">
-        Showing {data.rows.length} of {total} artists · {data.filled} we filled in from open sources. Pick one to see its visits.
+        Showing {data.rows.length} of {params.result === "notonq" ? `${total} artists we filled in from open sources · ${all} artists in all` : `${total} artists`}. Pick one to see its visits
+        {params.q ? `, or ${params.q} again to clear it` : ""}.
       </p>
       {data.rows.length ? (
         <div className="border">
@@ -416,7 +349,7 @@ function ArtistsPanel({ data, params, go }: { data: NonNullable<LedgerData["arti
         ) : null}
         {data.next ? (
           <Button variant="outline" size="lg" className="font-normal" onClick={() => go({ apage: data.next })}>
-            More artists
+            Load more artists
           </Button>
         ) : null}
       </div>
