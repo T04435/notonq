@@ -46,11 +46,11 @@ When Qloo's answer is empty, thin or an error:
 
 ## Next
 
-### v0.5.0 release candidate (28 Oct 2026, local): everything below ships together
+### v0.4.0 release candidate (28 Oct 2026, local): everything below ships together
 
-v0.4.0 and v0.4.1 were built but never released on their own; v0.5.0 ships them with the redesign.
+The version comes from semantic-release on main (Conventional Commits since v0.3.0), so all of this ships as v0.4.0.
 
-#### The request shapes real apps send, for artists (built as v0.4.0)
+#### The request shapes real apps send, for artists
 
 From Busk Map, GhostQ and Front Room's own Qloo calls (plan: Qloo data through NotOnQ and Qloo's harness, no
 fallbacks of their own). Still artists only, still no new endpoints:
@@ -68,7 +68,7 @@ fallbacks of their own). Still artists only, still no new endpoints:
 - Every artist-signalled `filter.type` (demographics, heatmap, audience, tag, place, artist, movie) is tested to reach
   Qloo through stand-ins, never with a NotOnQ ID.
 
-#### A live, shareable Ledger (built as v0.4.1)
+#### A live, shareable Ledger
 
 - Live by default through Neon Realtime: the page subscribes to the newest visit change, Neon pushes it the moment a
   call is recorded on any instance, and the page fetches just the rows that match its filters. Nothing polls, and open
@@ -108,7 +108,7 @@ When Qloo's answer is empty, thin or an error:
   genre, cast) and Wikipedia summaries (CC BY-SA, linked); TMDB or OMDb only if their terms allow this use.
 - Fill in Qloo's shape for these types, with UUID IDs, the label and sources, as for artists.
 
-### v0.6.0: one gap engine for every request shape
+### v0.5.0: one gap engine for every request shape
 
 - One engine for gap detection, candidates, labels, stand-ins, cache and Ledger, keyed by request shape, instead of
   one code path per entity type.
