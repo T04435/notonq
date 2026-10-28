@@ -6,7 +6,6 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { Mark } from "@/components/brand/mark";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { PageSpinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { FillQuestion } from "@/lib/benchmark";
@@ -53,7 +52,7 @@ async function Numbers({ searchParams }: { searchParams: PageProps<"/proof">["se
   return (
     <>
       <Live s={s} app={app} />
-      {s.artistRows.length ? <Artists s={s} /> : null}
+      <Artists s={s} />
       <Terms />
     </>
   );
@@ -82,7 +81,7 @@ function AppFilter({ s, app }: { s: ProofStats; app?: string }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Scope Proof to one app</DropdownMenuLabel>
-        {[undefined, ...s.apps.map((a) => a.app)].map((a) => (
+        {[undefined, ...s.apps.filter((a) => a.lookups > 0 || a.app === app).map((a) => a.app)].map((a) => (
           <DropdownMenuItem key={a ?? "any"} asChild>
             <Link href={proofHref(a)} aria-current={a === app ? "page" : undefined} className={a === app ? "font-medium text-fill" : undefined}>
               {a ?? "any app"}
@@ -96,6 +95,7 @@ function AppFilter({ s, app }: { s: ProofStats; app?: string }) {
 
 function Live({ s, app }: { s: ProofStats; app?: string }) {
   const f = s.filled;
+  const apps = s.apps.filter((a) => a.lookups > 0);
   return (
     <section aria-labelledby="live" className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
@@ -110,15 +110,7 @@ function Live({ s, app }: { s: ProofStats; app?: string }) {
         <AppFilter s={s} app={app} />
       </div>
 
-      {!s.artists.total && !s.asks.total ? (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyTitle>No artist lookups yet{app ? ` from ${app}` : ""}</EmptyTitle>
-            <EmptyDescription>Ask a question, call the drop-in API, or run the benchmark batch, and the numbers start here.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <>
+      <>
           <div className="grid grid-cols-2 border md:grid-cols-4">
             <Stat value={num(s.artists.total)} label={`artists looked up · ${num(s.lookups)} lookups`} />
             <Stat
@@ -137,8 +129,7 @@ function Live({ s, app }: { s: ProofStats; app?: string }) {
           </p>
 
           <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 [&>*]:min-w-0">
-            {f.artists ? (
-              <div className="border">
+            <div className="border">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -161,17 +152,17 @@ function Live({ s, app }: { s: ProofStats; app?: string }) {
                       <TableRow key={label}>
                         <TableCell className="whitespace-normal">{label}</TableCell>
                         <TableCell className="w-[45%]">
-                          <Bar value={v} max={f.artists} label={`${share(v, f.artists)}%`} fill={i < 2} />
+                          {f.artists ? <Bar value={v} max={f.artists} label={`${share(v, f.artists)}%`} fill={i < 2} /> : <NoData />}
                         </TableCell>
                       </TableRow>
                     ))}
                     <TableRow>
                       <TableCell className="whitespace-normal text-muted-foreground">low confidence (no MusicBrainz record)</TableCell>
-                      <TableCell className="text-right text-muted-foreground tabular-nums">{share(f.lowConfidence, f.artists)}%</TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">{f.artists ? `${share(f.lowConfidence, f.artists)}%` : <NoData />}</TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell className="whitespace-normal text-muted-foreground">cited fields per record, average</TableCell>
-                      <TableCell className="text-right text-muted-foreground tabular-nums">{f.citedFields}</TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">{f.artists ? f.citedFields : <NoData />}</TableCell>
                     </TableRow>
                     <TableRow>
                       <TableCell className="whitespace-normal text-muted-foreground">researched artists · claims verified · rejected</TableCell>
@@ -182,7 +173,6 @@ function Live({ s, app }: { s: ProofStats; app?: string }) {
                   </TableBody>
                 </Table>
               </div>
-            ) : null}
 
             <div className="flex flex-col gap-3.5">
               <div className="border">
@@ -196,7 +186,14 @@ function Live({ s, app }: { s: ProofStats; app?: string }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {s.apps.map((a) => (
+                    {apps.length ? null : (
+                      <TableRow>
+                        <TableCell colSpan={4}>
+                          <NoData />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {apps.map((a) => (
                       <TableRow key={a.app} data-state={a.app === app ? "selected" : undefined}>
                         <TableCell>
                           <Link href={proofHref(a.app === app ? undefined : a.app)} aria-current={a.app === app ? "page" : undefined} className="underline-offset-4 hover:underline">
@@ -205,7 +202,9 @@ function Live({ s, app }: { s: ProofStats; app?: string }) {
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{num(a.lookups)}</TableCell>
                         <TableCell className="text-right tabular-nums">{num(a.artists)}</TableCell>
-                        <TableCell className="w-[40%]">{a.artists ? <Bar value={a.gapPct} max={100} label={`${a.gapPct}%`} fill={false} /> : <span className="text-muted-foreground">no lookups</span>}</TableCell>
+                        <TableCell className="w-[40%]">
+                          <Bar value={a.gapPct} max={100} label={`${a.gapPct}%`} fill={false} />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -217,10 +216,14 @@ function Live({ s, app }: { s: ProofStats; app?: string }) {
               </p>
             </div>
           </div>
-        </>
-      )}
+      </>
     </section>
   );
+}
+
+/** A section with nothing to show yet keeps its place and says so, so the page doesn't jump. */
+function NoData({ children = "no data" }: { children?: React.ReactNode }) {
+  return <span className="text-dim">{children}</span>;
 }
 
 function Stat({ value, label, fill }: { value: string; label: string; fill?: boolean }) {
@@ -289,6 +292,13 @@ function Artists({ s }: { s: ProofStats }) {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {rows.length ? null : (
+              <TableRow>
+                <TableCell colSpan={14}>
+                  <NoData>No artists filled in yet{s.app ? ` from ${s.app}` : ""}.</NoData>
+                </TableCell>
+              </TableRow>
+            )}
             {rows.map((r, i) => (
               <ArtistRow key={r.nameKey} r={r} rank={i + 1} max={max} />
             ))}
