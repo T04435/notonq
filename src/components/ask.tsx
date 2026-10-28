@@ -346,7 +346,7 @@ function LogIcon({ kind, now }: { kind: LogLine["kind"]; now: boolean }) {
 export function RunView({ events, times, running, runHref, error, onRetry }: { events: AskEvent[]; times?: number[]; running: boolean; runHref?: string; error?: string; onRetry?: () => void }) {
   const lines = logLines(events, times ?? []);
   const failed = error ?? (events.find((e) => e.type === "error") as { message: string } | undefined)?.message;
-  const answer = events.findLast((e) => e.type === "answer" && e.column === "notonq") as { text: string } | undefined;
+  const answer = events.findLast((e) => e.type === "answer" && e.column === "notonq") as { text: string; source: string } | undefined;
   const qlooAnswer = events.find((e) => e.type === "answer" && e.column === "qloo") as { text: string } | undefined;
   const judge = events.findLast((e) => e.type === "judge") as { judgement: Judgement } | undefined;
   const reconcile = events.findLast((e) => e.type === "reconcile") as { rows: Row[]; places: number } | undefined;
@@ -405,13 +405,29 @@ export function RunView({ events, times, running, runHref, error, onRetry }: { e
         {stopped ? <Stopped message={failed!} qlooAnswer={qlooAnswer?.text} onRetry={onRetry} /> : null}
         {answer ? (
           <>
-            <div className="flex flex-col gap-3.5">
-              <h2 className="eyebrow">Answer</h2>
-              <p className="max-w-[64ch] text-base leading-[1.75] whitespace-pre-wrap sm:text-lg">{plain(answer.text)}</p>
-            </div>
+            {answer.source === "qloo" ? (
+              // Qloo answered the question by itself: its answer is the answer.
+              <div className="flex flex-col gap-3.5">
+                <h2 className="eyebrow">Answer · Qloo</h2>
+                <p className="max-w-[64ch] text-base leading-[1.75] whitespace-pre-wrap sm:text-lg">{plain(qlooAnswer?.text ?? answer.text)}</p>
+              </div>
+            ) : (
+              // We filled in: ours first, in the fill colour, and Qloo's right under it, so the difference shows at once.
+              <div className="flex flex-col gap-8">
+                <div className="flex flex-col gap-3.5">
+                  <h2 className="eyebrow text-fill">Answer · filled in by NotOnQ</h2>
+                  <p className="max-w-[64ch] text-base leading-[1.75] whitespace-pre-wrap text-fill sm:text-lg">{plain(answer.text)}</p>
+                </div>
+                {qlooAnswer ? (
+                  <div className="flex flex-col gap-3.5 border-l-2 border-strong pl-4">
+                    <h2 className="eyebrow">Qloo&apos;s answer, unchanged</h2>
+                    <p className="max-w-[64ch] text-sm leading-[1.7] whitespace-pre-wrap text-subtle">{plain(qlooAnswer.text)}</p>
+                  </div>
+                ) : null}
+              </div>
+            )}
             <Origins rows={reconcile?.rows ?? []} places={reconcile?.places ?? 0} />
             <SourceList calls={calls} rows={reconcile?.rows ?? []} />
-            {qlooAnswer ? <QlooAnswer text={qlooAnswer.text} /> : null}
           </>
         ) : !stopped ? (
           <>

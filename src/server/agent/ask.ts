@@ -420,7 +420,7 @@ export async function ask(question: string, deps: AskDeps) {
   if (!unknownEntity) {
     d.emit({ type: "stage", column: "notonq", stage: "better", title: "Asking Qloo again, differently", detail: `Unmet: ${unmet.map((c) => `${c.kind} (${c.value})`).join(", ")}` });
     const calls: Call[] = [];
-    await agent(
+    const told = await agent(
       d.qlooBase,
       d.qlooKey,
       `${SYSTEM}\nQloo was asked once and its answer did not meet: ${unmet.map((c) => `${c.kind}: ${c.value}`).join("; ")}. Ask Qloo differently to meet them: find exact tags with qloo_find_tags (genres or scenes tied to the place and era), use the place as signal_location or filter_location, seed with artists Qloo resolves. Do not use a decade tag as include_tags.`,
@@ -437,7 +437,7 @@ export async function ask(question: string, deps: AskDeps) {
     if (j.verdict === "answered") {
       const r = await reconcile(question, constraints, stages);
       d.emit({ type: "reconcile", ...r, summary: answerOf(constraints, stages, r.summary) });
-      d.emit({ type: "answer", column: "notonq", text: answerOf(constraints, stages, r.summary), source: "qloo_better" });
+      d.emit({ type: "answer", column: "notonq", text: told.trim() || answerOf(constraints, stages, r.summary), source: "qloo_better" });
       return;
     }
   }
@@ -446,6 +446,8 @@ export async function ask(question: string, deps: AskDeps) {
   const place = constraints.find((c) => c.kind === "place");
   const tag = era ? decadeTag(era.value) : null;
   const calls: Call[] = [];
+  // The harness's own answer when it ran through NotOnQ: a normal answer, like Qloo's, from what it found.
+  let told = "";
   const onNotOnQ = async (c: Call) => {
     const [withSourcesFound, http] = await Promise.all([withSources(c.results, d.notonqBase, d.qlooKey), exchanges(c.requests, d.notonqBase, d.qlooKey)]);
     // The similar artists NotOnQ answered through, from its own block in each exchange (names only).
@@ -462,12 +464,12 @@ export async function ask(question: string, deps: AskDeps) {
     await runTool(rec, { target_type: "artist", include_tags: [tag], ...(place ? { signal_location: place.value } : {}), limit: 10 }, onNotOnQ);
   } else {
     d.emit({ type: "stage", column: "notonq", stage: "notonq", title: "Asking through NotOnQ", detail: "Same tools; NotOnQ fills what Qloo has no data for, labelled" });
-    await agent(d.notonqBase, d.qlooKey, SYSTEM, question, onNotOnQ);
+    told = await agent(d.notonqBase, d.qlooKey, SYSTEM, question, onNotOnQ);
   }
   j = await judge(question, constraints, calls);
   d.emit({ type: "judge", stage: "notonq", judgement: j });
   stages.push({ stage: "notonq", calls });
   const r = await reconcile(question, constraints, stages);
   d.emit({ type: "reconcile", ...r, summary: answerOf(constraints, stages, r.summary) });
-  d.emit({ type: "answer", column: "notonq", text: answerOf(constraints, stages, r.summary), source: "notonq" });
+  d.emit({ type: "answer", column: "notonq", text: told.trim() || answerOf(constraints, stages, r.summary), source: "notonq" });
 }
