@@ -178,6 +178,7 @@ function Filters({ params, apps, go }: { params: LedgerParams; apps: string[]; g
       <div className="flex flex-wrap items-center gap-2">
         <ToggleGroup type="single" size="sm" variant="outline" spacing={0} value={params.view} onValueChange={(v) => v && go({ view: v as LedgerParams["view"], before: undefined })} aria-label="Show">
           <ToggleGroupItem value="helped">Where we filled in</ToggleGroupItem>
+          <ToggleGroupItem value="qloo">Qloo alone</ToggleGroupItem>
           <ToggleGroupItem value="all">All</ToggleGroupItem>
         </ToggleGroup>
         <Button
