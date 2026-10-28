@@ -85,7 +85,8 @@ export type VisitCall = Omit<Run, "events"> & { helped: boolean; name: string; d
 export async function visitCalls(sql: Sql, id: string): Promise<VisitCall[]> {
   const rows = await sql(
     `SELECT id, kind, title, summary, served_by, app_label, ms, created_at, helped,
-            (events->1->>'status')::int AS status, events->1->'body'->>'note' AS note, events->1->'body'->'notonq' AS notonq
+            CASE WHEN kind = 'api' AND events->1->>'status' ~ '^[0-9]+$' THEN (events->1->>'status')::int END AS status,
+            CASE WHEN kind = 'api' THEN events->1->'body'->>'note' END AS note, CASE WHEN kind = 'api' THEN events->1->'body'->'notonq' END AS notonq
      FROM runs WHERE visit_id = $1 ORDER BY created_at, id`,
     [id],
   );

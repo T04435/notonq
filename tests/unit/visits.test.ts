@@ -58,6 +58,27 @@ describe("visits", () => {
     expect(await visitsChangedSince(sql, new Date(Date.now() + 60_000).toISOString())).toEqual([]);
   });
 
+  it("opens an Ask visit, whose second event is a step with a word status, not an HTTP response", async () => {
+    const visit = await call({
+      kind: "ask",
+      title: "Where in the US is sombr most popular?",
+      servedBy: "notonq",
+      appLabel: "ask",
+      summary: "We filled in sombr.",
+      events: [
+        { t: 0, type: "constraints", constraints: [] },
+        { t: 5, type: "call", column: "qloo", stage: "qloo", tool: "qloo_where_popular", status: "needs_input", results: [] },
+      ] as never,
+    });
+    const calls = await visitCalls(sql, visit);
+    expect(calls).toMatchObject([{ kind: "ask", name: "ask", detail: "We filled in sombr." }]);
+  });
+
+  it("names an API call and says what came back", async () => {
+    const visit = await call({ events: [{ t: 0, type: "request" }, { t: 1, type: "response", status: 200, body: { note: "Qloo answered with 5 results; NotOnQ added nothing." } }] as never, servedBy: "qloo" });
+    expect((await visitCalls(sql, visit))[0]).toMatchObject({ name: "search", detail: "Qloo answered, 5 results" });
+  });
+
   it("doesn't send the newest visit again when the page resumes from its time (ms vs µs)", async () => {
     await call();
     await sql(`UPDATE visits SET last_at = '2026-10-27T12:08:12.141523Z'`);
