@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveArtist } from "@/server/engine/artist";
+import { resolveArtist, withStandIns } from "@/server/engine/artist";
 import { qlooClient } from "@/server/qloo/client";
 import { fakeFetch, json, mbid, qid, qlooArtist } from "./fixtures";
 
@@ -170,5 +170,20 @@ describe("resolveArtist", () => {
     if (out.servedBy !== "fallback") throw new Error("expected a fallback");
     expect(out.standIns).toEqual([]);
     expect(out.unavailable).toEqual(expect.arrayContaining(["standIns (no Last.fm key; tried Deezer related artists)", "popularity"]));
+  });
+});
+
+describe("withStandIns", () => {
+  const entity = { name: "Alter Boy", entity_id: "x", type: "urn:entity", subtype: "urn:entity:artist", properties: { akas: [], external: {}, short_description: "Not in Qloo: … use similar artists Qloo knows: A.GIRL, Hope D." }, tags: [] } as unknown as Parameters<typeof withStandIns>[0];
+
+  it("lists the stand-ins as structured data, so names with dots or commas survive", () => {
+    const out = withStandIns(entity, [{ entityId: "A1", name: "A.GIRL" }, { entityId: "B2", name: "Tyler, the Creator" }]);
+    expect(out.properties["notonq:standIns"]).toEqual([{ entity_id: "A1", name: "A.GIRL" }, { entity_id: "B2", name: "Tyler, the Creator" }]);
+    expect(out.properties.short_description).toBe(entity.properties.short_description);
+    expect(entity.properties["notonq:standIns"]).toBeUndefined();
+  });
+
+  it("adds nothing when there are no stand-ins", () => {
+    expect(withStandIns(entity, [])).toBe(entity);
   });
 });

@@ -128,6 +128,8 @@ A filled artist has exactly Qloo's keys and types.
   \`notonq:urn:tag:genre:<genre>\` (type \`urn:tag:genre\`)
 - properties["notonq:home"]: { name, country, country_code, source: "musicbrainz" } (where the artist is from; Qloo's
   artist records have no such field)
+- properties["notonq:standIns"]: [{ entity_id, name }] (the similar artists Qloo knows that answer taste questions for
+  this one, the same names short_description lists; absent when there are none)
 - properties.external["notonq:deezer"]: { id, fans }
 
 Send a NotOnQ entity ID back as a signal anywhere Qloo takes one; NotOnQ swaps in its stand-ins.

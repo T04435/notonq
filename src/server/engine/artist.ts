@@ -42,6 +42,8 @@ export type FallbackEntity = {
     short_description?: string;
     /** Where the artist is from (Qloo's artist records have no such field, so the key is NotOnQ's). */
     "notonq:home"?: Home;
+    /** The similar artists Qloo knows that answer taste questions for this one (the names short_description lists). */
+    "notonq:standIns"?: { entity_id: string; name: string }[];
   };
   popularity?: number;
   disambiguation?: string;
@@ -289,6 +291,12 @@ export async function qlooGenreTags(names: string[], qloo: QlooClient): Promise<
     if (!out.some((t) => t.tag_id === tag.tag_id)) out.push(tag);
   }
   return out;
+}
+
+/** The fill's stand-ins as a structured property, so callers needn't parse names out of short_description. */
+export function withStandIns(entity: FallbackEntity, standIns: Pick<StandIn, "entityId" | "name">[]): FallbackEntity {
+  if (!standIns.length) return entity;
+  return { ...entity, properties: { ...entity.properties, "notonq:standIns": standIns.map((s) => ({ entity_id: s.entityId, name: s.name })) } };
 }
 
 /** The label every NotOnQ entity carries in short_description. */
