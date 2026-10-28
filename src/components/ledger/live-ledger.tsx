@@ -37,7 +37,6 @@ export type LedgerData = {
 };
 
 /** The hackathon apps come first in the app filter, then the busiest. */
-const KNOWN_APPS = ["ghostq", "busk-map", "front-room", "ask"];
 const MAX_APPS = 10;
 const STAGGER = 12;
 const SEGMENTS = 10;
@@ -156,7 +155,8 @@ function LiveBar({ params, status, live, held, onShow, onLive, go }: { params: L
 /** The visits filters: what NotOnQ did, app and kind. */
 function Filters({ params, apps, go }: { params: LedgerParams; apps: string[]; go: (p: Partial<LedgerParams>) => void }) {
   const appList = useMemo(() => {
-    const base = [...new Set([...KNOWN_APPS, ...apps])].slice(0, MAX_APPS);
+    // Only apps that have visits, busiest first (ledgerApps); one in the URL with none yet still shows, so it can be unticked.
+    const base = apps.slice(0, MAX_APPS);
     return base.concat(params.app.filter((a) => !base.includes(a)));
   }, [apps, params.app]);
 
