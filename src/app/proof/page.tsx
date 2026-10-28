@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Mark } from "@/components/brand/mark";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { PageSpinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -82,13 +82,13 @@ function AppFilter({ s, app }: { s: ProofStats; app?: string }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>Scope Proof to one app</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={app ?? ""}>
-          {[undefined, ...s.apps.map((a) => a.app)].map((a) => (
-            <DropdownMenuRadioItem key={a ?? "any"} value={a ?? ""} asChild>
-              <Link href={proofHref(a)}>{a ?? "any app"}</Link>
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+        {[undefined, ...s.apps.map((a) => a.app)].map((a) => (
+          <DropdownMenuItem key={a ?? "any"} asChild>
+            <Link href={proofHref(a)} aria-current={a === app ? "page" : undefined} className={a === app ? "font-medium text-fill" : undefined}>
+              {a ?? "any app"}
+            </Link>
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
