@@ -6,19 +6,19 @@ export const metadata = { title: "Docs · NotOnQ" };
 
 const HARNESS = `# The official Qloo MCP server (@qloo/qloo-harness), unchanged. Only its base URL points at NotOnQ.
 QLOO_API_KEY=<your Qloo key> \\
-QLOO_BASE_URL=https://<notonq-host>/q/app/my-app \\
-QLOO_TRUSTED_BASE_URL=https://<notonq-host>/q/app/my-app \\
+QLOO_BASE_URL=https://notonq.vercel.app/q/app/my-app \\
+QLOO_TRUSTED_BASE_URL=https://notonq.vercel.app/q/app/my-app \\
 qloo mcp`;
 
 const REST = `# Same paths and parameters as the Qloo API: change the base URL, keep your key.
 curl -H "X-Api-Key: $QLOO_API_KEY" -H "X-NotOnQ-App: my-app" \\
-  "https://<notonq-host>/q/search?types=urn:entity:artist&query=sombr"`;
+  "https://notonq.vercel.app/q/search?types=urn:entity:artist&query=sombr"`;
 
 const TRACE = `# One user action in your app, three calls: one visit in the Ledger
 curl -H "X-Api-Key: $QLOO_API_KEY" -H "X-NotOnQ-App: my-app" -H "X-NotOnQ-Trace: action-42" \\
-  "https://<notonq-host>/q/search?types=urn:entity:artist&query=sombr"
+  "https://notonq.vercel.app/q/search?types=urn:entity:artist&query=sombr"
 curl -H "X-Api-Key: $QLOO_API_KEY" -H "X-NotOnQ-App: my-app" -H "X-NotOnQ-Trace: action-42" \\
-  "https://<notonq-host>/q/v2/insights?filter.type=urn:entity:artist&signal.interests.entities=502cf908-…"`;
+  "https://notonq.vercel.app/q/v2/insights?filter.type=urn:entity:artist&signal.interests.entities=502cf908-…"`;
 
 export default function DocsOverview() {
   return (
