@@ -6,7 +6,7 @@ import { Result } from "@/components/playground";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
+import { PageSpinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { storedView } from "@/server/playground";
 import { redactQlooIds } from "@/server/redact";
@@ -26,7 +26,7 @@ export default function LedgerEntryPage({ params }: PageProps<"/ledger/[name]">)
           Ledger
         </Link>
       </Button>
-      <Suspense fallback={<Spinner />}>
+      <Suspense fallback={<PageSpinner />}>
         <Entry params={params} />
       </Suspense>
     </section>

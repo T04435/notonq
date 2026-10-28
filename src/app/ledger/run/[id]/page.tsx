@@ -6,7 +6,7 @@ import { Suspense } from "react";
 import { Replay } from "@/components/replay";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { PageSpinner } from "@/components/ui/spinner";
 import { db } from "@/server/store/db";
 import { getRun } from "@/server/store/repo";
 
@@ -21,7 +21,7 @@ export default function RunPage({ params }: PageProps<"/ledger/run/[id]">) {
           Ledger
         </Link>
       </Button>
-      <Suspense fallback={<Spinner />}>
+      <Suspense fallback={<PageSpinner />}>
         <RunBody params={params} />
       </Suspense>
     </section>

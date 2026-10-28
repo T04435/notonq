@@ -7,7 +7,7 @@ import { Mark } from "@/components/brand/mark";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
+import { PageSpinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { FillQuestion } from "@/lib/benchmark";
 import { db } from "@/server/store/db";
@@ -37,7 +37,7 @@ export default function ProofPage({ searchParams }: PageProps<"/proof">) {
   return (
     <section className="flex flex-col gap-12">
       <h1 className="sr-only">Proof</h1>
-      <Suspense fallback={<Spinner />}>
+      <Suspense fallback={<PageSpinner />}>
         <Numbers searchParams={searchParams} />
       </Suspense>
       <AutoRefresh />

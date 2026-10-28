@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { type LedgerData, LiveLedger } from "@/components/ledger/live-ledger";
-import { Spinner } from "@/components/ui/spinner";
+import { PageSpinner } from "@/components/ui/spinner";
 import { parseLedgerParams } from "@/lib/ledger-params";
 import { db } from "@/server/store/db";
 import { artistCursor, ledger } from "@/server/store/repo";
@@ -17,7 +17,7 @@ export default function LedgerPage({ searchParams }: PageProps<"/ledger">) {
   return (
     <section className="flex flex-col gap-9">
       <h1 className="sr-only">Ledger</h1>
-      <Suspense fallback={<Spinner />}>
+      <Suspense fallback={<PageSpinner />}>
         <Data searchParams={searchParams} />
       </Suspense>
     </section>
