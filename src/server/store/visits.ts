@@ -1,6 +1,7 @@
 // The Ledger's visits list: visits (calls from one app and caller close together, or one Ask question), filtered as
 // the URL says, with real counts, keyset pages and a live tail. The same filter runs in SQL here and in matchVisit for
 // rows pushed live.
+import { callDetail, callName } from "@/lib/call-label";
 import { type LedgerParams, matchVisit, PAGE, type Visit } from "@/lib/ledger-params";
 import type { Sql } from "@/server/store/db";
 import type { Run } from "@/server/store/repo";
@@ -34,7 +35,8 @@ function where(f: Filters, args: unknown[]) {
   return w;
 }
 
-export type VisitPage = { rows: Visit[]; total: number; helped: number; next?: string };
+/** total: visits in this view; helped: where we filled in; all: every visit (same filters, any view). */
+export type VisitPage = { rows: Visit[]; total: number; helped: number; all: number; next?: string };
 
 /** One page of visits, newest activity first, and the counts for the same filters (before paging). */
 export async function listVisits(sql: Sql, p: LedgerParams, limit = PAGE): Promise<VisitPage> {
@@ -52,17 +54,17 @@ export async function listVisits(sql: Sql, p: LedgerParams, limit = PAGE): Promi
   const [rows, [c], [h]] = await Promise.all([
     sql(`SELECT * FROM visits ${w.length ? `WHERE ${w.join(" AND ")}` : ""} ORDER BY last_at DESC, id DESC LIMIT ${limit + 1}`, args),
     sql<{ n: number }>(`SELECT count(*)::int AS n FROM visits ${countWhere}`, countArgs),
-    sql<{ n: number }>(`SELECT count(*)::int AS n FROM visits WHERE ${[...hw, "helped > 0"].join(" AND ")}`, helpedArgs),
+    sql<{ n: number; all: number }>(`SELECT count(*) FILTER (WHERE helped > 0)::int AS n, count(*)::int AS all FROM visits ${hw.length ? `WHERE ${hw.join(" AND ")}` : ""}`, helpedArgs),
   ]);
   const page = rows.slice(0, limit).map(toVisit);
   const last = page.at(-1);
-  return { rows: page, total: Number(c.n), helped: Number(h.n), next: rows.length > limit && last ? `${last.lastAt}~${last.id}` : undefined };
+  return { rows: page, total: Number(c.n), helped: Number(h.n), all: Number(h.all), next: rows.length > limit && last ? `${last.lastAt}~${last.id}` : undefined };
 }
 
 /** Just the counts for a view (for live updates). */
-export async function countVisits(sql: Sql, p: LedgerParams): Promise<{ total: number; helped: number }> {
-  const { total, helped } = await listVisits(sql, { ...p, before: undefined }, 0);
-  return { total, helped };
+export async function countVisits(sql: Sql, p: LedgerParams): Promise<{ total: number; helped: number; all: number }> {
+  const { total, helped, all } = await listVisits(sql, { ...p, before: undefined }, 0);
+  return { total, helped, all };
 }
 
 /** Visits that changed after a moment (new, or a new call in one), oldest change first: the live tail. Compared at
@@ -77,11 +79,19 @@ export async function latestChange(sql: Sql): Promise<string> {
 }
 
 /** The calls in one visit, oldest first (events left out: each call opens on its own replay page). */
-export type VisitCall = Omit<Run, "events"> & { helped: boolean };
+/** A call in a visit, with its plain-words name and what came back (lib/call-label). */
+export type VisitCall = Omit<Run, "events"> & { helped: boolean; name: string; detail: string };
 
 export async function visitCalls(sql: Sql, id: string): Promise<VisitCall[]> {
-  const rows = await sql(`SELECT id, kind, title, summary, served_by, app_label, ms, created_at, helped FROM runs WHERE visit_id = $1 ORDER BY created_at, id`, [id]);
+  const rows = await sql(
+    `SELECT id, kind, title, summary, served_by, app_label, ms, created_at, helped,
+            (events->1->>'status')::int AS status, events->1->'body'->>'note' AS note, events->1->'body'->'notonq' AS notonq
+     FROM runs WHERE visit_id = $1 ORDER BY created_at, id`,
+    [id],
+  );
   return rows.map((r) => ({
+    name: r.kind === "ask" ? "ask" : callName(String(r.title)),
+    detail: r.kind === "ask" ? String(r.summary ?? "") : callDetail((r.served_by as string) ?? undefined, r.status === null ? undefined : Number(r.status), (r.note as string) ?? undefined, typeof r.notonq === "string" ? JSON.parse(r.notonq) : (r.notonq as never)),
     id: String(r.id),
     kind: r.kind as Run["kind"],
     title: String(r.title),
@@ -101,7 +111,7 @@ export async function ledgerApps(sql: Sql, limit = 12): Promise<string[]> {
 }
 
 /** What a page sends after "since", for its view: the Ledger's live update. */
-export type LedgerChanges = { rows: Visit[]; total: number; helped: number; artists: boolean; at: string };
+export type LedgerChanges = { rows: Visit[]; total: number; helped: number; all: number; artists: boolean; at: string };
 
 /**
  * The visits that changed after a moment and match the view, with the view's fresh counts. A paging or "as of" view
@@ -112,6 +122,6 @@ export async function ledgerChanges(sql: Sql, p: LedgerParams, since: string): P
   const at = changed.at(-1)?.lastAt ?? since;
   const fixed = !!p.before || !!p.at;
   const rows = fixed ? [] : changed.filter((v) => matchVisit(v, p));
-  const { total, helped } = await countVisits(sql, { ...p, at: undefined });
-  return { rows, total, helped, artists: changed.length > 0, at };
+  const { total, helped, all } = await countVisits(sql, { ...p, at: undefined });
+  return { rows, total, helped, all, artists: changed.length > 0, at };
 }

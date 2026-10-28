@@ -65,7 +65,7 @@ export function LiveLedger({ data }: { data: LedgerData }) {
 
   // Rows on screen: the server's page, plus what arrived live since. Reset whenever the server renders anew.
   const [rows, setRows] = useState<Visit[]>(data.visits.rows);
-  const [counts, setCounts] = useState({ total: data.visits.total, helped: data.visits.helped });
+  const [counts, setCounts] = useState({ total: data.visits.total, helped: data.visits.helped, all: data.visits.all });
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const [held, setHeld] = useState<Map<string, Visit>>(new Map());
   const [heldCounts, setHeldCounts] = useState<typeof counts | null>(null);
@@ -73,7 +73,7 @@ export function LiveLedger({ data }: { data: LedgerData }) {
   if (shown !== data) {
     setShown(data);
     setRows(data.visits.rows);
-    setCounts({ total: data.visits.total, helped: data.visits.helped });
+    setCounts({ total: data.visits.total, helped: data.visits.helped, all: data.visits.all });
     setHeld(new Map());
     setHeldCounts(null);
     setFresh(new Set());
@@ -92,12 +92,12 @@ export function LiveLedger({ data }: { data: LedgerData }) {
   const status = useLive(params, data.renderedAt, (c) => {
     if (live) {
       if (c.rows.length) apply(c.rows);
-      setCounts({ total: c.total, helped: c.helped });
+      setCounts({ total: c.total, helped: c.helped, all: c.all });
       // The artist bar and an open panel are server-rendered: refresh them when something changed.
       if (c.artists) startTransition(() => router.refresh());
     } else if (!params.before && c.rows.length) {
       setHeld((h) => new Map([...h, ...c.rows.map((v) => [v.id, v] as const)]));
-      setHeldCounts({ total: c.total, helped: c.helped });
+      setHeldCounts({ total: c.total, helped: c.helped, all: c.all });
     }
   });
 
@@ -395,7 +395,7 @@ function Visits({
   go,
 }: {
   rows: Visit[];
-  counts: { total: number; helped: number };
+  counts: { total: number; helped: number; all: number };
   params: LedgerParams;
   fresh: Set<string>;
   today: string;
@@ -405,6 +405,7 @@ function Visits({
 }) {
   const total = useTween(counts.total);
   const helped = useTween(counts.helped);
+  const all = useTween(counts.all);
   if (!rows.length)
     return (
       <Empty className="border">
@@ -423,7 +424,7 @@ function Visits({
         <span>
           Showing {rows.length} of {total} visits{what}
           {params.q ? ` that mention ${params.q}` : ""}
-          {params.view !== "helped" ? ` · ${helped} where we filled in` : ""}
+          {params.view === "all" ? ` · ${helped} where we filled in` : ` · ${all} in all`}
           {params.at ? ` · as of ${params.at.slice(0, 16).replace("T", " ")} UTC` : ""}
         </span>
         <span>newest first · UTC</span>
@@ -453,7 +454,11 @@ function Visits({
   );
 }
 
+/** An open visit lists its first calls; the rest are a click away (the board shows four). */
+const FIRST_CALLS = 4;
+
 function VisitRow({ v, today, open, isNew, delay, calls, onOpen }: { v: Visit; today: string; open: boolean; isNew: boolean; delay?: number; calls?: VisitCall[]; onOpen: (open: boolean) => void }) {
+  const [showAll, setShowAll] = useState(false);
   const motion = isNew ? "ledger-new animate-in fade-in slide-in-from-top-2 duration-300 bg-fill-ground shadow-[inset_2px_0_0_var(--fill)]" : delay !== undefined ? "animate-in fade-in slide-in-from-top-1 duration-300 fill-mode-both" : "";
   const help = v.kind === "ask" ? (v.helped ? "Ask · we filled in" : "Ask · Qloo answered") : `${v.calls} call${v.calls === 1 ? "" : "s"} · ${v.helped ? `NotOnQ answered ${v.helped}` : "Qloo answered all"}`;
   return (
@@ -478,24 +483,38 @@ function VisitRow({ v, today, open, isNew, delay, calls, onOpen }: { v: Visit; t
       <CollapsibleContent>
         <ol aria-label="Calls in this visit" className="flex flex-col bg-surface px-3 pt-1 pb-4 md:pl-[108px] md:pr-4">
           {calls ? (
-            calls.map((c) => (
-              <li key={c.id} className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t py-2 text-xs animate-in fade-in motion-reduce:animate-none md:grid-cols-[64px_minmax(0,220px)_110px_minmax(0,1fr)_auto]">
-                <span className="text-muted-foreground tabular-nums">{c.createdAt.slice(11, 19)}</span>
-                <span className="min-w-0 truncate" title={c.title}>
-                  {c.title}
-                </span>
-                <span className="col-start-3 row-start-1 md:col-start-auto md:row-start-auto">
-                  {c.servedBy === "needs_choice" ? <Badge variant="again">choice</Badge> : c.helped ? <NotOnQBadge>NotOnQ</NotOnQBadge> : <Badge variant="outline">Qloo</Badge>}
-                </span>
-                <span className="col-span-2 col-start-2 min-w-0 break-words text-subtle md:col-span-1 md:col-start-auto">{c.summary}</span>
-                <Button asChild variant="outline" size="sm" className="col-start-3 row-start-2 justify-self-end font-normal md:col-start-auto md:row-start-auto">
-                  <Link href={`/ledger/run/${c.id}`}>
-                    <PlayIcon className="fill-current" />
-                    Replay
-                  </Link>
-                </Button>
-              </li>
-            ))
+            <>
+              {(showAll ? calls : calls.slice(0, FIRST_CALLS)).map((c) => (
+                <li key={c.id} className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t py-2 text-xs animate-in fade-in motion-reduce:animate-none md:grid-cols-[64px_minmax(0,180px)_110px_minmax(0,1fr)_auto]">
+                  <span className="text-muted-foreground tabular-nums">{c.createdAt.slice(11, 19)}</span>
+                  <span className="min-w-0 truncate" title={c.title}>
+                    {c.name}
+                  </span>
+                  <span className="col-start-3 row-start-1 md:col-start-auto md:row-start-auto">
+                    {c.servedBy === "needs_choice" ? <Badge variant="again">choice</Badge> : c.helped ? <NotOnQBadge>NotOnQ</NotOnQBadge> : <Badge variant="outline">Qloo</Badge>}
+                  </span>
+                  <span className={`col-span-2 col-start-2 min-w-0 break-words md:col-span-1 md:col-start-auto ${c.helped ? "text-subtle" : "text-muted-foreground"}`}>{c.detail}</span>
+                  {c.helped || c.kind === "ask" ? (
+                    <Button asChild variant="outline" size="sm" className="col-start-3 row-start-2 justify-self-end font-normal md:col-start-auto md:row-start-auto">
+                      <Link href={`/ledger/run/${c.id}`}>
+                        <PlayIcon className="fill-current" />
+                        Replay
+                      </Link>
+                    </Button>
+                  ) : (
+                    // Qloo answered alone: its data isn't kept, only the count, so there is nothing to replay.
+                    <span className="col-start-3 row-start-2 justify-self-end text-[11px] text-muted-foreground md:col-start-auto md:row-start-auto">counts only</span>
+                  )}
+                </li>
+              ))}
+              {calls.length > FIRST_CALLS ? (
+                <li className="border-t py-2 text-xs md:pl-[78px]">
+                  <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" onClick={() => setShowAll(!showAll)}>
+                    {showAll ? "Show fewer calls" : `+ ${calls.length - FIRST_CALLS} more call${calls.length - FIRST_CALLS === 1 ? "" : "s"}`}
+                  </Button>
+                </li>
+              ) : null}
+            </>
           ) : (
             <li className="py-2 text-xs text-muted-foreground">Loading calls</li>
           )}
