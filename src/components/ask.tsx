@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, ChevronRightIcon, CircleAlertIcon, CircleDashedIcon, ExternalLinkIcon, PlayIcon, PlusIcon, RotateCcwIcon, XIcon } from "lucide-react";
+import { ChevronRightIcon, CircleAlertIcon, CircleDashedIcon, ExternalLinkIcon, PlayIcon, PlusIcon, RotateCcwIcon } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -334,9 +334,9 @@ function logLines(events: AskEvent[], times: number[]): LogLine[] {
 function LogIcon({ kind, now }: { kind: LogLine["kind"]; now: boolean }) {
   if (now) return <Mark size={14} running className="text-foreground" />;
   if (kind === "fill") return <PlusIcon className="size-3.5 text-fill" strokeWidth={2.5} />;
-  if (kind === "miss") return <XIcon className="size-3.5 text-dim" />;
+  if (kind === "miss") return <Mark size={14} muted className="text-dim" />;
   if (kind === "error") return <CircleAlertIcon className="size-3.5 text-destructive" />;
-  return <CheckIcon className="size-3.5 text-success" strokeWidth={2.5} />;
+  return <Mark size={14} className="text-success" />;
 }
 
 /**
