@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, Link2Icon, PlayIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, Link2Icon, PlayIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -21,10 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Switch } from "@/components/ui/switch";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { type LedgerParams, toLedgerSearch, type Visit } from "@/lib/ledger-params";
-import type { Answer, LedgerRow } from "@/server/store/repo";
 import type { VisitCall, VisitPage } from "@/server/store/visits";
 import { type LiveStatus, useLive, useTween } from "./use-live";
 
@@ -34,15 +32,10 @@ export type LedgerData = {
   renderedAt: string;
   /** The apps seen in the Ledger, busiest first (the app filter). */
   apps: string[];
-  /** The most asked artists, for the "Filter by artist" bar, and how many artists there are in all. */
-  top: { rows: LedgerRow[]; total: number };
   visits: VisitPage;
   openCalls?: VisitCall[];
-  /** The ranked artists panel, when open (artists=open). */
-  artists?: { rows: LedgerRow[]; total: number; filled: number; next?: string };
 };
 
-const ANSWER: Record<Answer, string> = { notonq: "NotOnQ", qloo: "Qloo", choice: "awaiting a choice", none: "nothing found yet" };
 /** The hackathon apps come first in the app filter, then the busiest. */
 const KNOWN_APPS = ["ghostq", "busk-map", "front-room", "ask"];
 const MAX_APPS = 10;
@@ -93,8 +86,6 @@ export function LiveLedger({ data }: { data: LedgerData }) {
     if (live) {
       if (c.rows.length) apply(c.rows);
       setCounts({ total: c.total, helped: c.helped, all: c.all });
-      // The artist bar and an open panel are server-rendered: refresh them when something changed.
-      if (c.artists) startTransition(() => router.refresh());
     } else if (!params.before && c.rows.length) {
       setHeld((h) => new Map([...h, ...c.rows.map((v) => [v.id, v] as const)]));
       setHeldCounts({ total: c.total, helped: c.helped, all: c.all });
@@ -117,7 +108,6 @@ export function LiveLedger({ data }: { data: LedgerData }) {
       <LiveBar params={params} status={status} live={live} held={held.size} onShow={showHeld} onLive={setLive} go={go} />
       <section aria-labelledby="visits" className="flex flex-col">
         <Filters params={params} apps={data.apps} go={go} />
-        {data.artists ? <ArtistsPanel data={data.artists} all={data.top.total} params={params} go={go} /> : null}
         <Visits rows={rows} counts={counts} params={params} fresh={fresh} today={today} openCalls={data.openCalls} next={data.visits.next} go={go} />
       </section>
     </div>
@@ -163,7 +153,7 @@ function LiveBar({ params, status, live, held, onShow, onLive, go }: { params: L
   );
 }
 
-/** The visits filters: what NotOnQ did, the artist (opens the ranked panel), app and kind. */
+/** The visits filters: what NotOnQ did, app and kind. */
 function Filters({ params, apps, go }: { params: LedgerParams; apps: string[]; go: (p: Partial<LedgerParams>) => void }) {
   const appList = useMemo(() => {
     const base = [...new Set([...KNOWN_APPS, ...apps])].slice(0, MAX_APPS);
@@ -181,17 +171,6 @@ function Filters({ params, apps, go }: { params: LedgerParams; apps: string[]; g
           <ToggleGroupItem value="qloo">Qloo alone</ToggleGroupItem>
           <ToggleGroupItem value="all">All</ToggleGroupItem>
         </ToggleGroup>
-        <Button
-          variant="outline"
-          aria-haspopup="dialog"
-          aria-expanded={params.artists}
-          onClick={() => go(params.artists ? { artists: false, apage: undefined, result: undefined } : { artists: true, apage: undefined, result: params.result ?? "notonq" })}
-          className={`h-9 font-normal ${params.artists || params.q ? "border-fill bg-fill-ground" : ""}`}
-        >
-          <span className="text-muted-foreground">artist</span>
-          <b className={`font-medium ${params.q ? "text-fill" : ""}`}>{params.q ?? "any"}</b>
-          {params.artists ? <ChevronUpIcon /> : <ChevronDownIcon />}
-        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-9 font-normal">
@@ -240,130 +219,6 @@ function Filters({ params, apps, go }: { params: LedgerParams; apps: string[]; g
         </DropdownMenu>
       </div>
     </div>
-  );
-}
-
-/** Every artist looked up, most asked first; pick one to see its visits. Replaces the old Artists tab. */
-function ArtistsPanel({ data, all, params, go }: { data: NonNullable<LedgerData["artists"]>; all: number; params: LedgerParams; go: (p: Partial<LedgerParams>) => void }) {
-  const total = useTween(data.total);
-  const max = Math.max(1, ...data.rows.map((r) => r.requests));
-  const picked = params.q?.toLowerCase();
-  return (
-    <section aria-labelledby="artists" className="mb-6 flex flex-col gap-3 border border-fill bg-surface p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2.5">
-        <h2 id="artists" className="eyebrow">
-          Pick an artist · most asked first
-        </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="h-9 font-normal" aria-expanded="true" onClick={() => go({ artists: false, apage: undefined, result: undefined })}>
-            Close
-            <ChevronUpIcon />
-          </Button>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground tabular-nums">
-        Showing {data.rows.length} of {params.result === "notonq" ? `${total} artists we filled in from open sources · ${all} artists in all` : `${total} artists`}. Pick one to see its visits
-        {params.q ? `, or ${params.q} again to clear it` : ""}.
-      </p>
-      {data.rows.length ? (
-        <div className="border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">#</TableHead>
-                <TableHead>artist</TableHead>
-                <TableHead className="text-right">lookups</TableHead>
-                <TableHead className="text-right">callers</TableHead>
-                <TableHead>apps</TableHead>
-                <TableHead>stand-ins Qloo knows</TableHead>
-                <TableHead>answered by</TableHead>
-                <TableHead>
-                  <span className="sr-only">Record</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.rows.map((r) => {
-                const on = picked === r.name.toLowerCase();
-                return (
-                  <TableRow
-                    key={r.nameKey}
-                    data-state={on ? "selected" : undefined}
-                    aria-selected={on}
-                    className={`cursor-pointer ${on ? "[&>td:first-child]:shadow-[inset_2px_0_0_var(--fill)]" : ""}`}
-                    onClick={() => go({ q: on ? undefined : r.name, before: undefined, open: undefined })}
-                  >
-                    <TableCell className="text-muted-foreground tabular-nums">{r.rank}</TableCell>
-                    <TableCell className="font-medium whitespace-normal">
-                      <button type="button" className={`text-left hover:underline ${r.answer === "notonq" ? "text-fill" : ""}`}>
-                        {r.name}
-                      </button>
-                      {r.confidence === "low" && r.answer === "notonq" ? (
-                        <Badge variant="outline" className="ml-2">
-                          low confidence
-                        </Badge>
-                      ) : null}
-                      {r.resolvedByQlooAt ? (
-                        <Badge variant="outline" className="ml-2">
-                          now in Qloo
-                        </Badge>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      <span className="grid grid-cols-[48px_28px] items-center justify-end gap-2.5 text-xs tabular-nums sm:grid-cols-[100px_28px]">
-                        <Bar share={r.requests / max} />
-                        <span className="text-right">{r.requests}</span>
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.callers}</TableCell>
-                    <TableCell className="whitespace-normal">
-                      <span className="inline-flex flex-wrap gap-1">
-                        {r.apps.map((a) => (
-                          <AppTag key={a}>{a}</AppTag>
-                        ))}
-                      </span>
-                    </TableCell>
-                    <TableCell className="max-w-64 text-xs whitespace-normal text-muted-foreground">{r.standIns.map((s) => s.name).join(", ") || (r.answer === "notonq" ? "none yet" : "")}</TableCell>
-                    <TableCell>{r.answer === "notonq" ? <NotOnQBadge>NotOnQ</NotOnQBadge> : <Badge variant="outline">{ANSWER[r.answer]}</Badge>}</TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Button asChild variant="outline" size="sm" className="font-normal">
-                        <Link href={`/ledger/${encodeURIComponent(r.nameKey)}`}>
-                          Record
-                          <ChevronRightIcon />
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">No artist matches these filters.</p>
-      )}
-      <div className="flex justify-center gap-2">
-        {params.apage ? (
-          <Button variant="ghost" size="lg" className="font-normal" onClick={() => go({ apage: undefined })}>
-            Back to most asked
-          </Button>
-        ) : null}
-        {data.next ? (
-          <Button variant="outline" size="lg" className="font-normal" onClick={() => go({ apage: data.next })}>
-            Load more artists
-          </Button>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-/** A share of a whole, as an amber bar on a dark track. */
-function Bar({ share }: { share: number }) {
-  return (
-    <i aria-hidden="true" className="block h-1.5 bg-border">
-      <b className="block h-full bg-fill" style={{ width: `${Math.round(Math.min(1, share) * 100)}%` }} />
-    </i>
   );
 }
 
