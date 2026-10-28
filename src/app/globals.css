@@ -9,6 +9,8 @@
   --color-success: var(--success);
   --color-fill: var(--fill);
   --color-fill-ground: var(--fill-ground);
+  --color-notice: var(--notice);
+  --color-notice-border: var(--notice-border);
   --color-subtle: var(--subtle);
   --color-dim: var(--dim);
   --color-strong: var(--border-strong);
@@ -84,6 +86,8 @@
   --success: #f5b841;
   --fill: #f5b841; /* a value NotOnQ filled in */
   --fill-ground: #1a1710; /* a row that just arrived, a picked row */
+  --notice: #17140e; /* the docs notice: one scope or limit for a whole page */
+  --notice-border: #3a2f18;
   --border: #24272b;
   --border-strong: #3a3e44;
   --input: #3a3e44;
