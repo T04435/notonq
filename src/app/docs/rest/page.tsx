@@ -4,7 +4,7 @@ import { A, C, DocsSection, EndpointTable, H3, Notice, P, RefTable } from "@/com
 export const metadata = { title: "REST API · NotOnQ" };
 
 const SEARCH = `curl -H "X-Api-Key: $QLOO_API_KEY" -H "X-NotOnQ-App: my-app" \\
-  "https://<notonq-host>/q/search?types=urn:entity:artist&query=sombr"`;
+  "https://notonq.vercel.app/q/search?types=urn:entity:artist&query=sombr"`;
 
 // What NotOnQ adds is amber in the box: the filled-in artist and the notonq block (0-based line numbers below).
 const SEARCH_RES = `{
@@ -39,19 +39,19 @@ const CHOICE = `// No clear match: Qloo's results first, then every artist the n
 const CHOICE_ADDED = [3, 4, 6, 7, 8, 9];
 
 const PICK = `# Use the one you mean: its entity_id works in /entities and as a signal (NotOnQ fills it on first use)
-curl -H "X-Api-Key: $QLOO_API_KEY" "https://<notonq-host>/q/entities?entity_ids=e1e3771f-bb8e-5289-…"
+curl -H "X-Api-Key: $QLOO_API_KEY" "https://notonq.vercel.app/q/entities?entity_ids=e1e3771f-bb8e-5289-…"
 
 # or by key
 curl -H "X-Api-Key: $QLOO_API_KEY" \\
-  "https://<notonq-host>/q/search?types=urn:entity:artist&query=victoria%20queen&notonq.candidate=lf:victoria-queen"`;
+  "https://notonq.vercel.app/q/search?types=urn:entity:artist&query=victoria%20queen&notonq.candidate=lf:victoria-queen"`;
 
 const INSIGHTS = `# GET: a NotOnQ ID works as a signal anywhere Qloo takes one
 curl -H "X-Api-Key: $QLOO_API_KEY" \\
-  "https://<notonq-host>/q/v2/insights?filter.type=urn:entity:artist&signal.interests.entities=502cf908-…&take=5"
+  "https://notonq.vercel.app/q/v2/insights?filter.type=urn:entity:artist&signal.interests.entities=502cf908-…&take=5"
 
 # POST: Qloo's JSON body, with UUID strings or { id, weight } objects
 curl -X POST -H "X-Api-Key: $QLOO_API_KEY" -H "Content-Type: application/json" \\
-  "https://<notonq-host>/q/v2/insights" \\
+  "https://notonq.vercel.app/q/v2/insights" \\
   -d '{ "filter.type": "urn:entity:place", "filter.location.query": "Melbourne",
         "signal.interests.entities": [{ "id": "502cf908-…", "weight": 1 }] }'`;
 
@@ -65,7 +65,7 @@ export default function RestReference() {
 
       <DocsSection id="base" title="Base URL and headers">
         <P>
-          Send the same path and parameters you would send to <C>https://hackathon.api.qloo.com</C>, to <C>https://&lt;notonq-host&gt;/q</C>, or to{" "}
+          Send the same path and parameters you would send to <C>https://hackathon.api.qloo.com</C>, to <C>https://notonq.vercel.app/q</C>, or to{" "}
           <C>/q/app/&lt;your-app&gt;</C> to name your app without a header. The machine-readable spec is at <A href="/openapi.json">/openapi.json</A>.
         </P>
         <RefTable

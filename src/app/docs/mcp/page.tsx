@@ -8,8 +8,8 @@ npm install -g @qloo/qloo-harness
 
 # Run it against NotOnQ: only the base URL changes
 QLOO_API_KEY=<your Qloo key> \\
-QLOO_BASE_URL=https://<notonq-host>/q/app/my-app \\
-QLOO_TRUSTED_BASE_URL=https://<notonq-host>/q/app/my-app \\
+QLOO_BASE_URL=https://notonq.vercel.app/q/app/my-app \\
+QLOO_TRUSTED_BASE_URL=https://notonq.vercel.app/q/app/my-app \\
 qloo mcp`;
 
 const CONFIG = `{
@@ -19,8 +19,8 @@ const CONFIG = `{
       "args": ["mcp"],
       "env": {
         "QLOO_API_KEY": "<your Qloo key>",
-        "QLOO_BASE_URL": "https://<notonq-host>/q/app/my-app",
-        "QLOO_TRUSTED_BASE_URL": "https://<notonq-host>/q/app/my-app"
+        "QLOO_BASE_URL": "https://notonq.vercel.app/q/app/my-app",
+        "QLOO_TRUSTED_BASE_URL": "https://notonq.vercel.app/q/app/my-app"
       }
     }
   }

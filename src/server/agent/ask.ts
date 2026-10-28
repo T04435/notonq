@@ -65,8 +65,11 @@ export const MET = 0.6;
 
 const SYSTEM = `You answer culture and taste questions with the Qloo tools. Call tools; never answer from memory and never
 add names the tools did not return. There is no person to ask: when a tool returns needs_input with candidates, pick the
-best one from the question and call again. If an entity's description says "Not in Qloo" or "Picked by NotOnQ", say so
-next to it. Answer briefly: a short list, one line each.`;
+best one from the question and call again. An entity whose description starts "Not in Qloo" is not in Qloo: NotOnQ filled it
+in from open sources (the description says which). Say that plainly, e.g. "Qloo doesn't have X yet; from open sources: …",
+and never call it an artist in Qloo or quote the label. Results answered through "similar artists Qloo knows" are Qloo's
+answers for those artists: say so. If a description says "Picked by NotOnQ" or "Matched by NotOnQ", say NotOnQ picked or
+matched it. Never print IDs, scores or popularity numbers. Answer briefly: a short list, one line each.`;
 
 export type HttpExchange = { request: string; json: unknown };
 type Request = { method?: string; path?: string; query?: Record<string, unknown> };

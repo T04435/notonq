@@ -26,7 +26,7 @@ Every number on [`/proof`](src/app/proof/page.tsx) is counted from runs in the L
 2. **Drop-in REST and MCP** (`/q/*`): the same paths and parameters as the Qloo API, with your own `X-Api-Key`.
    Qloo's results come first, unchanged; NotOnQ's artists are added after them in exactly Qloo's shape, with UUID IDs
    and a "Not in Qloo" label in `short_description`. For MCP, run the official Qloo harness unchanged:
-   `QLOO_BASE_URL=https://<host>/q/app/my-app QLOO_TRUSTED_BASE_URL=https://<host>/q/app/my-app qloo mcp`.
+   `QLOO_BASE_URL=https://notonq.vercel.app/q/app/my-app QLOO_TRUSTED_BASE_URL=https://notonq.vercel.app/q/app/my-app qloo mcp`.
 
 Docs live at `/docs` (REST and MCP reference), `/openapi.json`, and for agents `/llms.txt` and `/llms-full.txt`.
 
