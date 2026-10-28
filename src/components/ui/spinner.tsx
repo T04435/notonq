@@ -1,10 +1,22 @@
 import { cn } from "cn"
-import { Loader2Icon } from "lucide-react"
+import { Mark } from "@/components/brand/mark"
 
-function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
+/** The loader is the NotOnQ mark with its slot blinking (the brand's "running" state). */
+function Spinner({ className }: { className?: string }) {
   return (
-    <Loader2Icon data-slot="spinner" role="status" aria-label="Loading" className={cn("size-4 animate-spin", className)} {...props} />
+    <span data-slot="spinner" role="status" aria-label="Loading" className={cn("inline-flex size-4 text-foreground", className)}>
+      <Mark size={48} running className="size-full" />
+    </span>
   )
 }
 
-export { Spinner }
+/** A page or section still loading: the mark, centred, blinking. */
+function PageSpinner() {
+  return (
+    <div className="flex min-h-[40vh] w-full items-center justify-center">
+      <Spinner className="size-10" />
+    </div>
+  )
+}
+
+export { PageSpinner, Spinner }

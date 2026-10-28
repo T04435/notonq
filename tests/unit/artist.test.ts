@@ -8,7 +8,7 @@ const NEW = mbid(99);
 const openData: [string, (u: URL) => Response][] = [
   [
     `musicbrainz.org/ws/2/artist/${NEW}`,
-    () => json(200, { id: NEW, name: "Newact", country: "US", disambiguation: "indie band", aliases: [{ name: "New Act" }], tags: [{ name: "indie pop", count: 3 }] }),
+    () => json(200, { id: NEW, name: "Newact", country: "US", "begin-area": { name: "Seattle" }, disambiguation: "indie band", aliases: [{ name: "New Act" }], tags: [{ name: "indie pop", count: 3 }] }),
   ],
   [
     "musicbrainz.org/ws/2/artist",
@@ -85,7 +85,8 @@ describe("resolveArtist", () => {
       types: ["urn:entity:artist"],
       disambiguation: "indie band, US",
       properties: {
-        short_description: "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2, Similar 3. Newact is a band.",
+        short_description: "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2, Similar 3. From Seattle, United States (MusicBrainz). Newact is a band.",
+        "notonq:home": { name: "Seattle", country: "United States", country_code: "US", source: "musicbrainz" },
         akas: [{ value: "New Act", languages: [] }],
         external: { musicbrainz: { id: NEW }, wikidata: { id: "Q1" }, spotify: { id: "spotifyid1" }, lastfm: { listeners: 316228 } },
       },
@@ -98,6 +99,19 @@ describe("resolveArtist", () => {
       expect(out.provenance[path]?.[0]?.record, path).toBeTruthy();
     expect(out.provenance.popularity[0].method).toBe("derived");
     expect(out.unavailable).toContain("properties.image");
+  });
+
+  it("uses Qloo's own genre tag where Qloo has one by that exact name, NotOnQ's otherwise (v0.4.0)", async () => {
+    const tags = (u: URL) =>
+      json(200, { success: true, results: { tags: u.searchParams.get("filter.query") === "indie pop" ? [{ id: "urn:tag:genre:music:indie_pop", name: "Indie Pop", type: "urn:tag:genre:music" }, { id: "urn:tag:genre:music:pop", name: "Pop", type: "urn:tag:genre:music" }] : [{ id: "urn:tag:genre:music:rock", name: "Rock", type: "urn:tag:genre:music" }] } });
+    const { fetch } = fakeFetch([["/search", () => json(404, { message: "No results" })], ["/v2/tags", tags], ...openData]);
+    const out = await resolveArtist("Newact", { qloo: qlooClient({ apiKey: "k3", fetch }), lastfmKey: "lf", fetch });
+    if (out.servedBy !== "fallback") throw new Error("expected a fallback");
+    expect(out.entity?.tags).toEqual([
+      { name: "alternative rock", tag_id: "notonq:urn:tag:genre:alternative_rock", type: "urn:tag:genre", value: "notonq:urn:tag:genre:alternative_rock" },
+      { name: "Indie Pop", tag_id: "urn:tag:genre:music:indie_pop", type: "urn:tag:genre:music", value: "urn:tag:genre:music:indie_pop" },
+    ]);
+    expect(out.provenance.tags[0].note).toBe("1 of 2 genre names matched to Qloo's own tags by exact name (/v2/tags)");
   });
 
   it("keeps Qloo's entity and still builds the fallback when Qloo can't use it as a signal (G2)", async () => {
@@ -122,11 +136,39 @@ describe("resolveArtist", () => {
     expect(out.entity?.name).toBe("Newact");
   });
 
+  it("finds similar artists Qloo knows by name, from Last.fm and then Deezer, when MusicBrainz IDs don't match (v0.4.1)", async () => {
+    const searched: string[] = [];
+    const routes: [string, (u: URL) => Response][] = [
+      [
+        "hackathon.api.qloo.com/search",
+        (u) => {
+          const q = u.searchParams.get("query") ?? "";
+          searched.push(q);
+          return q === "Newact" ? json(404, { message: "No results" }) : q === "Named Act" ? json(200, { results: [qlooArtist(21, "Named Act")] }) : q === "Sixth Related" ? json(200, { results: [qlooArtist(22, "Sixth Related")] }) : json(200, { results: [] });
+        },
+      ],
+      ["hackathon.api.qloo.com/entities", () => json(200, { results: [] })],
+      ["method=artist.getsimilar", () => json(200, { similarartists: { artist: [{ name: "No Id Act", match: "0.9" }, { name: "Named Act", match: "0.8" }] } })],
+      ["api.deezer.com/search/artist", () => json(200, { data: [{ id: 7, name: "Newact", nb_fan: 10 }] })],
+      ["api.deezer.com/artist/7/related", () => json(200, { data: ["R1", "R2", "R3", "R4", "R5", "Sixth Related"].map((name, i) => ({ id: 100 + i, name })) })],
+      ...openData.filter(([m]) => m !== "method=artist.getsimilar" && m !== "hackathon.api.qloo.com/entities"),
+    ];
+    const { fetch } = fakeFetch(routes);
+    const out = await resolveArtist("Newact", { qloo: qlooClient({ apiKey: "k5", fetch }), lastfmKey: "lf", fetch });
+    if (out.servedBy !== "fallback") throw new Error("expected a fallback");
+    expect(out.standIns.map((s) => [s.name, s.source])).toEqual([
+      ["Named Act", "lastfm"],
+      ["Sixth Related", "deezer"],
+    ]);
+    expect(searched).toContain("Sixth Related");
+    expect(out.provenance[`standIns.${qid(22)}`]?.[0].note).toBe("Deezer related artist #6; resolved in Qloo by exact name");
+  });
+
   it("says why when there is no Last.fm key", async () => {
     const { fetch } = fakeFetch([["/search", () => json(404, { message: "No results" })], ...openData]);
     const out = await resolveArtist("Newact", { qloo: qlooClient({ apiKey: "k3", fetch }), fetch });
     if (out.servedBy !== "fallback") throw new Error("expected a fallback");
     expect(out.standIns).toEqual([]);
-    expect(out.unavailable).toEqual(expect.arrayContaining(["standIns (no Last.fm key)", "popularity"]));
+    expect(out.unavailable).toEqual(expect.arrayContaining(["standIns (no Last.fm key; tried Deezer related artists)", "popularity"]));
   });
 });

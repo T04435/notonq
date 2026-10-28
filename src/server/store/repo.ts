@@ -60,9 +60,11 @@ function toFallback(r: Row): StoredFallback {
   };
 }
 
-export async function findFallback(sql: Sql, by: { nameKey?: string; id?: string; qlooEntityId?: string; mbid?: string; candidateKey?: string }) {
+export async function findFallback(sql: Sql, by: { nameKey?: string; id?: string; qlooEntityId?: string; mbid?: string; candidateKey?: string; spotifyId?: string }) {
   const [col, val] = by.id
     ? ["id", by.id]
+    : by.spotifyId
+      ? ["spotify_id", by.spotifyId]
     : by.candidateKey
       ? ["candidate_key", by.candidateKey]
     : by.qlooEntityId
@@ -73,6 +75,17 @@ export async function findFallback(sql: Sql, by: { nameKey?: string; id?: string
   const onlyDefault = col === "name_key" ? " AND NOT chosen" : "";
   const rows = await sql(`SELECT * FROM fallback_entities WHERE ${col} = $1${onlyDefault} ORDER BY refreshed_at DESC LIMIT 1`, [val]);
   return rows[0] ? toFallback(rows[0]) : null;
+}
+
+/** Records the Spotify ID an app asked for on a fill (found through MusicBrainz or by name), in the column and in the
+ * entity's own external IDs, so the next /entities?external.spotify.ids= lookup is one query. */
+export async function linkSpotify(sql: Sql, id: string, spotifyId: string) {
+  await sql(
+    `UPDATE fallback_entities SET spotify_id = $2,
+       entity = CASE WHEN entity IS NULL THEN NULL ELSE jsonb_set(entity, '{properties,external,spotify}', jsonb_build_object('id', $2::text)) END
+     WHERE id = $1`,
+    [id, spotifyId],
+  );
 }
 
 export async function saveFallback(sql: Sql, f: Omit<StoredFallback, "createdAt" | "refreshedAt" | "resolvedByQlooAt">) {
@@ -280,11 +293,34 @@ export type LedgerRow = {
   apps: string[];
   lastRequested: string;
   resolvedByQlooAt?: string;
+  /** Position in the filtered list, in the order asked for (1 = first). */
+  rank: number;
 };
 
 /** The Ledger: every artist looked up through NotOnQ (any door) and how its latest lookup was answered: by NotOnQ,
  * by Qloo, waiting for someone to choose which artist, or nothing found yet. Newest first. */
-export async function ledger(sql: Sql, limit = 200): Promise<LedgerRow[]> {
+export type ArtistFilters = {
+  app?: string[];
+  result?: Answer;
+  q?: string;
+  /** recent: latest lookup first, paged by "<lastRequested>~<nameKey>"; asked: most lookups first, paged by "<lookups>~<nameKey>". */
+  order?: "recent" | "asked";
+  before?: string;
+  limit?: number;
+};
+
+/** Artists looked up, newest first, filtered as the Ledger's URL says; total is the count before paging. */
+export async function ledger(sql: Sql, f: ArtistFilters = {}): Promise<LedgerRow[] & { total?: number; filled?: number }> {
+  const args: unknown[] = [];
+  const arg = (v: unknown) => `$${args.push(v)}`;
+  const where: string[] = [];
+  if (f.app?.length) where.push(`a.apps && ${arg(f.app)}::text[]`);
+  if (f.result === "qloo") where.push(`l.outcome = 'qloo'`);
+  if (f.result === "choice") where.push(`l.outcome = 'needs_choice'`);
+  if (f.result === "notonq") where.push(`l.outcome = 'fallback' AND f.entity IS NOT NULL`);
+  if (f.result === "none") where.push(`l.outcome = 'fallback' AND f.entity IS NULL`);
+  if (f.q) where.push(`(a.name_key ILIKE ${arg(`%${f.q}%`)} OR f.name ILIKE ${arg(`%${f.q}%`)} OR l.query ILIKE ${arg(`%${f.q}%`)})`);
+  const all = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const rows = await sql(
     `WITH lk AS (
        SELECT * FROM requests WHERE served_by IN ('qloo', 'fallback', 'needs_choice', 'mixed')
@@ -296,12 +332,24 @@ export async function ledger(sql: Sql, limit = 200): Promise<LedgerRow[]> {
               array_agg(DISTINCT coalesce(app_label, 'unlabelled')) AS apps, max(created_at) AS last
        FROM lk GROUP BY name_key
      )
-     SELECT a.*, l.outcome, l.entity_id, l.query, f.name, f.confidence, f.stand_ins, f.resolved_by_qloo_at, f.entity IS NOT NULL AS filled
+     SELECT a.*, l.outcome, l.entity_id, l.query, f.name, f.confidence, f.stand_ins, f.resolved_by_qloo_at, f.entity IS NOT NULL AS filled,
+            count(*) OVER ()::int AS total,
+            count(*) FILTER (WHERE l.outcome = 'fallback' AND f.entity IS NOT NULL) OVER ()::int AS filled_total
      FROM agg a JOIN latest l USING (name_key) LEFT JOIN fallback_entities f ON f.id = l.entity_id
-     ORDER BY a.last DESC LIMIT $1`,
-    [limit],
+     ${all}
+     ORDER BY ${f.order === "asked" ? "a.requests DESC, a.name_key ASC" : "a.last DESC, a.name_key DESC"}`,
+    args,
   );
-  return rows.map((r) => {
+  const total = rows.length ? Number(rows[0].total) : 0;
+  const filled = rows.length ? Number(rows[0].filled_total) : 0;
+  // Paging after the count, so the total is the filtered total whatever page this is.
+  const [bAt, bKey] = f.before?.split("~") ?? [];
+  const after =
+    f.order === "asked"
+      ? (r: Record<string, unknown>) => Number(r.requests) < Number(bAt) || (Number(r.requests) === Number(bAt) && String(r.name_key) > bKey)
+      : (r: Record<string, unknown>) => iso(r.last)! < bAt || (iso(r.last) === bAt && String(r.name_key) < bKey);
+  const paged = (bAt ? rows.filter(after) : rows).slice(0, f.limit ?? 50);
+  const out = paged.map((r) => {
     const outcome = String(r.outcome);
     const answer: Answer = outcome === "qloo" ? "qloo" : outcome === "needs_choice" ? "choice" : r.filled ? "notonq" : "none";
     return {
@@ -316,9 +364,15 @@ export async function ledger(sql: Sql, limit = 200): Promise<LedgerRow[]> {
       apps: (Array.isArray(r.apps) ? r.apps : json<string[]>(r.apps, [])).map(String),
       lastRequested: iso(r.last)!,
       resolvedByQlooAt: iso(r.resolved_by_qloo_at),
+      rank: rows.indexOf(r) + 1,
     };
   });
+  return Object.assign(out, { total, filled });
 }
+
+/** The cursor for the page after this row, in the order the rows were listed. */
+export const artistCursor = (r: Pick<LedgerRow, "requests" | "lastRequested" | "nameKey">, order: ArtistFilters["order"] = "recent") =>
+  order === "asked" ? `${r.requests}~${r.nameKey}` : `${r.lastRequested}~${r.nameKey}`;
 
 export async function totals(sql: Sql) {
   const [r] = await sql(
@@ -390,18 +444,38 @@ export async function saveShapeFill(sql: Sql, key: string, body: unknown) {
 export type RunEvent = { t: number } & Record<string, unknown>;
 export type Run = { id: string; kind: "ask" | "api"; title: string; summary?: string; servedBy?: string; appLabel?: string; ms?: number; createdAt: string; events: RunEvent[] };
 
-export async function saveRun(sql: Sql, r: Omit<Run, "createdAt"> & { callerHash: string }) {
-  await sql(`INSERT INTO runs (id, kind, title, summary, served_by, app_label, caller_hash, events, ms) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`, [
-    r.id,
-    r.kind,
-    r.title.slice(0, 500),
-    r.summary ?? null,
-    r.servedBy ?? null,
-    r.appLabel ?? null,
-    r.callerHash,
-    JSON.stringify(r.events),
-    r.ms ?? null,
-  ]);
+/** NotOnQ added or swapped data in this call (an API call it filled, picked, matched or proxied; an Ask answer not
+ * simply Qloo's). */
+export const isHelped = (kind: Run["kind"], servedBy?: string) =>
+  kind === "api" ? servedBy === "fallback" || servedBy === "mixed" || servedBy === "needs_choice" : !!servedBy && servedBy !== "qloo";
+
+/** Window in which calls from one app and caller count as one visit (when they send no X-NotOnQ-Trace). */
+export const VISIT_GAP = "2 minutes";
+
+/** Records a run in its visit: the open visit for this app and caller (or trace), else a new one. Returns the visit. */
+export async function saveRun(sql: Sql, r: Omit<Run, "createdAt"> & { callerHash: string; trace?: string; subject?: string }) {
+  const helped = isHelped(r.kind, r.servedBy);
+  const { createHash } = await import("node:crypto");
+  const traced = r.trace ? `v-${createHash("sha256").update(`${r.appLabel ?? ""}|${r.callerHash}|${r.trace}`).digest("hex").slice(0, 32)}` : null;
+  const [v] = await sql<{ id: string }>(
+    `WITH open AS (
+       SELECT id FROM visits
+       WHERE $1 <> 'ask' AND $4::text IS NULL AND kind = $1 AND app_label IS NOT DISTINCT FROM $2 AND caller_hash = $3 AND trace IS NULL
+         AND last_at > now() - interval '${VISIT_GAP}'
+       ORDER BY last_at DESC LIMIT 1
+     )
+     INSERT INTO visits (id, kind, app_label, caller_hash, trace, subject, title, calls, helped)
+     VALUES (coalesce($5, (SELECT id FROM open), $6), $1, $2, $3, $4, $7, $8, 1, $9)
+     ON CONFLICT (id) DO UPDATE SET calls = visits.calls + 1, helped = visits.helped + EXCLUDED.helped, last_at = now(),
+       subject = coalesce(visits.subject, EXCLUDED.subject)
+     RETURNING id`,
+    [r.kind, r.appLabel ?? null, r.callerHash, r.trace ?? null, traced, crypto.randomUUID(), r.subject?.replace(/\+/g, " ").trim().slice(0, 200) || null, r.title.slice(0, 500), helped ? 1 : 0],
+  );
+  await sql(
+    `INSERT INTO runs (id, kind, title, summary, served_by, app_label, caller_hash, events, ms, visit_id, helped) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (id) DO NOTHING`,
+    [r.id, r.kind, r.title.slice(0, 500), r.summary ?? null, r.servedBy ?? null, r.appLabel ?? null, r.callerHash, JSON.stringify(r.events), r.ms ?? null, v.id, helped],
+  );
+  return v.id;
 }
 
 const toRun = (r: Row, withEvents: boolean): Run => ({

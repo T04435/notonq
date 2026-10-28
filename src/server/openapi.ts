@@ -7,7 +7,7 @@ const notonqBlock = {
   description: "Added beside Qloo's response when NotOnQ took part. Qloo's own fields are never changed.",
   properties: {
     served_by: { type: "string", enum: ["qloo", "fallback", "mixed", "needs_choice"] },
-    gap: { type: "object", properties: { kind: { type: "string", enum: ["G1", "G2"] }, qloo_status: { type: "integer" }, qloo_message: { type: "string" } } },
+    gap: { type: "object", properties: { kind: { type: "string", enum: ["G1", "G2", "G4"], description: "G1: new to Qloo. G2: not yet a taste signal. G4: a short era list (artists by a music genre tag and place)." }, qloo_status: { type: "integer" }, qloo_message: { type: "string" } } },
     cache: { type: "object", properties: { hit: { type: "boolean" }, first_seen: { type: "string", format: "date-time" } } },
     demand: { type: "object", properties: { requests: { type: "integer" }, callers: { type: "integer" }, apps: { type: "integer" } } },
     proxy: {
@@ -72,9 +72,9 @@ export const OPENAPI = {
   openapi: "3.1.0",
   info: {
     title: "NotOnQ",
-    version: "0.3.0",
+    version: "0.4.0",
     description:
-      "A drop-in layer in front of the Qloo API (hackathon host). Qloo answers first with your own key; when Qloo has no data for an artist, NotOnQ adds a Qloo-shaped answer from open sources after Qloo's results, with a source on every value. NotOnQ entity IDs are UUIDs; their properties.short_description starts \"Not in Qloo\". Artists only. Works with the Qloo API; not affiliated with or endorsed by Qloo.",
+      "A drop-in layer in front of the Qloo API (hackathon host). Qloo answers first with your own key; an artist new to Qloo is filled in by NotOnQ from open sources, in Qloo's shape, after Qloo's results, with a source on every value. NotOnQ entity IDs are UUIDs; their properties.short_description starts \"Not in Qloo: filled by NotOnQ from open sources.\" (or \"Not in Qloo: a possible match\" for a candidate). Artists only. Works with the Qloo API; not affiliated with or endorsed by Qloo.",
     license: { name: "MIT" },
   },
   servers: [
@@ -86,6 +86,7 @@ export const OPENAPI = {
     securitySchemes: { qlooKey: key },
     parameters: {
       app: { name: "X-NotOnQ-App", in: "header", required: false, schema: { type: "string", maxLength: 64 }, description: "Your app's label in the Ledger." },
+      trace: { name: "X-NotOnQ-Trace", in: "header", required: false, schema: { type: "string", maxLength: 120 }, description: "Groups your calls for one user action into one visit in the Ledger. Never sent to Qloo." },
       lastfm: { name: "X-Lastfm-Key", in: "header", required: false, schema: { type: "string" }, description: "Your own Last.fm key (optional; NotOnQ uses its own otherwise)." },
     },
     schemas: { NotOnQ: notonqBlock },
@@ -108,7 +109,9 @@ export const OPENAPI = {
     "/entities": {
       get: {
         summary: "Look up entities; NotOnQ's IDs (fills and offered candidates) are resolved by NotOnQ",
-        parameters: [{ name: "entity_ids", in: "query", schema: { type: "string" }, description: "Comma-separated; Qloo's and NotOnQ's IDs can be mixed. A candidate's ID is filled on first use." }],
+        parameters: [{ name: "entity_ids", in: "query", schema: { type: "string" }, description: "Comma-separated; Qloo's and NotOnQ's IDs can be mixed. A candidate's ID is filled on first use." },
+          { name: "external.spotify.ids", in: "query", schema: { type: "string" }, description: "Comma-separated Spotify artist IDs. Qloo's matches first; up to 5 that Qloo lacks are looked up per request: each is matched through MusicBrainz, else by the name on Spotify's public page when it is one confident artist (notonq.spotify says how)." },
+        ],
         responses: { "200": qlooResponse("Entities, with notonq blocks keyed by NotOnQ ID."), "404": { description: "None found." }, ...common },
       },
     },

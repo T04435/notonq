@@ -1,180 +1,393 @@
+import { ChevronDownIcon } from "lucide-react";
+import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Spinner } from "@/components/ui/spinner";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import benchmark from "@/data/proof.json";
+import { Mark } from "@/components/brand/mark";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { PageSpinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { FillQuestion } from "@/lib/benchmark";
 import { db } from "@/server/store/db";
-import { liveStats } from "@/server/store/stats";
+import { ARTIST_ROWS, type ProofArtist, proofStats, type ProofStats } from "@/server/store/proof-stats";
 
 export const metadata = { title: "Proof · NotOnQ" };
 
-const pct = (v: number) => `${v}%`;
+const share = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : 0);
+const num = (n: number) => n.toLocaleString("en");
+/** "25 Oct 06:41", in UTC. */
+const day = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getUTCDate()} ${d.toLocaleString("en", { month: "short", timeZone: "UTC" })} ${iso.slice(11, 16)} UTC`;
+};
+const proofHref = (app?: string) => (app ? `/proof?app=${encodeURIComponent(app)}` : "/proof");
+const ASK: [FillQuestion, string][] = [
+  ["who", "who / from"],
+  ["genre", "genre"],
+  ["similar", "similar"],
+  ["map", "where popular"],
+  ["ages", "what ages"],
+];
 
-export default function ProofPage() {
+// Proof: what the build has, counted from Ledger runs only. One layer over every app, filterable by app; live means
+// since the first lookup (no time window).
+export default function ProofPage({ searchParams }: PageProps<"/proof">) {
   return (
-    <section className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Proof</h1>
-        <p className="text-muted-foreground">
-          Artists only. Live: every artist lookup NotOnQ has handled, through Ask, the drop-in API or the Qloo harness, updating as it happens. Below it, a fixed
-          benchmark run that measures what live traffic can&apos;t.
-        </p>
-      </header>
-      <Suspense fallback={<Spinner />}>
-        <Live />
+    <section className="flex flex-col gap-12">
+      <h1 className="sr-only">Proof</h1>
+      <Suspense fallback={<PageSpinner />}>
+        <Numbers searchParams={searchParams} />
       </Suspense>
       <AutoRefresh />
-      <Benchmark />
     </section>
   );
 }
 
-async function Live() {
+async function Numbers({ searchParams }: { searchParams: PageProps<"/proof">["searchParams"] }) {
   await connection();
-  const s = await liveStats(await db());
-  if (!s.artists)
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>No lookups yet</EmptyTitle>
-          <EmptyDescription>Ask a question on the home page or call the drop-in API, and the live numbers start here.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
-  const f = s.filled;
+  const raw = (await searchParams).app;
+  const app = typeof raw === "string" && raw.length <= 64 ? raw : undefined;
+  const s = await proofStats(await db(), app);
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="font-medium">Live{s.since ? ` · since ${new Date(s.since).toUTCString()}` : ""}</h2>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardDescription>Artists NotOnQ answered</CardDescription>
-            <CardTitle className="text-3xl">{f.artists}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            of {s.artists} artists looked up ({pct(s.gapRatePct)} needed NotOnQ: {s.unknownG1} unknown to Qloo, {s.notInTasteGraphG2} not in its taste graph);{" "}
-            {s.lookups} lookups in all
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Taste answers through stand-ins</CardDescription>
-            <CardTitle className="text-3xl">{pct(f.standInsPct)}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            of NotOnQ&apos;s answers can still get Qloo&apos;s recommendations, heatmaps and demographics, via similar artists Qloo knows;{" "}
-            {s.standInSwaps} such calls so far; {s.awaitingChoice} waiting for someone to choose which artist
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Instant from cache</CardDescription>
-            <CardTitle className="text-3xl">{pct(s.cacheHitPct)}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            of fallback answers needed no new lookups; {s.standInSwaps} insights calls answered by Qloo through stand-ins
-          </CardContent>
-        </Card>
+    <>
+      <Live s={s} app={app} />
+      <Artists s={s} />
+      <Terms />
+    </>
+  );
+}
+
+function Bar({ value, max, label, fill = true }: { value: number; max: number; label: string; fill?: boolean }) {
+  return (
+    <span className="grid grid-cols-[minmax(64px,1fr)_56px] items-center gap-3">
+      <i aria-hidden="true" className="block h-1.5 bg-muted">
+        <b className="block h-full bg-fill" style={{ width: `${max ? Math.min(100, (value / max) * 100) : 0}%` }} />
+      </i>
+      <span className={`text-right tabular-nums ${fill ? "text-fill" : ""}`}>{label}</span>
+    </span>
+  );
+}
+
+function AppFilter({ s, app }: { s: ProofStats; app?: string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="h-9 font-normal">
+          <span className="text-muted-foreground">app</span>
+          <b className="font-medium">{app ?? "any"}</b>
+          <ChevronDownIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Scope Proof to one app</DropdownMenuLabel>
+        {[undefined, ...s.apps.filter((a) => a.lookups > 0 || a.app === app).map((a) => a.app)].map((a) => (
+          <DropdownMenuItem key={a ?? "any"} asChild>
+            <Link href={proofHref(a)} aria-current={a === app ? "page" : undefined} className={a === app ? "font-medium text-fill" : undefined}>
+              {a ?? "any app"}
+            </Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function Live({ s, app }: { s: ProofStats; app?: string }) {
+  const f = s.filled;
+  const apps = s.apps.filter((a) => a.lookups > 0);
+  return (
+    <section aria-labelledby="live" className="flex flex-col gap-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <h2 id="live" className="flex flex-wrap items-center gap-x-3.5 gap-y-2 text-[13px] font-medium">
+          <Mark size={16} running />
+          live
+          <small className="text-xs font-normal text-muted-foreground">
+            {s.since ? `every artist lookup since ${day(s.since)}` : "every artist lookup"}
+            {app ? `, from ${app}` : ", through Ask, the drop-in API and the Qloo harness"}
+          </small>
+        </h2>
+        <AppFilter s={s} app={app} />
       </div>
 
-      <Table>
-        <TableBody>
-          {[
-            ["NotOnQ answers with a sourced entity", pct(f.entityPct)],
-            ["NotOnQ answers with stand-ins Qloo can answer for", pct(f.standInsPct)],
-            ["…with derived popularity", pct(f.popularityPct)],
-            ["…with genres", pct(f.genresPct)],
-            ["…with a description", pct(f.descriptionPct)],
-            ["…with an image", pct(f.imagePct)],
-            ["Low confidence (no MusicBrainz record)", pct(f.lowConfidencePct)],
-            ["Cited fields per answer, on average", String(f.meanCitedFields)],
-            ["Research runs · verified claims · rejected claims", `${s.research.runs} · ${s.research.verifiedClaims} · ${s.research.rejectedClaims}`],
-          ].map(([label, v]) => (
-            <TableRow key={label}>
-              <TableCell>{label}</TableCell>
-              <TableCell className="text-right">{v}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <>
+          <div className="grid grid-cols-2 border md:grid-cols-4">
+            <Stat value={num(s.artists.total)} label={`artists looked up · ${num(s.lookups)} lookups`} />
+            <Stat
+              value={num(f.artists)}
+              fill
+              label={`filled in by NotOnQ (${share(f.artists, s.artists.total)}%) · ${num(f.G1)} new to Qloo, ${num(f.G2)} not yet a taste signal`}
+            />
+            <Stat value={`${share(f.similar, f.artists)}%`} label={`of those also get Qloo taste answers through stand-ins · ${num(s.standInCalls)} stand-in calls`} />
+            <Stat value={`${share(s.cache.hits, s.cache.of)}%`} label={`instant from cache · ${num(s.artists.ambiguous)} waiting for someone to choose the artist`} />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {num(s.asks.total)} Ask questions: {num(s.asks.notonq)} filled in by NotOnQ, {num(s.asks.qloo)} answered by Qloo alone ·{" "}
+            <Link href={`/ledger?view=all${app ? `&app=${encodeURIComponent(app)}` : ""}`} className="underline underline-offset-4">
+              {num(s.runs)} runs in the Ledger
+            </Link>
+          </p>
 
-      {s.apps.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>App</TableHead>
-              <TableHead className="text-right">Lookups</TableHead>
-              <TableHead className="text-right">Artists</TableHead>
-              <TableHead className="text-right">Needed NotOnQ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {s.apps.map((a) => (
-              <TableRow key={a.app}>
-                <TableCell className="font-mono text-xs">{a.app}</TableCell>
-                <TableCell className="text-right">{a.lookups}</TableCell>
-                <TableCell className="text-right">{a.artists}</TableCell>
-                <TableCell className="text-right">{pct(a.gapRatePct)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-      <p className="text-xs text-muted-foreground">
-        Each artist counts once, by the outcome of its latest lookup. Apps are the label callers give (/q/app/&lt;label&gt; or X-NotOnQ-App; unlabelled otherwise).
-      </p>
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 [&>*]:min-w-0">
+            <div className="border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>what we filled in, per artist</TableHead>
+                      <TableHead className="text-right">share</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(
+                      [
+                        ["a sourced artist record", f.artists],
+                        ["where they're from", f.home],
+                        ["stand-ins Qloo can answer for", f.similar],
+                        ["popularity", f.popularity],
+                        ["genres", f.genres],
+                        ["a description", f.description],
+                        ["an image", f.image],
+                      ] as const
+                    ).map(([label, v], i) => (
+                      <TableRow key={label}>
+                        <TableCell className="whitespace-normal">{label}</TableCell>
+                        <TableCell className="w-[45%]">
+                          {f.artists ? <Bar value={v} max={f.artists} label={`${share(v, f.artists)}%`} fill={i < 2} /> : <NoData />}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow>
+                      <TableCell className="whitespace-normal text-muted-foreground">low confidence (no MusicBrainz record)</TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">{f.artists ? `${share(f.lowConfidence, f.artists)}%` : <NoData />}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="whitespace-normal text-muted-foreground">cited fields per record, average</TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">{f.artists ? f.citedFields : <NoData />}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="whitespace-normal text-muted-foreground">researched artists · claims verified · rejected</TableCell>
+                      <TableCell className="text-right text-muted-foreground tabular-nums">
+                        {num(s.research.artists)} · {num(s.research.verified)} · {num(s.research.rejected)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+
+            <div className="flex flex-col gap-3.5">
+              <div className="border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>app</TableHead>
+                      <TableHead className="text-right">lookups</TableHead>
+                      <TableHead className="text-right">artists</TableHead>
+                      <TableHead>we filled in</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {apps.length ? null : (
+                      <TableRow>
+                        <TableCell colSpan={4}>
+                          <NoData />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {apps.map((a) => (
+                      <TableRow key={a.app} data-state={a.app === app ? "selected" : undefined}>
+                        <TableCell>
+                          <Link href={proofHref(a.app === app ? undefined : a.app)} aria-current={a.app === app ? "page" : undefined} className={`underline-offset-4 hover:underline ${a.app === app ? "font-medium text-fill underline" : ""}`}>
+                            {a.app}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{num(a.lookups)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{num(a.artists)}</TableCell>
+                        <TableCell className="w-[40%]">
+                          <Bar value={a.gapPct} max={100} label={`${a.gapPct}%`} fill={false} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-xs leading-[1.6] text-muted-foreground">
+                Each artist counts once, by its latest lookup. Apps are the label callers give: /q/app/&lt;label&gt; or X-NotOnQ-App. Pick an app here or in the
+                filter to scope live and artists to it. The benchmark batch is the app &quot;benchmark&quot;.
+              </p>
+            </div>
+          </div>
+      </>
+    </section>
+  );
+}
+
+/** A section with nothing to show yet keeps its place and says so, so the page doesn't jump. */
+function NoData({ children = "no data" }: { children?: React.ReactNode }) {
+  return <span className="text-dim">{children}</span>;
+}
+
+function Stat({ value, label, fill }: { value: string; label: string; fill?: boolean }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5 border-t border-l px-4 py-3.5 [&:nth-child(-n+2)]:border-t-0 [&:nth-child(odd)]:border-l-0 md:border-t-0 md:[&:nth-child(odd)]:border-l md:[&:first-child]:border-l-0">
+      <b className={`text-[28px] leading-none font-extrabold tracking-[-0.04em] tabular-nums ${fill ? "text-fill" : ""}`}>{value}</b>
+      <span className="text-xs leading-normal text-muted-foreground">{label}</span>
     </div>
   );
 }
 
-function Benchmark() {
-  const { coverage, fill, backtest, method } = benchmark;
+const plus = (list: string[]) => (list.length ? `${list[0]}${list.length > 1 ? ` +${list.length - 1}` : ""}` : undefined);
+
+function Value({ children, title }: { children?: React.ReactNode; title?: string }) {
+  return children === undefined || children === false ? (
+    <span className="text-dim">none</span>
+  ) : (
+    <span className="text-fill" title={title}>
+      {children}
+    </span>
+  );
+}
+
+function Artists({ s }: { s: ProofStats }) {
+  const rows = s.artistRows;
+  const max = Math.max(1, ...rows.map((r) => r.lookups));
+  const asked = (k: FillQuestion) => rows.filter((r) => r.ask[k]?.answered).length;
+  const f = s.filled;
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="font-medium">Benchmark run · {new Date(benchmark.ranAt).toUTCString()}</h2>
-      <p className="text-sm text-muted-foreground">
-        A fixed sample, so the numbers mean the same thing for everyone. It compares new artists with chart artists, and tests the stand-ins against
-        Qloo&apos;s own answers, which live traffic can&apos;t. It used {method.qlooCalls} Qloo calls; rerun with{" "}
-        <code>node --import tsx scripts/proof.mts</code>.
-      </p>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Sample</TableHead>
-            <TableHead className="text-right">Artists</TableHead>
-            <TableHead className="text-right">Usable in Qloo</TableHead>
-            <TableHead className="text-right">Unknown (G1)</TableHead>
-            <TableHead className="text-right">Not in taste graph (G2)</TableHead>
-            <TableHead className="text-right">Gap</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {(["fresh", "chart"] as const).map((k) => (
-            <TableRow key={k}>
-              <TableCell className="whitespace-normal">{method.samples[k]}</TableCell>
-              <TableCell className="text-right">{coverage[k].artists}</TableCell>
-              <TableCell className="text-right">{coverage[k].usableInQloo}</TableCell>
-              <TableCell className="text-right">{coverage[k].unknownG1}</TableCell>
-              <TableCell className="text-right">{coverage[k].notInTasteGraphG2}</TableCell>
-              <TableCell className="text-right">{pct(coverage[k].gapRatePct)}</TableCell>
+    <section aria-labelledby="asked" className="flex flex-col gap-3.5">
+      <h2 id="asked" className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] font-medium">
+        artists
+        <small className="text-xs font-normal text-muted-foreground">
+          filled in by NotOnQ, most looked up first{s.since ? ` · since ${day(s.since)}` : ""}
+          {f.artists > rows.length ? ` · top ${ARTIST_ROWS} of ${num(f.artists)}` : ""}
+        </small>
+      </h2>
+      <div className="border">
+        <Table className="[&_td]:py-2.5 [&_th]:py-2.5">
+          <TableHeader>
+            <TableRow>
+              <TableHead rowSpan={2} className="text-right">
+                #
+              </TableHead>
+              <TableHead rowSpan={2}>artist</TableHead>
+              <TableHead rowSpan={2} className="min-w-40">
+                lookups
+              </TableHead>
+              <TableHead colSpan={6} className="border-b">
+                record
+              </TableHead>
+              <TableHead colSpan={5} className="border-b">
+                Ask questions
+              </TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      <ul className="list-disc pl-5 text-sm text-muted-foreground">
-        <li>
-          Fill ({fill.artists} gap artists, open data and stand-ins only): sourced entity {pct(fill.entityPct)}, stand-ins {pct(fill.standInsPct)},
-          popularity {pct(fill.popularityPct)}, genres {pct(fill.genresPct)}, description {pct(fill.descriptionPct)}, image {pct(fill.imagePct)}.
-        </li>
-        <li>
-          Backtest ({backtest.artists} artists Qloo knows, each hidden): stand-ins alone recover {pct(Math.round(backtest.meanOverlapAt20 * 1000) / 10)} of
-          Qloo&apos;s own top 20 &quot;fans also like&quot; ({pct(Math.round(backtest.meanOverlapAt10 * 1000) / 10)} of the top 10).
-        </li>
-        <li>{method.gap}</li>
-      </ul>
-    </div>
+            <TableRow>
+              <TableHead>home</TableHead>
+              <TableHead>genres</TableHead>
+              <TableHead>similar, in Qloo</TableHead>
+              <TableHead>description</TableHead>
+              <TableHead>image</TableHead>
+              <TableHead>popularity</TableHead>
+              {ASK.map(([k, label]) => (
+                <TableHead key={k}>{label}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length ? null : (
+              <TableRow>
+                <TableCell colSpan={14}>
+                  <NoData>No artists filled in yet{s.app ? ` from ${s.app}` : ""}.</NoData>
+                </TableCell>
+              </TableRow>
+            )}
+            {rows.map((r, i) => (
+              <ArtistRow key={r.nameKey} r={r} rank={i + 1} max={max} />
+            ))}
+          </TableBody>
+          <TableFooter>
+            <TableRow className="hover:bg-transparent">
+              <TableCell />
+              <TableCell>all</TableCell>
+              <TableCell className="text-muted-foreground">{num(f.artists)} artists</TableCell>
+              {[f.home, f.genres, f.similar, f.description, f.image, f.popularity].map((n, i) => (
+                <TableCell key={i} className="tabular-nums">
+                  {num(n)} <span className="font-normal text-muted-foreground">({share(n, f.artists)}%)</span>
+                </TableCell>
+              ))}
+              {ASK.map(([k]) => (
+                <TableCell key={k} className="tabular-nums">
+                  {num(asked(k))} <span className="font-normal text-muted-foreground">answered</span>
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableFooter>
+        </Table>
+      </div>
+      <p className="text-xs leading-[1.6] text-muted-foreground">
+        Ask columns fill in for artists with Ask runs (the benchmark batch asks five questions per artist); empty means no run yet. Pick app benchmark to see that batch&apos;s artists and totals.
+      </p>
+    </section>
+  );
+}
+
+function ArtistRow({ r, rank, max }: { r: ProofArtist; rank: number; max: number }) {
+  return (
+    <TableRow>
+      <TableCell className="text-right text-muted-foreground tabular-nums">{rank}</TableCell>
+      <TableCell>
+        <Link href={`/ledger/${encodeURIComponent(r.nameKey)}`} className="font-medium text-fill underline-offset-4 hover:underline">
+          {r.name}
+        </Link>
+        {r.lowConfidence ? <span className="ml-2 text-[11px] text-muted-foreground">low confidence</span> : null}
+      </TableCell>
+      <TableCell>
+        <Bar value={r.lookups} max={max} label={num(r.lookups)} fill={false} />
+      </TableCell>
+      <TableCell>
+        <Value>{r.record.home}</Value>
+      </TableCell>
+      <TableCell>
+        <Value title={r.record.genres.join(", ")}>{plus(r.record.genres)}</Value>
+      </TableCell>
+      <TableCell>
+        <Value title={r.record.similar.join(", ")}>{plus(r.record.similar)}</Value>
+      </TableCell>
+      <TableCell>
+        <Value>{r.record.description && "Wikipedia"}</Value>
+      </TableCell>
+      <TableCell>
+        <Value>{r.record.image && "yes"}</Value>
+      </TableCell>
+      <TableCell>
+        <Value>{r.record.popularity?.toFixed(2)}</Value>
+      </TableCell>
+      {ASK.map(([k, label]) => {
+        const q = r.ask[k];
+        return (
+          <TableCell key={k}>
+            {q ? (
+              <Link href={`/ledger/run/${q.runId}`} className={q.answered ? "text-fill underline-offset-4 hover:underline" : "text-muted-foreground underline-offset-4 hover:underline"}>
+                {q.answered ? "answered" : "asked"}
+                <span className="sr-only">: {label}, see the run</span>
+              </Link>
+            ) : (
+              <span className="sr-only">no run yet</span>
+            )}
+          </TableCell>
+        );
+      })}
+    </TableRow>
+  );
+}
+
+function Terms() {
+  return (
+    <section aria-label="Terms">
+      <dl className="grid grid-cols-1 border-b text-xs leading-[1.6] text-subtle sm:grid-cols-[180px_minmax(0,1fr)]">
+        <dt className="border-t pt-2 text-muted-foreground sm:py-2">G1 · new to Qloo</dt>
+        <dd className="pb-2 sm:border-t sm:pt-2">No Qloo entity yet by MusicBrainz ID or exact name. We fill in the whole record, from open sources.</dd>
+        <dt className="border-t pt-2 text-muted-foreground sm:py-2">G2 · not yet a taste signal</dt>
+        <dd className="pb-2 sm:border-t sm:pt-2">Qloo has the entity, but /v2/insights doesn&apos;t take it as a signal yet. We answer through stand-ins, similar artists Qloo knows.</dd>
+      </dl>
+    </section>
   );
 }

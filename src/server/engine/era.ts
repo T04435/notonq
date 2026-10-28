@@ -56,7 +56,9 @@ export async function fillEra(tag: string, place: string | undefined, take: numb
   const parsed = parseMusicTag(tag);
   const provenance: ProvenanceMap = {};
   if (!parsed) return { entities: [], provenance, query: "", known: 0 };
-  const country = place ? ((await mb.countryOf(place, { fetch: deps.fetch })) ?? undefined) : undefined;
+  // Coordinates nothing could name (see rest.ts placeOf) are no place to search for.
+  const coords = !!place && /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(place);
+  const country = place && !coords ? ((await mb.countryOf(place, { fetch: deps.fetch })) ?? undefined) : undefined;
   // A place was asked for but can't be placed in a country (unknown name, or MusicBrainz didn't answer): fill nothing.
   // Without the country the search returns the most famous artists anywhere, which answers a different question.
   if (place && !country) return { entities: [], provenance, query: "", known: 0, unresolvedPlace: place };

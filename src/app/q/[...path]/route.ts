@@ -4,7 +4,8 @@ import { handleRest } from "@/server/rest";
 import { hashCaller } from "@/server/service";
 import { redactBody } from "@/server/redact";
 import { shorten } from "@/server/shorten";
-import { saveRun } from "@/server/store/repo";
+import { wktSpaces } from "@/server/engine/geo";
+import { isHelped, saveRun } from "@/server/store/repo";
 import { db } from "@/server/store/db";
 
 // Drop-in for the Qloo API: point a client (or the official harness via QLOO_BASE_URL + QLOO_TRUSTED_BASE_URL)
@@ -31,7 +32,7 @@ async function handle(request: Request, ctx: RouteContext<"/q/[...path]">, body?
   const out = await handleRest(
     {
       path: path.join("/"),
-      params: Object.fromEntries(url.searchParams),
+      params: wktSpaces(Object.fromEntries(url.searchParams)),
       apiKey: request.headers.get("x-api-key") ?? undefined,
       // The caller's own Last.fm key if sent; otherwise ours (for the hackathon demo, non-Qloo keys are NotOnQ's).
       lastfmKey: request.headers.get("x-lastfm-key") ?? env.LASTFM_API_KEY,
@@ -48,8 +49,15 @@ async function handle(request: Request, ctx: RouteContext<"/q/[...path]">, body?
   if (apiKey && !appLabel?.startsWith("playground-")) {
     const ms = Date.now() - started;
     const title = `${request.method} /q/${path.join("/")}${url.search ? `?${decodeURIComponent(url.searchParams.toString())}` : ""}`;
+    // Qloo answered alone: the Ledger keeps the request and a one-line summary, not the body (it replays only where
+    // NotOnQ added something). X-NotOnQ-Trace, like the app label, groups an app's calls into one visit exactly.
+    const helped = isHelped("api", out.servedBy);
+    const results = (out.body as { results?: unknown } | null)?.results;
+    const count = Array.isArray(results) ? results.length : Array.isArray((results as { entities?: unknown[] } | undefined)?.entities) ? (results as { entities: unknown[] }).entities.length : undefined;
     after(async () =>
       saveRun(await db(), {
+        trace: request.headers.get("x-notonq-trace")?.slice(0, 120) || undefined,
+        subject: url.searchParams.get("query") ?? undefined,
         id: crypto.randomUUID(),
         kind: "api",
         title,
@@ -60,7 +68,9 @@ async function handle(request: Request, ctx: RouteContext<"/q/[...path]">, body?
         ms,
         events: [
           { t: 0, type: "request", method: request.method, path: `/q/${path.join("/")}`, params: Object.fromEntries(url.searchParams), body: body ?? null },
-          { t: ms, type: "response", status: out.status, servedBy: out.servedBy, body: shorten(redactBody(out.body)) as never },
+          helped
+            ? { t: ms, type: "response", status: out.status, servedBy: out.servedBy, body: shorten(redactBody(out.body)) as never }
+            : { t: ms, type: "response", status: out.status, servedBy: out.servedBy, body: { note: `Qloo answered${count !== undefined ? ` with ${count} results` : ""}; NotOnQ added nothing, so the body isn't kept.` } as never },
         ],
       }),
     );

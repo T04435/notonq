@@ -56,7 +56,7 @@ export function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; on
             <CardTitle className="flex items-center gap-2">
               NotOnQ{" "}
               {e && view.servedBy !== "needs_choice" ? (
-                <NotOnQBadge>Not in Qloo · filled by NotOnQ</NotOnQBadge>
+                <NotOnQBadge>Filled in by NotOnQ, from open sources</NotOnQBadge>
               ) : (
                 <Badge variant="secondary">{view.servedBy === "needs_choice" ? "needs your choice" : view.servedBy === "fallback" && !e ? "nothing found yet" : view.notonq.served_by}</Badge>
               )}

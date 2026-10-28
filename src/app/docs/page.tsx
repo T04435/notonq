@@ -1,12 +1,10 @@
-import Link from "next/link";
-import { Code } from "@/components/code";
+import { A, C, CodeTabs, DocsSection, Notice, P, RefTable, Ul } from "@/components/docs";
+import { DocsCode } from "@/components/code";
 import { ShapeDiff } from "@/components/shape-diff";
-import { SimpleTable } from "@/components/simple-table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const metadata = { title: "Docs · NotOnQ" };
 
-const HARNESS = `# The official Qloo MCP server (@qloo/qloo-harness), unchanged. Only its base URL points at NotOnQ:
+const HARNESS = `# The official Qloo MCP server (@qloo/qloo-harness), unchanged. Only its base URL points at NotOnQ.
 QLOO_API_KEY=<your Qloo key> \\
 QLOO_BASE_URL=https://<notonq-host>/q/app/my-app \\
 QLOO_TRUSTED_BASE_URL=https://<notonq-host>/q/app/my-app \\
@@ -16,142 +14,184 @@ const REST = `# Same paths and parameters as the Qloo API: change the base URL, 
 curl -H "X-Api-Key: $QLOO_API_KEY" -H "X-NotOnQ-App: my-app" \\
   "https://<notonq-host>/q/search?types=urn:entity:artist&query=sombr"`;
 
+const TRACE = `# One user action in your app, three calls: one visit in the Ledger
+curl -H "X-Api-Key: $QLOO_API_KEY" -H "X-NotOnQ-App: my-app" -H "X-NotOnQ-Trace: action-42" \\
+  "https://<notonq-host>/q/search?types=urn:entity:artist&query=sombr"
+curl -H "X-Api-Key: $QLOO_API_KEY" -H "X-NotOnQ-App: my-app" -H "X-NotOnQ-Trace: action-42" \\
+  "https://<notonq-host>/q/v2/insights?filter.type=urn:entity:artist&signal.interests.entities=502cf908-…"`;
+
 export default function DocsOverview() {
   return (
-    <div className="flex flex-col gap-8">
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Quickstart</h2>
-        <p className="text-sm text-muted-foreground">
-          Change one base URL. Qloo always answers first with your own key; NotOnQ only adds to the response when Qloo has a gap for an artist, and
-          never removes or reorders anything Qloo returned.
-        </p>
-        <Tabs defaultValue="harness">
-          <TabsList>
-            <TabsTrigger value="harness">Qloo harness</TabsTrigger>
-            <TabsTrigger value="rest">REST</TabsTrigger>
-          </TabsList>
-          <TabsContent value="harness" className="flex flex-col gap-2">
-            <Code code={HARNESS} language="bash" title="Two environment variables, no new install" />
-            <p className="text-sm text-muted-foreground">
-              Both variables are needed: the harness only sends your key to a base URL you have marked as trusted (true for Qloo&apos;s own hackathon host
-              as well). <code>my-app</code> is your app&apos;s name in the Ledger; leave out <code>/app/my-app</code> to stay unlabelled. Same tools, same
-              results; see <Link href="/docs/mcp" className="underline">MCP</Link> for what changes.
-            </p>
-          </TabsContent>
-          <TabsContent value="rest">
-            <Code code={REST} language="bash" title="One base URL" />
-          </TabsContent>
-        </Tabs>
-      </section>
+    <>
+      <h1 className="sr-only">NotOnQ docs: overview</h1>
+      <Notice lead="Artists only.">
+        NotOnQ fills in music artists (<C>urn:entity:artist</C>); every other entity type, and every request Qloo answers, goes to Qloo and comes back
+        unchanged.
+      </Notice>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">When NotOnQ steps in</h2>
-        <SimpleTable
-          head={["Gap", "How Qloo shows it", "What NotOnQ does"]}
-          rows={[
-            ["Unknown (G1)", "/search has no artist with the exact name (404 or other names only)", "Adds the artist after Qloo's results, filled from open data, or every artist the name could be when it is ambiguous"],
-            ["Not in the taste graph (G2)", "Search finds it, but /v2/insights answers 400 for it as a signal", "Swaps it for stand-ins: similar artists Qloo does know"],
-            ["None", "Qloo answers", "Steps aside: Qloo's response passes through unchanged"],
+      <DocsSection id="quickstart" title="Quickstart">
+        <P>
+          Change one base URL. Qloo answers first, with your own key. When it has no artist by that name, NotOnQ fills one in from open sources, after
+          Qloo&apos;s results, and never removes or reorders anything Qloo returned.
+        </P>
+        <CodeTabs
+          label="Ways in"
+          tabs={[
+            {
+              value: "harness",
+              label: "Qloo harness",
+              code: HARNESS,
+              language: "bash",
+              title: "Two environment variables, no new install",
+              after: (
+                <P>
+                  Both variables are needed: the harness only sends your key to a base URL you have marked as trusted. <C>my-app</C> is your
+                  app&apos;s name in the Ledger; leave out <C>/app/my-app</C> to stay unlabelled. Same tools, same results; see <A href="/docs/mcp">MCP</A>{" "}
+                  for what changes.
+                </P>
+              ),
+            },
+            {
+              value: "rest",
+              label: "REST",
+              code: REST,
+              language: "bash",
+              title: "One base URL",
+              after: (
+                <P>
+                  Every path, parameter and header is in the <A href="/docs/rest">REST API</A> reference.
+                </P>
+              ),
+            },
           ]}
         />
-      </section>
+      </DocsSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Same shape as Qloo, 1:1</h2>
-        <p className="text-sm text-muted-foreground">
-          A filled artist has exactly the keys and types Qloo returns. Its entity ID is a UUID like Qloo&apos;s (the MusicBrainz ID, or a stable ID NotOnQ
-          makes), so any Qloo client can send it back; <code>properties.short_description</code> starts with &quot;Not in Qloo&quot; and names the stand-ins.
-          Genre tag IDs and keys Qloo doesn&apos;t have start with <code>notonq:</code>. Qloo&apos;s own values are never changed. Send a NotOnQ ID back as a
-          signal and NotOnQ swaps in its stand-ins.
-        </p>
+      <DocsSection id="when" title="When NotOnQ fills in">
+        <RefTable
+          head={["case", "what NotOnQ does", "how Qloo shows it"]}
+          rows={[
+            ["New to Qloo (G1)", "Adds the artist after Qloo's results, filled in from open sources; or every artist the name could be, when it is ambiguous.", "/search has no artist with that exact name"],
+            ["Not yet a taste signal (G2)", "Answers through stand-ins: similar artists Qloo knows.", "/search finds the artist, but /v2/insights answers 400 for it as a signal"],
+            ["A short era list (G4)", "Adds artists from that decade or genre and country after Qloo's own; the ones Qloo knows come back as Qloo's entities.", "/v2/insights for artists by a music genre tag and place returns fewer than 5"],
+            ["Qloo answers", "Steps aside: Qloo's response passes through unchanged.", "Qloo answers"],
+          ]}
+        />
+      </DocsSection>
+
+      <DocsSection id="shape" title="Same shape as Qloo">
+        <P>
+          A filled-in artist has exactly the keys and types Qloo returns, so any Qloo client reads it. Its entity ID is a UUID like Qloo&apos;s (the
+          MusicBrainz ID, or a stable ID NotOnQ makes), and works anywhere Qloo takes an ID: send it back as a signal and NotOnQ swaps in its stand-ins.
+        </P>
+        <P>
+          <C>properties.short_description</C> starts with <C>Not in Qloo: filled by NotOnQ from open sources.</C> and names the stand-ins. Genre tag
+          IDs and keys Qloo doesn&apos;t have start with <C>notonq:</C>. Qloo&apos;s own values are never changed.
+        </P>
         <ShapeDiff />
-      </section>
+      </DocsSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Every value has proof</h2>
-        <p className="text-sm text-muted-foreground">
-          The <code>notonq.provenance</code> block maps each field to its sources: source, record URL, licence, retrieval time and method.
-        </p>
-        <SimpleTable
-          head={["method", "Means"]}
-          mono={[0]}
+      <DocsSection id="sources" title="A source on every value">
+        <P>
+          The <C>notonq.provenance</C> block maps each field to its sources: source, record URL, licence, retrieval time and method. A field with no
+          provable source is listed in <C>notonq.unavailable</C> instead of guessed.
+        </P>
+        <RefTable
+          head={["method", "means"]}
           rows={[
-            ["copied", "Taken as-is from the cited record (MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer)"],
-            ["derived", "Computed by NotOnQ from cited inputs, with the formula in the note (popularity)"],
-            ["qloo_proxy", "Qloo's own answer, for the stand-ins listed"],
-            ["researched", "Found by the research agent; the exact quote was re-checked on the cited page by plain code"],
+            ["copied", "Taken as-is from the cited record (MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer)."],
+            ["derived", "Computed by NotOnQ from cited inputs, with the formula in the note (popularity)."],
+            ["qloo_proxy", "Qloo's own answer, for the stand-ins listed."],
+            ["researched", "Found by the research agent; the exact quote was re-checked on the cited page by plain code."],
           ]}
         />
-      </section>
+      </DocsSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Ask, the Ledger and replays</h2>
-        <ul className="list-disc pl-5 text-sm text-muted-foreground">
+      <DocsSection id="ask" title="Ask">
+        <P>
+          <A href="/">Ask</A> is the home page. A question runs through Qloo&apos;s own MCP harness, and Qloo answers first, unchanged. Jev, the judge,
+          checks that answer against what the question asks for, per constraint and per artist. If it falls short, NotOnQ asks Qloo again, then fills
+          in the rest from open sources, labelled, with a source on each value. The answer ends with a table of every artist: where it came from,
+          kept or removed and why, and what NotOnQ added.
+        </P>
+      </DocsSection>
+
+      <DocsSection id="ledger" title="The Ledger">
+        <P>
+          The <A href="/ledger">Ledger</A> is the record: every call through <C>/q</C> and every Ask question. Calls are grouped into visits: calls
+          from the same app and caller less than 2 minutes apart, or calls that share an <C>X-NotOnQ-Trace</C> header. Each Ask question is a visit
+          of its own.
+        </P>
+        <Ul>
+          <li>Three views: where we filled in, Qloo alone, and all. Filter by app and by kind (API or Ask).</li>
           <li>
-            <Link href="/" className="underline">
-              Ask
-            </Link>{" "}
-            runs Qloo&apos;s own MCP harness on a question, straight to Qloo first. NotOnQ then checks that answer against what the question asks for
-            (Jev, per constraint and per artist), asks Qloo again if it falls short, and only then adds open data. It ends with a table of every
-            artist: where it came from, kept or removed and why, and what NotOnQ added, with sources.
+            It is live through Neon Realtime, with no polling: new visits arrive at the top. Pause holds the view still and counts the{" "}
+            <C>N new</C> waiting.
+          </li>
+          <li>Every view and filter is in the URL, so a link opens exactly what you see.</li>
+          <li>
+            A visit opens to its calls. Replay steps through a call with its recorded results, without re-running anything. It is there only where
+            NotOnQ answered: when Qloo answered alone, the Ledger keeps the request and a one-line summary, not the response.
           </li>
           <li>
-            The{" "}
-            <Link href="/ledger" className="underline">
-              Ledger
-            </Link>{" "}
-            records every request: Ask questions (each step, with its timing) and calls from apps and Qloo&apos;s MCP (the request without its key,
-            and the response). Open one to replay it step by step with its recorded results; nothing is re-run.
+            Each artist NotOnQ has filled in has a record page at <C>/ledger/&lt;name&gt;</C>: what is stored, where the demand came from, and every
+            research claim with its verdict.
           </li>
-        </ul>
-      </section>
+        </Ul>
+        <DocsCode code={TRACE} language="bash" title="Group calls into one visit" />
+      </DocsSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">No raw Qloo responses on our pages</h2>
-        <p className="text-sm text-muted-foreground">
-          Our pages show results derived from Qloo (artist names, links, the agent&apos;s answer, the final table) but never Qloo&apos;s raw API
+      <DocsSection id="proof" title="Proof">
+        <P>
+          Every number on <A href="/proof">Proof</A> is counted from runs in the Ledger, across all apps or filtered to one (
+          <C>/proof?app=&lt;label&gt;</C>). It refreshes every few seconds while the tab is open.
+        </P>
+        <P>
+          The benchmark batch (<C>scripts/benchmark.mts</C>) is one more app, labelled <C>benchmark</C>: real Ask questions and <C>/q</C> calls sent
+          to a running NotOnQ, recorded like any other. Nothing is frozen in the repo; pick the app <C>benchmark</C> on Proof to see that batch alone.
+        </P>
+      </DocsSection>
+
+      <DocsSection id="redaction" title="Qloo's data on our pages">
+        <P>
+          Our pages show results derived from Qloo (artist names, links, the agent&apos;s answer, the final table) and never Qloo&apos;s raw API
           responses. On Ask, in the Ledger and in every replay, raw response JSON is redacted on the server before anything reaches a browser or is
-          stored: each Qloo value becomes <code>[redacted string]</code>, <code>[redacted uuid]</code>, <code>[redacted number]</code> or{" "}
-          <code>[redacted boolean]</code>, keeping the shape. Qloo entity IDs are removed everywhere. NotOnQ&apos;s own data is shown in full. The
-          drop-in API is different: a caller gets Qloo&apos;s answer for their own key, unchanged, exactly as from Qloo.
-        </p>
-      </section>
+          stored: each Qloo value becomes <C>[redacted string]</C>, <C>[redacted uuid]</C>, <C>[redacted number]</C> or <C>[redacted boolean]</C>,
+          keeping the shape. Qloo entity IDs are removed everywhere. NotOnQ&apos;s own data is shown in full.
+        </P>
+        <P>The drop-in API is different: a caller gets Qloo&apos;s answer for their own key, unchanged, exactly as from Qloo.</P>
+      </DocsSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Caching, demand and budgets</h2>
-        <ul className="list-disc pl-5 text-sm text-muted-foreground">
-          <li>Fallbacks are open data, so they are shared: filled artists refresh weekly, misses and fills with a failed source retry after a day.</li>
+      <DocsSection id="caching" title="Caching and budgets">
+        <Ul>
+          <li>Fills are open data, so they are shared: filled-in artists refresh weekly; misses and fills with a failed source retry after a day.</li>
           <li>Qloo responses are cached per caller key only, never shared between callers.</li>
           <li>
-            Every request is recorded in the <Link href="/ledger" className="underline">Ledger</Link> against a salted hash of your key and your app label
-            (<code>/q/app/&lt;label&gt;</code> or <code>X-NotOnQ-App</code>), with Qloo&apos;s data redacted. Keys are never stored.
+            Each call is recorded against a salted hash of your key and your app label (<C>/q/app/&lt;label&gt;</C> or <C>X-NotOnQ-App</C>). Keys
+            are never stored.
           </li>
           <li>Each caller has a daily budget of real Qloo calls (default 1500; cache hits are free). Over it, NotOnQ answers 429 until 00:00 UTC.</li>
-        </ul>
-      </section>
+        </Ul>
+      </DocsSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Inside Qloo</h2>
-        <p className="text-sm text-muted-foreground">
-          NotOnQ shows the behaviour, not the data pipeline. The open sources it uses here (MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer) stand in
-          for whatever Qloo would use. Built into Qloo, the same flow would run on Qloo&apos;s own licensed sources and taste graph: fill the gap, label
-          it, answer taste questions through similar artists, and step aside once the artist is in the catalogue. The{" "}
-          <Link href="/ledger" className="underline">
-            Ledger
-          </Link>{" "}
-          shows which missing artists people actually ask for. Artists first, for this hackathon; the same pattern fits other entity types.
-        </p>
-      </section>
+      <DocsSection id="inside-qloo" title="Inside Qloo">
+        <P>
+          NotOnQ shows the behaviour, not the data pipeline. The open sources it uses (MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer) stand in for
+          whatever Qloo would use. Built into Qloo, the same flow would run on Qloo&apos;s own licensed sources and taste graph: fill in the artist,
+          label it, answer taste questions through similar artists, and step aside once the artist is in the catalogue. The <A href="/ledger">Ledger</A>{" "}
+          shows which of the artists we filled in people actually ask for. Artists first; the same pattern fits other entity types.
+        </P>
+      </DocsSection>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-medium">Known limits</h2>
-        <ul className="list-disc pl-5 text-sm text-muted-foreground">
-          <li>Artists only. Other entity types pass through to Qloo.</li>
-          <li>/v2/trending: no fallback series yet, so Qloo&apos;s answer passes through (it has had no data since about May 2026).</li>
+      <DocsSection id="limits" title="Known limits">
+        <Ul>
+          <li>
+            <C>/v2/trending</C> has no fill yet, so Qloo&apos;s answer passes through (it has had no data since about May 2026).
+          </li>
           <li>An artist with no similar artist Qloo knows gets an empty taste answer (its label says why), never a guess.</li>
-          <li>Research needs an AI Gateway credential on the host; without one the Research step reports it is off.</li>
-        </ul>
-      </section>
-    </div>
+          <li>Research needs an AI Gateway credential on the host; without one the research step reports that it is off.</li>
+        </Ul>
+      </DocsSection>
+    </>
   );
 }

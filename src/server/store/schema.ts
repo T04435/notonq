@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS candidate_refs (
 CREATE INDEX IF NOT EXISTS fallback_entities_name_key ON fallback_entities (name_key, refreshed_at DESC);
 CREATE INDEX IF NOT EXISTS fallback_entities_mbid ON fallback_entities (mbid);
 CREATE INDEX IF NOT EXISTS fallback_entities_qloo ON fallback_entities (qloo_entity_id);
+CREATE INDEX IF NOT EXISTS fallback_entities_spotify ON fallback_entities (spotify_id);
 
 -- Every request, recorded for the Ledger's replay: an Ask run's streamed steps (with timing) or one API/MCP request
 -- and its response. Replaying shows these recorded steps again; nothing is re-run. Caller keys are hashed, never stored.
@@ -53,6 +54,53 @@ CREATE TABLE IF NOT EXISTS runs (
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS runs_created ON runs (created_at DESC);
+
+-- v0.4.1: calls from one app and caller that arrive less than 2 minutes apart (or share an X-NotOnQ-Trace) are one
+-- visit, shown as one Ledger row. helped counts the calls where NotOnQ filled, picked, matched or swapped in stand-ins.
+CREATE TABLE IF NOT EXISTS visits (
+  id           text PRIMARY KEY,
+  kind         text NOT NULL,                  -- ask | api
+  app_label    text,
+  caller_hash  text NOT NULL,
+  trace        text,
+  subject      text,                           -- the artist or question, when a call names one
+  title        text NOT NULL,                  -- the first call's request line
+  calls        integer NOT NULL DEFAULT 0,
+  helped       integer NOT NULL DEFAULT 0,
+  first_at     timestamptz NOT NULL DEFAULT now(),
+  last_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS visits_last ON visits (last_at DESC);
+CREATE INDEX IF NOT EXISTS visits_helped ON visits (helped, last_at DESC);
+CREATE INDEX IF NOT EXISTS visits_caller ON visits (caller_hash, app_label, last_at DESC);
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS visit_id text;
+ALTER TABLE runs ADD COLUMN IF NOT EXISTS helped boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS runs_visit ON runs (visit_id, created_at);
+CREATE INDEX IF NOT EXISTS runs_app ON runs (app_label, created_at DESC);
+UPDATE visits SET subject = replace(subject, '+', ' ') WHERE subject LIKE '%+%';
+-- Runs recorded before visits existed: grouped by the same rule (same kind, app and caller, gaps under 2 minutes;
+-- every Ask question is its own visit). Runs only once per run (visit_id IS NULL).
+WITH ordered AS (
+  SELECT id, kind, app_label, caller_hash, title, created_at,
+    (served_by IN ('fallback', 'mixed', 'needs_choice') OR (kind = 'ask' AND served_by IS NOT NULL AND served_by <> 'qloo')) AS h,
+    CASE WHEN kind = 'ask' OR lag(created_at) OVER w IS NULL OR created_at - lag(created_at) OVER w > interval '2 minutes' THEN 1 ELSE 0 END AS brk
+  FROM runs WHERE visit_id IS NULL
+  WINDOW w AS (PARTITION BY kind, coalesce(app_label, ''), caller_hash ORDER BY created_at, id)
+), grouped AS (
+  SELECT *, sum(brk) OVER (PARTITION BY kind, coalesce(app_label, ''), caller_hash ORDER BY created_at, id) AS g FROM ordered
+), keyed AS (
+  SELECT *, 'v-' || md5(kind || '|' || coalesce(app_label, '') || '|' || caller_hash || '|' || (min(created_at) OVER (PARTITION BY kind, coalesce(app_label, ''), caller_hash, g))::text) AS vid
+  FROM grouped
+), upd AS (
+  UPDATE runs r SET visit_id = k.vid, helped = k.h FROM keyed k WHERE r.id = k.id RETURNING r.id
+)
+INSERT INTO visits (id, kind, app_label, caller_hash, title, subject, calls, helped, first_at, last_at)
+SELECT vid, min(kind), min(app_label), min(caller_hash), (array_agg(title ORDER BY created_at))[1],
+  CASE WHEN min(kind) = 'ask' THEN (array_agg(title ORDER BY created_at))[1]
+       ELSE replace((array_agg(substring(title from '[?&]query=([^&]+)') ORDER BY created_at) FILTER (WHERE title ~ '[?&]query='))[1], '+', ' ') END,
+  count(*), sum(h::int), min(created_at), max(created_at)
+FROM keyed GROUP BY vid
+ON CONFLICT (id) DO NOTHING;
 
 -- Fills for a whole request shape (v0.3.0: artists by era, genre and place), shared like other open-data fills
 CREATE TABLE IF NOT EXISTS shape_fills (
@@ -75,6 +123,7 @@ CREATE TABLE IF NOT EXISTS requests (
 );
 ALTER TABLE requests ADD COLUMN IF NOT EXISTS query text;
 CREATE INDEX IF NOT EXISTS requests_name_key ON requests (name_key);
+CREATE INDEX IF NOT EXISTS requests_name_created ON requests (name_key, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS research_claims (
   id           bigserial PRIMARY KEY,
