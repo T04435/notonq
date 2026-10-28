@@ -196,7 +196,7 @@ function Live({ s, app }: { s: ProofStats; app?: string }) {
                     {apps.map((a) => (
                       <TableRow key={a.app} data-state={a.app === app ? "selected" : undefined}>
                         <TableCell>
-                          <Link href={proofHref(a.app === app ? undefined : a.app)} aria-current={a.app === app ? "page" : undefined} className="underline-offset-4 hover:underline">
+                          <Link href={proofHref(a.app === app ? undefined : a.app)} aria-current={a.app === app ? "page" : undefined} className={`underline-offset-4 hover:underline ${a.app === app ? "font-medium text-fill underline" : ""}`}>
                             {a.app}
                           </Link>
                         </TableCell>

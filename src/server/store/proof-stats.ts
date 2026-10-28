@@ -74,27 +74,13 @@ export async function proofStats(sql: Sql, app?: string): Promise<ProofStats> {
   );
 
   // Artists: the latest artist search for each name, and what it said.
-  const searches = await sql(
-    `SELECT coalesce(app_label, 'unlabelled') AS app, served_by, created_at,
+  const SEARCHES = `SELECT coalesce(app_label, 'unlabelled') AS app, served_by, created_at,
             events->0->'params'->>'query' AS query,
             events->1->'body'->'notonq'->'gap'->>'kind' AS gap,
             events->1->'body'->'notonq'->>'served_by' AS answered_by
-     FROM runs WHERE ${ARTIST_SEARCH} ${scope} ORDER BY created_at`,
-    args,
-  );
-  type Seen = { name: string; outcome: ArtistOutcome; ambiguous: boolean; searches: number; apps: Set<string>; perApp: Map<string, number> };
-  const byName = new Map<string, Seen>();
-  for (const s of searches) {
-    const name = String(s.query ?? "").replace(/\+/g, " ").trim();
-    if (!name) continue;
-    const key = nameKey(name);
-    const ambiguous = s.answered_by === "needs_choice" || s.served_by === "needs_choice";
-    const outcome: ArtistOutcome = s.gap === "G1" || s.gap === "G2" ? (s.gap as ArtistOutcome) : s.served_by === "qloo" ? "usable" : "G1";
-    const prev = byName.get(key);
-    const perApp = prev?.perApp ?? new Map<string, number>();
-    perApp.set(String(s.app), (perApp.get(String(s.app)) ?? 0) + 1);
-    byName.set(key, { name, outcome, ambiguous, searches: (prev?.searches ?? 0) + 1, apps: (prev?.apps ?? new Set()).add(String(s.app)), perApp });
-  }
+     FROM runs WHERE ${ARTIST_SEARCH}`;
+  const searches = await sql(`${SEARCHES} ${scope} ORDER BY created_at`, args);
+  const byName = byArtist(searches);
   const seen = [...byName.entries()];
   const gaps = seen.filter(([, v]) => v.outcome !== "usable");
   const n = (o: ArtistOutcome) => seen.filter(([, v]) => v.outcome === o).length;
@@ -151,9 +137,11 @@ export async function proofStats(sql: Sql, app?: string): Promise<ProofStats> {
   // Apps: every run counts toward its app's share; artists and gaps by each app's own searches.
   const appRuns = await sql(`SELECT coalesce(app_label, 'unlabelled') AS app, count(*)::int AS runs FROM runs GROUP BY 1 ORDER BY 2 DESC`);
   const allRuns = appRuns.reduce((a, r) => a + Number(r.runs), 0);
+  // Every app is listed whatever the filter, so another one is always a click away.
+  const everyone = app ? [...byArtist(await sql(`${SEARCHES} ORDER BY created_at`)).entries()] : seen;
   const apps = appRuns.map((r) => {
     const app = String(r.app);
-    const mine = seen.filter(([, v]) => v.apps.has(app));
+    const mine = everyone.filter(([, v]) => v.apps.has(app));
     return {
       app,
       runs: Number(r.runs),
@@ -232,3 +220,22 @@ export async function proofStats(sql: Sql, app?: string): Promise<ProofStats> {
 
 /** A description we copied from Wikipedia (the label NotOnQ writes into every record doesn't count). */
 const hasDescription = (p: ProvenanceMap) => !!p["properties.short_description"]?.some((c) => c.note?.includes("Wikipedia summary copied"));
+
+type Seen = { name: string; outcome: ArtistOutcome; ambiguous: boolean; searches: number; apps: Set<string>; perApp: Map<string, number> };
+
+/** Each artist by its latest search (the outcome), with every search counted per app. */
+function byArtist(searches: Record<string, unknown>[]): Map<string, Seen> {
+  const byName = new Map<string, Seen>();
+  for (const s of searches) {
+    const name = String(s.query ?? "").replace(/\+/g, " ").trim();
+    if (!name) continue;
+    const key = nameKey(name);
+    const ambiguous = s.answered_by === "needs_choice" || s.served_by === "needs_choice";
+    const outcome: ArtistOutcome = s.gap === "G1" || s.gap === "G2" ? (s.gap as ArtistOutcome) : s.served_by === "qloo" ? "usable" : "G1";
+    const prev = byName.get(key);
+    const perApp = prev?.perApp ?? new Map<string, number>();
+    perApp.set(String(s.app), (perApp.get(String(s.app)) ?? 0) + 1);
+    byName.set(key, { name, outcome, ambiguous, searches: (prev?.searches ?? 0) + 1, apps: (prev?.apps ?? new Set()).add(String(s.app)), perApp });
+  }
+  return byName;
+}
