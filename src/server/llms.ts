@@ -3,14 +3,14 @@
 
 export const LLMS_TXT = `# NotOnQ
 
-> A drop-in layer in front of the Qloo taste API (hackathon host). Qloo answers first with the caller's own key; when
-> Qloo has no data for a music artist, NotOnQ returns the same shape built from open sources, with a source on every
-> value, and uses similar artists Qloo does know ("stand-ins") so taste answers still come from Qloo. Artists only.
+> NotOnQ fills in music artists for the Qloo taste API (hackathon host), in Qloo's own shape, from open sources, with a
+> source on every value. Qloo answers first with the caller's own key; an artist new to Qloo is filled in by NotOnQ,
+> and taste answers for it come from Qloo through similar artists Qloo knows ("stand-ins"). Artists only.
 > Works with the Qloo API; not affiliated with or endorsed by Qloo.
 
 Use it two ways: point the official Qloo MCP server at it (its base URL, nothing else changes), or call the REST API
 under \`/q\` with the same paths as Qloo. Qloo's results always come first, unchanged; NotOnQ's artists are added after
-them, labelled "Not in Qloo" in properties.short_description.
+them, labelled in properties.short_description ("Not in Qloo: filled by NotOnQ from open sources.").
 
 NotOnQ shows the behaviour, not the data pipeline: its open sources stand in for whatever Qloo would use. Built into
 Qloo, the same flow would run on Qloo's own licensed sources and taste graph.
@@ -18,36 +18,36 @@ Qloo, the same flow would run on Qloo's own licensed sources and taste graph.
 ## Docs
 
 - [Full reference for agents]({origin}/llms-full.txt): everything below in one markdown file
-- [Overview and quickstart]({origin}/docs): the three ways in, gap kinds, the 1:1 shape, provenance, limits
+- [Overview and quickstart]({origin}/docs): the two ways in, when NotOnQ fills in, the 1:1 shape, provenance, Ask, the Ledger, Proof, limits
 - [REST API]({origin}/docs/rest): endpoints, headers, notonq.* parameters, the notonq block, status codes
 - [MCP]({origin}/docs/mcp): the official Qloo harness pointed at NotOnQ, and what changes in each of its tools
 - [OpenAPI 3.1]({origin}/openapi.json): machine-readable REST description
 
 ## Optional
 
-- [Ledger]({origin}/ledger): every request made through NotOnQ (Ask questions and API/MCP calls), each replayable step by step; a filter by artist and a ranked artists panel count who answered each artist
-- [Proof]({origin}/proof): live numbers from every lookup, filterable by app (the benchmark batch is the app "benchmark")
-- [Ask]({origin}/): one question; Qloo answers first through its own harness, then NotOnQ checks that answer and fills in the rest from open sources (every step shown)
+- [Ask]({origin}/): the home page. One question through Qloo's own MCP harness: Qloo answers first, unchanged; Jev the judge checks it; if it falls short, NotOnQ asks Qloo again, then fills in from open sources, labelled (every step shown)
+- [Ledger]({origin}/ledger): the record of every call through /q and every Ask question, grouped into visits, live; Replay where NotOnQ answered; artist record pages at /ledger/<name>
+- [Proof]({origin}/proof): every number counted from Ledger runs, across all apps or one (the benchmark batch is the app "benchmark")
 `;
 
 export const LLMS_FULL = `# NotOnQ: full reference
 
-> When the Qloo API has no data for a music artist, NotOnQ returns the same shape from open sources, with a source on
-> every value. Artists only, for the Qloo Agentic Hackathon 2026. Base: {origin}
+> NotOnQ fills in music artists for the Qloo API, in Qloo's own shape, from open sources, with a source on every value.
+> Artists only, for the Qloo Agentic Hackathon 2026. Base: {origin}
 
 ## Scope
 
 NotOnQ fills gaps for \`urn:entity:artist\` only. Requests for any other entity type, and any request Qloo can answer,
 pass straight through to Qloo unchanged.
 
-## When NotOnQ steps in
+## When NotOnQ fills in
 
-| Gap | How Qloo shows it | What NotOnQ does |
+| Case | What NotOnQ does | How Qloo shows it |
 |---|---|---|
-| G1 unknown | /search has no artist with the exact name | Adds a Qloo-shaped artist from open data after Qloo's results, or every artist the name could be when it is ambiguous |
-| G2 not in the taste graph | /v2/insights answers 400 for the artist as a signal | Swaps it for stand-ins: similar artists Qloo knows |
-| G4 thin era/genre/place answer | /v2/insights for artists by a music genre tag (and place) returns fewer than 5 artists | Adds artists from that era, genre and country after Qloo's |
-| none | Qloo answers | Passes Qloo's response through unchanged |
+| G1 new to Qloo | Adds a Qloo-shaped artist, filled in from open sources, after Qloo's results; or every artist the name could be when it is ambiguous | /search has no artist with the exact name |
+| G2 not yet a taste signal | Answers through stand-ins: similar artists Qloo knows | /v2/insights answers 400 for the artist as a signal |
+| G4 a short era list | Adds artists from that decade or genre and country after Qloo's own | /v2/insights for artists by a music genre tag (and place) returns fewer than 5 artists |
+| none | Passes Qloo's response through unchanged | Qloo answers |
 
 ## Quickstart
 
@@ -105,7 +105,7 @@ choose from context, then send that entity_id to /entities or as a signal (NotOn
 
 Added beside Qloo's response when NotOnQ took part:
 - served_by: qloo | fallback | mixed (Qloo answered for stand-ins) | needs_choice
-- gap: { kind: G1|G2, qloo_status, qloo_message }
+- gap: { kind: G1 (new to Qloo) | G2 (not yet a taste signal) | G4 (a short era list), qloo_status, qloo_message }
 - cache: { hit, first_seen }
 - demand: { requests, callers, apps }
 - proxy: { replaced: [ids], stand_ins: [{ entity_id, name, weight, source }] }
@@ -164,12 +164,29 @@ licence, linked), Last.fm (powered by AudioScrobbler), Deezer (non-commercial us
 the place at a point), Spotify's public oEmbed (an artist's name for a Spotify ID only), Qloo (each caller's own key; no
 Qloo response data is stored publicly).
 
-## Caching, demand, research
+## Ask, the Ledger and Proof
 
-- Fallbacks are shared (open data): filled artists refresh weekly; misses and fills with a failed source retry after a day.
+- Ask ({origin}/, the home page): one question through Qloo's own MCP harness. Qloo answers first, unchanged; Jev, the
+  judge, checks that answer against what the question asks for (per constraint and per artist); if it falls short,
+  NotOnQ asks Qloo again, then fills in the rest from open sources, labelled, with sources. It ends with a table of
+  every artist: where it came from, kept or removed and why, and what NotOnQ added.
+- The Ledger ({origin}/ledger) is the record: every call through /q and every Ask question, grouped into visits (the
+  same app and caller under 2 minutes apart, or the same X-NotOnQ-Trace; each Ask question is its own visit). Views:
+  where we filled in, Qloo alone, all; filters by app and kind (API or Ask). Live through Neon Realtime (no polling),
+  with pause and "N new". Every view is in the URL. A visit opens to its calls; Replay (recorded results, nothing
+  re-run) is there only where NotOnQ answered: when Qloo answered alone, only the request and a one-line summary are
+  kept. Each filled-in artist has a record page at {origin}/ledger/<name>.
+- Proof ({origin}/proof): every number counted from Ledger runs, across all apps or one ({origin}/proof?app=<label>).
+  The benchmark batch (scripts/benchmark.mts) is the app "benchmark": real Ask questions and /q calls sent to a running
+  NotOnQ and recorded like any other. Nothing is frozen in the repo.
+
+## Caching, budgets, research
+
+- Fills are shared (open data): filled-in artists refresh weekly; misses and fills with a failed source retry after a day.
 - Qloo responses are cached per caller key only.
-- Every request is recorded in the Ledger ({origin}/ledger) against a salted hash of the key and the app label, and can
-  be replayed step by step there (recorded results, nothing re-run).
+- Each call is recorded against a salted hash of the key and the app label; keys are never stored.
+- Research (when the host has AI Gateway access): runs once per artist in the background after a fill with fields
+  missing; the answer never waits for it; the next request gets the result.
 
 ## No raw Qloo responses on NotOnQ's pages
 
@@ -177,20 +194,19 @@ The drop-in API returns Qloo's answer to its caller unchanged. NotOnQ's own page
 derived from Qloo (artist names, links, the agent's answer, the final table) but never raw Qloo API responses: those are
 redacted on the server by type ("[redacted string]", "[redacted uuid]", "[redacted number]", "[redacted boolean]"),
 keeping the shape. Qloo entity IDs (upper-case UUIDs) are removed everywhere; NotOnQ's own data is shown in full.
-- Research (when the host has AI Gateway access): runs once per artist in the background after a fill with fields
-  missing; the answer never waits for it; the next request gets the result.
 
 ## Inside Qloo
 
 NotOnQ is a proof of concept for a Qloo feature. The open sources it uses (MusicBrainz, Wikidata, Wikipedia, Last.fm,
 Deezer) stand in for whatever Qloo would use. Built into Qloo, the same flow would run on Qloo's own licensed sources
-and taste graph: fill the gap, label it, answer taste questions through similar artists, step aside once the artist is
-in the catalogue. The Ledger shows which missing artists people ask for. Artists first; the same pattern fits other
+and taste graph: fill in the artist, label it, answer taste questions through similar artists, step aside once the artist is
+in the catalogue. The Ledger shows which of the artists NotOnQ filled in people ask for. Artists first; the same pattern fits other
 entity types.
 
 ## Limits
 
-Artists only. No /v2/trending fallback yet. An artist with no similar artist Qloo knows has no taste answers.
+Artists only. No /v2/trending fill yet (Qloo has had no trend data since about May 2026). An artist with no similar
+artist Qloo knows gets an empty taste answer, never a guess. Research needs an AI Gateway credential on the host.
 `;
 
 export const withOrigin = (text: string, origin: string) => text.replaceAll("{origin}", origin.replace(/\/+$/, ""));
