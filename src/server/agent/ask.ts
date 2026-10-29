@@ -313,6 +313,25 @@ async function reconcile(question: string, constraints: Constraint[], stages: { 
   return { rows, summary: parts.filter(Boolean).join(" "), places };
 }
 
+/** Jev: does the answer through NotOnQ tell the user anything Qloo's answer doesn't (an artist, a fact, where fans are,
+ * their ages)? Rewording, or the same artists in another order, isn't new. */
+async function addsInformation(question: string, qloo: string, notonq: string, rows: Row[]): Promise<boolean> {
+  const added = rows.filter((r) => r.origin.startsWith("notonq")).map((r) => ({ name: r.name, facts: r.facts }));
+  const state = JSON.parse(JSON.stringify({ user_question: question, qloo_answer: qloo || "(no answer)", notonq_answer: notonq, notonq_added_artists: added }));
+  const res = await decide({
+    model: gateway.decisionModel(JUDGE_MODEL),
+    state,
+    questions: {
+      adds: {
+        type: "boolean" as const,
+        instructions:
+          "Does notonq_answer give the user information that qloo_answer does not: an artist, a fact about an artist, where fans are, their ages, or an answer where Qloo had none? Rewording, apologies, asking for clarification, or the same artists in a different order is not new information.",
+      },
+    },
+  });
+  return ((res.answers as Record<string, { probability?: number }>).adds?.probability ?? 1) >= 0.5;
+}
+
 /** The answer to the question itself, built from what the tools returned (never written by a model, so it can't credit
  * Qloo with what NotOnQ found, or add what nobody found): the named artist as known (Qloo's or NotOnQ's record, with its
  * facts), then each kind of taste answer the agent asked for (ages, where the fans are), each with where it came from,
@@ -410,8 +429,12 @@ export async function ask(question: string, deps: AskDeps) {
     qlooCalls.push(linked);
     d.emit({ type: "call", column: "qloo", stage: "qloo", ...linked });
   };
+  let qlooText = "";
   const qlooRun = agent(d.qlooBase, d.qlooKey, SYSTEM, question, onQloo).then(
-    (text) => d.emit({ type: "answer", column: "qloo", text, source: "qloo" }),
+    (text) => {
+      qlooText = text;
+      d.emit({ type: "answer", column: "qloo", text, source: "qloo" });
+    },
     (e: unknown) => d.emit({ type: "error", column: "qloo", message: String((e as Error)?.message ?? e) }),
   );
   const constraints = await constraintsOf(question);
@@ -495,6 +518,15 @@ export async function ask(question: string, deps: AskDeps) {
   d.emit({ type: "judge", stage: "notonq", judgement: j });
   stages.push({ stage: "notonq", calls });
   const r = await reconcile(question, constraints, stages);
+  const ours = told.trim() || answerOf(constraints, stages, r.summary);
+  // Jev's last check: an answer through NotOnQ that says nothing Qloo's didn't ("mkmkmk", 29 Oct) is Qloo's answer, and
+  // the run is labelled so. Only new information makes it NotOnQ's.
+  d.emit({ type: "stage", column: "notonq", stage: "judge", title: "Did NotOnQ add anything?" });
+  if (!(await addsInformation(question, qlooText, ours, r.rows))) {
+    d.emit({ type: "reconcile", ...r, summary: `${r.summary} NotOnQ's answer adds nothing to Qloo's, so Qloo's answer stands.` });
+    d.emit({ type: "answer", column: "notonq", text: "NotOnQ found nothing that Qloo's answer doesn't already say, so Qloo's answer stands.", source: "qloo" });
+    return;
+  }
   d.emit({ type: "reconcile", ...r, summary: answerOf(constraints, stages, r.summary) });
-  d.emit({ type: "answer", column: "notonq", text: told.trim() || answerOf(constraints, stages, r.summary), source: "notonq" });
+  d.emit({ type: "answer", column: "notonq", text: ours, source: "notonq" });
 }

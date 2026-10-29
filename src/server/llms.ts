@@ -194,8 +194,9 @@ Qloo response data is stored publicly).
 
 - Ask ({origin}/, the home page): one question through Qloo's own MCP harness. Qloo answers first, unchanged; Jev, the
   judge, checks that answer against what the question asks for (per constraint and per artist); if it falls short,
-  NotOnQ asks Qloo again, then fills in the rest from open sources, labelled, with sources. It ends with a table of
-  every artist: where it came from, kept or removed and why, and what NotOnQ added.
+  NotOnQ asks Qloo again, then fills in the rest from open sources, labelled, with sources. Last, Jev checks whether
+  NotOnQ's answer says anything Qloo's doesn't; if not, Qloo's answer stands and the run counts as Qloo's. It ends
+  with a table of every artist: where it came from, kept or removed and why, and what NotOnQ added.
 - The Ledger ({origin}/ledger) is the record: every call through /q and every Ask question, grouped into visits (the
   same app and caller under 2 minutes apart, or the same X-NotOnQ-Trace; each Ask question is its own visit). Views:
   where we filled in, Qloo alone, all; filters by app and kind (API or Ask). Live through Neon Realtime (no polling),
