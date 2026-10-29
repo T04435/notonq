@@ -19,8 +19,11 @@ const norm = (s: string) =>
 /** The key an artist name is cached and counted under: lowercase, no accents or punctuation. */
 export const nameKey = norm;
 
-/** Same artist name, ignoring case, accents and punctuation ("sombr" = "Sombr", "Beyoncé" = "Beyonce"). */
-export const sameName = (a: string, b: string) => norm(a) === norm(b);
+/** A leading "The" is optional in how people write a band's name ("Pigram Brothers" = "The Pigram Brothers"). */
+const bare = (s: string) => norm(s).replace(/^the (?=.)/, "");
+
+/** Same artist name, ignoring case, accents, punctuation and a leading "The" ("sombr" = "Sombr", "Beyoncé" = "Beyonce"). */
+export const sameName = (a: string, b: string) => bare(a) === bare(b);
 
 export type SearchOutcome = { found: QlooEntity } | { gap: Gap };
 
