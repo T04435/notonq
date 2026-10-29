@@ -265,7 +265,9 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
   });
   if (!summary && !unavailable.some((u) => u.startsWith("properties.short_description"))) unavailable.push("properties.short_description (no Wikipedia summary)");
 
-  const genres = wiki?.genres.length ? wiki.genres : (artist?.tags ?? []);
+  // Wikidata's genres, else MusicBrainz's tags, else the tags Last.fm listeners give the artist (small acts often have
+  // only those).
+  const genres = wiki?.genres.length ? wiki.genres : artist?.tags.length ? artist.tags : (info?.tags ?? []);
   if (genres.length) {
     // Each genre name becomes Qloo's own music genre tag when Qloo has one by that exact name (so apps can send it
     // straight back as signal.interests.tags or filter.tags); otherwise NotOnQ's own, prefixed, never passed off as Qloo's.
@@ -273,8 +275,10 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
     const matched = entity.tags.filter((t) => !t.tag_id.startsWith(NS)).length;
     const from = wiki?.genres.length
       ? { source: "wikidata", record: wiki.record, licence: LICENCES.wikidata }
-      : // MusicBrainz tags are supplementary data (CC BY-NC-SA): fine for this non-commercial tool, labelled as such.
-        { source: "musicbrainz", record: artist!.record, licence: "CC-BY-NC-SA-3.0" };
+      : artist?.tags.length
+        ? // MusicBrainz tags are supplementary data (CC BY-NC-SA): fine for this non-commercial tool, labelled as such.
+          { source: "musicbrainz", record: artist.record, licence: "CC-BY-NC-SA-3.0" }
+        : { source: "lastfm", record: info?.url ?? lastfm.lastfmArtistUrl(lfName), licence: LICENCES.lastfm };
     cite(provenance, "tags", { ...from, method: matched ? "derived" : "copied", note: `${matched} of ${entity.tags.length} genre names matched to Qloo's own tags by exact name (/v2/tags)` });
   } else unavailable.push("tags");
 

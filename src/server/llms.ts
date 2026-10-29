@@ -128,7 +128,7 @@ A filled artist has exactly Qloo's keys and types.
 - entity_id: a UUID like Qloo's: the MusicBrainz ID, or a stable name-based UUID of the candidate (Deezer or Last.fm only)
 - properties.short_description: starts "Not in Qloo: filled by NotOnQ from open sources." and names the stand-ins, then
   "From <place> (MusicBrainz)." when known, then the Wikipedia summary when there is one
-- tags[]: Qloo's own music genre tag (\`urn:tag:genre:music:<genre>\`) where Qloo has one by that exact name, else
+- tags[] (genres from Wikidata, else MusicBrainz tags, else Last.fm listener tags without places): Qloo's own music genre tag (\`urn:tag:genre:music:<genre>\`) where Qloo has one by that exact name, else
   \`notonq:urn:tag:genre:<genre>\` (type \`urn:tag:genre\`)
 - properties["notonq:home"]: { name, country, country_code, source: "musicbrainz" } (where the artist is from; Qloo's
   artist records have no such field)
