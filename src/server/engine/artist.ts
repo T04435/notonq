@@ -12,7 +12,7 @@ import { externalOf, lookupBatch, pickStandIns, type Similar, type StandIn } fro
 import type { Fetch } from "@/server/http";
 import { cite, LICENCES, type ProvenanceMap } from "@/server/provenance";
 import { ARTIST, entitiesOf, type QlooClient, type QlooEntity } from "@/server/qloo/client";
-import { type Gap, readInsights, readSearch, sameName } from "@/server/qloo/gap";
+import { type Gap, readInsights, readSearch, sameName, sameStrictName } from "@/server/qloo/gap";
 
 /** Marks an unavailable field whose source failed (not "found nothing"): such fills are retried sooner. */
 export const SOURCE_ERROR = "source error";
@@ -88,14 +88,18 @@ export type ArtistResult =
 
 export type ResolveDeps = { qloo: QlooClient; lastfmKey?: string; fetch?: Fetch };
 /** untyped: the search named no type, so only candidates with evidence count (see hasEvidence). */
-export type ResolveOptions = { candidateKey?: string; choose?: boolean; untyped?: boolean };
+/** notQloo: Qloo's artist by this name is a different one (punctuation tells them apart, or a judge said so), so
+ * NotOnQ looks in its own sources instead of standing aside. */
+export type ResolveOptions = { candidateKey?: string; choose?: boolean; untyped?: boolean; notQloo?: boolean };
 
 export async function resolveArtist(name: string, deps: ResolveDeps, opts: ResolveOptions = {}): Promise<ArtistResult> {
   const { qloo } = deps;
   const search = readSearch(name, await qloo.searchArtist(name));
   let gap: Gap;
   let qlooEntity: QlooEntity | undefined;
-  if ("found" in search) {
+  if ("found" in search && opts.notQloo) {
+    gap = { kind: "G1", qlooStatus: 200, reason: `Qloo's "${search.found.name}" is a different artist from "${name}"` };
+  } else if ("found" in search) {
     const probe = await qloo.insights({ "filter.type": ARTIST, "signal.interests.entities": search.found.entity_id, take: 1 });
     const g2 = readInsights(probe);
     if (!g2) return { servedBy: "qloo", entity: search.found };
@@ -112,7 +116,9 @@ export async function resolveArtist(name: string, deps: ResolveDeps, opts: Resol
   if (opts.candidateKey) {
     anchor = set.candidates.find((c) => c.key === opts.candidateKey) ?? candidateFromKey(opts.candidateKey, name) ?? undefined;
     if (!anchor) return { servedBy: "needs_choice", gap, qlooEntity, candidates: set.candidates };
-  } else if (set.auto && !opts.choose) {
+  } else if (opts.notQloo && strictPick(set.candidates, name, search)) {
+    anchor = strictPick(set.candidates, name, search);
+  } else if (set.auto && !opts.choose && !(opts.notQloo && "found" in search && set.auto.inQloo?.entityId === search.found.entity_id)) {
     anchor = set.auto;
   } else if (set.candidates.length || opts.untyped) {
     return { servedBy: "needs_choice", gap, qlooEntity, candidates: set.candidates };
@@ -121,9 +127,19 @@ export async function resolveArtist(name: string, deps: ResolveDeps, opts: Resol
   // The chosen artist may be one Qloo knows under another spelling ("eminim" → Eminem): then Qloo answers, not us.
   if (anchor?.mbid && !anchor.inQloo) await markInQloo([anchor], qloo, known);
   const hit = anchor?.inQloo && known.get(anchor.inQloo.entityId);
+  // Not Qloo's same-named artist: never hand that one back as the answer.
+  if (hit && opts.notQloo && "found" in search && hit.entity_id === search.found.entity_id) return { servedBy: "needs_choice", gap, qlooEntity, candidates: set.candidates };
   if (hit && !readInsights(await qloo.insights({ "filter.type": ARTIST, "signal.interests.entities": hit.entity_id, take: 1 }))) return { servedBy: "qloo", entity: hit };
 
   return { servedBy: "fallback", gap, qlooEntity, ...(await buildFallback(name, deps, anchor)) };
+}
+
+/** The one candidate whose name is exactly the query as written (punctuation included) and isn't Qloo's same-named
+ * artist: "ANORAK!" from Japan, not Qloo's "Anorak". */
+function strictPick(candidates: Candidate[], name: string, search: ReturnType<typeof readSearch>) {
+  const qlooId = "found" in search ? search.found.entity_id : undefined;
+  const exact = candidates.filter((c) => sameStrictName(c.name, name) && (!c.inQloo || c.inQloo.entityId !== qlooId));
+  return exact.length === 1 ? exact[0] : undefined;
 }
 
 /** One batch lookup by MusicBrainz ID: flags the candidates Qloo already has, and returns those Qloo entities. */

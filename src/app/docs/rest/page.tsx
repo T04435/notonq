@@ -121,6 +121,7 @@ export default function RestReference() {
           rows={[
             ["notonq.candidate=<key>", "Fill in from this candidate (keys come from notonq.candidates). Sending the candidate's entity_id to /entities does the same."],
             ["notonq.choose=1", "Always list the candidates, even when a fill is cached or one match is confident."],
+            ["notonq.not_qloo=1", "Qloo's artist by this name is a different one: look in NotOnQ's sources anyway. Automatic when Qloo's name matches only without punctuation (\"Anorak\" for \"ANORAK!\") and MusicBrainz has the exact name under another record."],
           ]}
         />
         <P>

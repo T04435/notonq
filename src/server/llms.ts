@@ -94,6 +94,10 @@ it NotOnQ uses its own).
 Parameters NotOnQ reads (never sent to Qloo):
 - \`notonq.candidate=<key>\`: fill from this candidate (keys come from notonq.candidates)
 - \`notonq.choose=1\`: always list the candidates
+- \`notonq.not_qloo=1\`: Qloo's artist by this name is a different one; look in NotOnQ's sources anyway (Ask sends it
+  when its judge finds Qloo's artist isn't the one named). NotOnQ does this by itself when Qloo's name matches only
+  once punctuation is ignored ("Anorak" for "ANORAK!") and MusicBrainz has an artist named exactly as asked under
+  another record: Qloo's result stays first, unchanged, and NotOnQ's artist follows (gap G1)
 
 Ambiguous names: \`results\` holds Qloo's results, then one Qloo-shaped entry per candidate (UUID entity_id,
 short_description "Not in Qloo: a possible match … (country, listeners, fans)"); \`notonq.served_by\` is "needs_choice"

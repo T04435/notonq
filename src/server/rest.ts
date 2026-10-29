@@ -8,7 +8,7 @@ import { type Cite, factsFor, isThin, withFacts } from "@/server/engine/facts";
 import type { Fetch } from "@/server/http";
 import { ARTIST, entitiesOf, qlooClient, qlooMessage, type QlooEntity } from "@/server/qloo/client";
 import { cachedQloo, QlooBudgetExceeded } from "@/server/qloo/cached";
-import { readInsights, readSearch, sameName } from "@/server/qloo/gap";
+import { readInsights, readSearch, sameName, sameStrictName } from "@/server/qloo/gap";
 import { blockFor, fallbackBlock, standInsOf } from "@/server/respond";
 import type { Sql } from "@/server/store/db";
 import * as mb from "@/server/adapters/musicbrainz";
@@ -39,7 +39,7 @@ export async function handleRest(req: RestRequest, deps: RestDeps): Promise<Rest
   const ctx: Ctx = { sql: deps.sql, qloo, lastfmKey: req.lastfmKey, callerHash, appLabel: req.appLabel, endpoint: `/${req.path}`, fetch: deps.fetch, defer: deps.defer, research: deps.research };
   const path = req.path.replace(/^\/+|\/+$/g, "");
   // notonq.* parameters steer NotOnQ only; Qloo never sees them.
-  const options = { candidateKey: req.params["notonq.candidate"] || undefined, choose: req.params["notonq.choose"] === "1" };
+  const options = { candidateKey: req.params["notonq.candidate"] || undefined, choose: req.params["notonq.choose"] === "1", notQloo: req.params["notonq.not_qloo"] === "1" };
   req = { ...req, params: Object.fromEntries(Object.entries(req.params).filter(([k]) => !k.startsWith("notonq."))) };
 
   try {
@@ -76,7 +76,10 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
   // with NotOnQ's facts for the fields its record lacks (G5).
   if (req.params.types) {
     const outcome = readSearch(query, res);
-    if ("found" in outcome) return withFactsAnswer(qloo, [outcome.found.entity_id], ctx);
+    if ("found" in outcome) {
+      if (!options.notQloo && !(await differentArtist(query, outcome.found, ctx))) return withFactsAnswer(qloo, [outcome.found.entity_id], ctx);
+      options = { ...options, notQloo: true };
+    }
   } else if (qlooResults.some((e) => sameName(e.name, query))) return qloo;
 
   const l = await lookupArtist(query, ctx, { ...options, untyped: !req.params.types });
@@ -109,6 +112,15 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
     },
     servedBy: qlooResults.length ? "mixed" : "fallback",
   };
+}
+
+/** Qloo's match differs from the query only in punctuation ("Anorak" for "ANORAK!"), and MusicBrainz has an artist
+ * named exactly as asked that isn't Qloo's record: two bands, so Qloo's isn't the answer. */
+async function differentArtist(query: string, e: QlooEntity, ctx: Ctx) {
+  if (sameStrictName(e.name, query)) return false;
+  const own = externalOf(e, "musicbrainz").map((x) => String(x.id).toLowerCase());
+  const named = (await mb.searchArtists(query, { fetch: ctx.fetch })).filter((a) => (a.score ?? 0) >= 90 && sameStrictName(a.name, query));
+  return named.some((a) => !own.includes(a.mbid.toLowerCase()));
 }
 
 /** How many Qloo artists one request looks up on MusicBrainz for missing fields (1 call a second there). */

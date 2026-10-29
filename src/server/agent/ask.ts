@@ -2,6 +2,7 @@
 // in-process). Left: Qloo alone. Right: NotOnQ, which never hides Qloo's answer: it judges whether that answer meets
 // what the question asked (Jev), and only if not, climbs a fixed ladder (Qloo asked better, then the decade filter or
 // NotOnQ's artist fill), judging after every rung. Each step streams out as an event, so the page shows all of it.
+import { sameStrictName } from "@/server/qloo/gap";
 import "server-only";
 import { gateway } from "@ai-sdk/gateway";
 import { createQlooToolsFromEnvironment } from "@qloo/qloo-harness";
@@ -390,6 +391,17 @@ function redactFields(e: AskEvent): AskEvent {
   return e;
 }
 
+/** NotOnQ's own record of a named artist, looked up past Qloo's same-named one (notonq.not_qloo): the entry named
+ * exactly as asked, filled or offered as a candidate (sending its ID to a tool fills it). */
+async function ownRecord(name: string, notonqBase: string, key: string): Promise<{ id: string; name: string } | null> {
+  const url = `${notonqBase}/search?${new URLSearchParams({ query: name, types: "urn:entity:artist", take: "5", "notonq.not_qloo": "1" })}`;
+  const res = await fetch(url, { headers: { "X-Api-Key": key } }).catch(() => null);
+  const body = (await res?.json().catch(() => null)) as { results?: { entity_id: string; name: string; properties?: { short_description?: string } }[] } | null;
+  const ours = (body?.results ?? []).filter((e) => e.properties?.short_description?.startsWith("Not in Qloo"));
+  const pick = ours.find((e) => sameStrictName(e.name, name)) ?? (ours.length === 1 ? ours[0] : undefined);
+  return pick ? { id: pick.entity_id, name: pick.name } : null;
+}
+
 export async function ask(question: string, deps: AskDeps) {
   const d: AskDeps = { ...deps, emit: (e) => deps.emit(redactEvent(e)) };
   const qlooCalls: Call[] = [];
@@ -466,8 +478,18 @@ export async function ask(question: string, deps: AskDeps) {
     const rec = harness(d.notonqBase, d.qlooKey).find((t) => t.name === "qloo_recommend")!;
     await runTool(rec, { target_type: "artist", include_tags: [tag], ...(place ? { signal_location: place.value } : {}), limit: 10 }, onNotOnQ);
   } else {
-    d.emit({ type: "stage", column: "notonq", stage: "notonq", title: "Asking through NotOnQ", detail: "Same tools; NotOnQ fills what Qloo has no data for, labelled" });
-    told = await agent(d.notonqBase, d.qlooKey, SYSTEM, question, onNotOnQ);
+    // Jev says Qloo's artist isn't the one named: NotOnQ looks for it in its own sources, not behind Qloo's same name.
+    const named = unknownEntity ? unmet.find((c) => c.kind === "named_entity")?.value : undefined;
+    const ours = named ? await ownRecord(named, d.notonqBase, d.qlooKey) : null;
+    d.emit({
+      type: "stage",
+      column: "notonq",
+      stage: "notonq",
+      title: "Asking through NotOnQ",
+      detail: ours ? `Qloo's "${named}" is a different artist; NotOnQ's own record of it is used` : "Same tools; NotOnQ fills what Qloo has no data for, labelled",
+    });
+    const system = ours ? `${SYSTEM}\nQloo's artist with a name like "${named}" is a different artist. NotOnQ's record of "${named}" is entity_id ${ours.id} ("${ours.name}"): use that entity_id with every tool, never the name.` : SYSTEM;
+    told = await agent(d.notonqBase, d.qlooKey, system, question, onNotOnQ);
   }
   j = await judge(question, constraints, calls);
   d.emit({ type: "judge", stage: "notonq", judgement: j });

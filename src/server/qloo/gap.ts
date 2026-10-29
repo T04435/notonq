@@ -19,6 +19,10 @@ const norm = (s: string) =>
 /** The key an artist name is cached and counted under: lowercase, no accents or punctuation. */
 export const nameKey = norm;
 
+/** The name as written, ignoring only case, accents and spacing: "ANORAK!" and "Anorak" differ here, and are two bands. */
+const strict = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+export const sameStrictName = (a: string, b: string) => strict(a) === strict(b);
+
 /** A leading "The" is optional in how people write a band's name ("Pigram Brothers" = "The Pigram Brothers"). */
 const bare = (s: string) => norm(s).replace(/^the (?=.)/, "");
 
