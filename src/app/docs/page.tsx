@@ -85,8 +85,9 @@ export default function DocsOverview() {
           MusicBrainz ID, or a stable ID NotOnQ makes), and works anywhere Qloo takes an ID: send it back as a signal and NotOnQ swaps in its stand-ins.
         </P>
         <P>
-          <C>properties.short_description</C> starts with <C>Not in Qloo: filled by NotOnQ from open sources.</C> and names the stand-ins. Genre tag
-          IDs and keys Qloo doesn&apos;t have start with <C>notonq:</C>. Qloo&apos;s own values are never changed.
+          <C>properties.short_description</C> starts with <C>Not in Qloo: filled by NotOnQ from open sources.</C> and names the stand-ins. The same
+          stand-ins are listed as data in <C>properties[&quot;notonq:standIns&quot;]</C> (<C>[{"{ entity_id, name }"}]</C>, absent when there are none), so
+          read them from there rather than parsing the text. Genre tag IDs and keys Qloo doesn&apos;t have start with <C>notonq:</C>. Qloo&apos;s own values are never changed.
         </P>
         <ShapeDiff />
       </DocsSection>
