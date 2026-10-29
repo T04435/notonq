@@ -120,7 +120,8 @@ export default function DocsOverview() {
         <P>
           <A href="/">Ask</A> is the home page. A question runs through Qloo&apos;s own MCP harness, and Qloo answers first, unchanged. Jev, the judge,
           checks that answer against what the question asks for, per constraint and per artist. If it falls short, NotOnQ asks Qloo again, then fills
-          in the rest from open sources, labelled, with a source on each value. The answer ends with a table of every artist: where it came from,
+          in the rest from open sources, labelled, with a source on each value. Last, Jev checks whether NotOnQ&apos;s answer adds anything to
+          Qloo&apos;s; if not, Qloo&apos;s answer stands. The answer ends with a table of every artist: where it came from,
           kept or removed and why, and what NotOnQ added.
         </P>
       </DocsSection>
