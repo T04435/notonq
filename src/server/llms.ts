@@ -150,8 +150,7 @@ artist match) and /entities (up to 3 artists per request):
   MusicBrainz, most used first
 - properties.external["notonq:musicbrainz"] and ["notonq:wikidata"]: { id }, when Qloo's record has none
 - tags: notonq:urn:tag:genre:<genre> (MusicBrainz genres), only when Qloo's record has no genre tag
-Only a thin Qloo record gets them (no MusicBrainz ID, no Wikidata ID, or no genre tag); a full one is Qloo's answer
-alone. NotOnQ must know which artist it is: the MusicBrainz ID on Qloo's record, else MusicBrainz's single exact match for the
+Only a thin Qloo record gets them (one with no MusicBrainz ID); an artist Qloo knows is Qloo's answer alone. NotOnQ must know which artist it is: MusicBrainz's single exact match for the
 name. A name several artists share gets nothing rather than a guess. Lookups are cached as open data (weekly); one
 that takes over 4 seconds finishes after the response, and the next call has it.
 

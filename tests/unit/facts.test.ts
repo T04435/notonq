@@ -61,10 +61,10 @@ describe("field gaps on an artist Qloo has (G5)", () => {
     expect((out.body as { notonq?: unknown }).notonq).toBeUndefined();
   });
 
-  it("leaves a full Qloo record (MusicBrainz, Wikidata, genre) as Qloo's answer alone, without asking MusicBrainz", async () => {
-    const full = { ...qlooArtist(6, "Kitebird", { mb: 40 }), tags: [{ tag_id: "urn:tag:genre:music:pop", type: "urn:tag:genre:music" }] };
-    full.properties.external = { ...full.properties.external, wikidata: { id: "Q1" } } as never;
-    const { fetch, calls } = fakeFetch([qlooHas(full), ...musicbrainz]);
+  it("leaves an artist Qloo knows (its record has a MusicBrainz ID) as Qloo's answer alone, without asking MusicBrainz", async () => {
+    // No Wikidata ID and no genre tag (Lady Gaga's search record, 29 Oct): still Qloo's artist, so nothing is added.
+    const known = qlooArtist(6, "Kitebird", { mb: 40 });
+    const { fetch, calls } = fakeFetch([qlooHas(known), ...musicbrainz]);
     expect((await search(fetch)).servedBy).toBe("qloo");
     expect(calls.some((c) => c.includes("musicbrainz"))).toBe(false);
   });

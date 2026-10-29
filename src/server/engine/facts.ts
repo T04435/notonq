@@ -78,9 +78,10 @@ export async function factsFor(e: QlooEntity, ctx: Pick<Ctx, "sql" | "fetch" | "
 
 const hasGenre = (e: QlooEntity) => ((e as { tags?: { type?: string }[] }).tags ?? []).some((t) => t.type?.startsWith("urn:tag:genre"));
 
-/** A thin Qloo record: no MusicBrainz ID, no Wikidata ID or no genre. Only these get facts, so an artist Qloo knows
- * well (Taylor Swift) stays Qloo's answer alone, and MusicBrainz isn't asked about every search. */
-export const isThin = (e: QlooEntity) => !externalOf(e, "musicbrainz").length || !externalOf(e, "wikidata").length || !hasGenre(e);
+/** A thin Qloo record: no MusicBrainz ID, so Qloo can't say who the artist is beyond a name. Only these get facts: an
+ * artist Qloo knows (Taylor Swift, Lady Gaga) stays Qloo's answer alone, honestly, and MusicBrainz isn't asked about
+ * every search. */
+export const isThin = (e: QlooEntity) => !externalOf(e, "musicbrainz").length;
 
 /** The Qloo entity with NotOnQ's facts added where Qloo has none, and what was added (field path → citation). Qloo's
  * own keys and values are kept exactly. */
