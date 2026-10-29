@@ -12,7 +12,7 @@ import { externalOf, lookupBatch, pickStandIns, type Similar, type StandIn } fro
 import type { Fetch } from "@/server/http";
 import { cite, LICENCES, type ProvenanceMap } from "@/server/provenance";
 import { ARTIST, entitiesOf, type QlooClient, type QlooEntity } from "@/server/qloo/client";
-import { type Gap, readInsights, readSearch, sameName } from "@/server/qloo/gap";
+import { type Gap, readInsights, readSearch, sameName, sameStrictName } from "@/server/qloo/gap";
 
 /** Marks an unavailable field whose source failed (not "found nothing"): such fills are retried sooner. */
 export const SOURCE_ERROR = "source error";
@@ -44,6 +44,7 @@ export type FallbackEntity = {
     "notonq:home"?: Home;
     /** The similar artists Qloo knows that answer taste questions for this one (the names short_description lists). */
     "notonq:standIns"?: { entity_id: string; name: string }[];
+    "notonq:languages"?: { code: string; name: string; releases: number }[];
   };
   popularity?: number;
   disambiguation?: string;
@@ -88,14 +89,18 @@ export type ArtistResult =
 
 export type ResolveDeps = { qloo: QlooClient; lastfmKey?: string; fetch?: Fetch };
 /** untyped: the search named no type, so only candidates with evidence count (see hasEvidence). */
-export type ResolveOptions = { candidateKey?: string; choose?: boolean; untyped?: boolean };
+/** notQloo: Qloo's artist by this name is a different one (punctuation tells them apart, or a judge said so), so
+ * NotOnQ looks in its own sources instead of standing aside. */
+export type ResolveOptions = { candidateKey?: string; choose?: boolean; untyped?: boolean; notQloo?: boolean };
 
 export async function resolveArtist(name: string, deps: ResolveDeps, opts: ResolveOptions = {}): Promise<ArtistResult> {
   const { qloo } = deps;
   const search = readSearch(name, await qloo.searchArtist(name));
   let gap: Gap;
   let qlooEntity: QlooEntity | undefined;
-  if ("found" in search) {
+  if ("found" in search && opts.notQloo) {
+    gap = { kind: "G1", qlooStatus: 200, reason: `Qloo's "${search.found.name}" is a different artist from "${name}"` };
+  } else if ("found" in search) {
     const probe = await qloo.insights({ "filter.type": ARTIST, "signal.interests.entities": search.found.entity_id, take: 1 });
     const g2 = readInsights(probe);
     if (!g2) return { servedBy: "qloo", entity: search.found };
@@ -112,7 +117,9 @@ export async function resolveArtist(name: string, deps: ResolveDeps, opts: Resol
   if (opts.candidateKey) {
     anchor = set.candidates.find((c) => c.key === opts.candidateKey) ?? candidateFromKey(opts.candidateKey, name) ?? undefined;
     if (!anchor) return { servedBy: "needs_choice", gap, qlooEntity, candidates: set.candidates };
-  } else if (set.auto && !opts.choose) {
+  } else if (opts.notQloo && strictPick(set.candidates, name, search)) {
+    anchor = strictPick(set.candidates, name, search);
+  } else if (set.auto && !opts.choose && !(opts.notQloo && "found" in search && set.auto.inQloo?.entityId === search.found.entity_id)) {
     anchor = set.auto;
   } else if (set.candidates.length || opts.untyped) {
     return { servedBy: "needs_choice", gap, qlooEntity, candidates: set.candidates };
@@ -121,9 +128,22 @@ export async function resolveArtist(name: string, deps: ResolveDeps, opts: Resol
   // The chosen artist may be one Qloo knows under another spelling ("eminim" → Eminem): then Qloo answers, not us.
   if (anchor?.mbid && !anchor.inQloo) await markInQloo([anchor], qloo, known);
   const hit = anchor?.inQloo && known.get(anchor.inQloo.entityId);
+  // Not Qloo's same-named artist: never hand that one back as the answer.
+  if (hit && opts.notQloo && "found" in search && hit.entity_id === search.found.entity_id) return { servedBy: "needs_choice", gap, qlooEntity, candidates: set.candidates };
   if (hit && !readInsights(await qloo.insights({ "filter.type": ARTIST, "signal.interests.entities": hit.entity_id, take: 1 }))) return { servedBy: "qloo", entity: hit };
 
   return { servedBy: "fallback", gap, qlooEntity, ...(await buildFallback(name, deps, anchor)) };
+}
+
+/** The one candidate whose name is exactly the query as written (punctuation included) and isn't Qloo's same-named
+ * artist: "ANORAK!" from Japan, not Qloo's "Anorak". */
+function strictPick(candidates: Candidate[], name: string, search: ReturnType<typeof readSearch>) {
+  const qlooId = "found" in search ? search.found.entity_id : undefined;
+  const exact = candidates.filter((c) => sameStrictName(c.name, name) && (!c.inQloo || c.inQloo.entityId !== qlooId));
+  if (exact.length === 1) return exact[0];
+  // The same band can arrive twice (MusicBrainz, and Deezer unmerged): the one MusicBrainz record is the identity.
+  const withMb = exact.filter((c) => c.mbid);
+  return withMb.length === 1 ? withMb[0] : undefined;
 }
 
 /** One batch lookup by MusicBrainz ID: flags the candidates Qloo already has, and returns those Qloo entities. */
@@ -161,11 +181,12 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
       return null;
     }
   };
-  const [wiki, info, similar, dz] = await Promise.all([
+  const [wiki, info, similar, dz, langs] = await Promise.all([
     artist ? soft("properties.external.wikidata", () => wd.artistByMbid(artist.mbid, { fetch: f })) : null,
     lastfmKey ? lastfm.artistInfo(lfName, lastfmKey, { fetch: f }) : null,
     lastfmKey ? lastfm.similarArtists(lfName, lastfmKey, { fetch: f }) : [],
     anchor.deezerId ? deezer.getArtist(anchor.deezerId, { fetch: f }) : null,
+    artist ? mb.releaseLanguages(artist.mbid, { fetch: f }).catch(() => []) : [],
   ]);
   const summary = wiki?.enwiki ? await soft("properties.short_description", () => wp.summary(wiki.enwiki!, { fetch: f })) : null;
   const standIns = await findStandIns(lfName, similar, dz, qloo, provenance, f);
@@ -230,6 +251,10 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
     entity.properties["notonq:home"] = home;
     cite(provenance, "properties.notonq:home", { source: "musicbrainz", record: artist!.record, licence: LICENCES.musicbrainz, method: "copied", note: "MusicBrainz begin area (else area) and country" });
   } else unavailable.push("properties.notonq:home");
+  if (langs.length) {
+    entity.properties["notonq:languages"] = langs.slice(0, 3).map((l) => ({ ...l, name: mb.languageName(l.code) }));
+    cite(provenance, "properties.notonq:languages", { source: "musicbrainz", record: artist!.record, licence: LICENCES.musicbrainz, method: "derived", note: "Counted from the text language MusicBrainz records on each of the artist's releases" });
+  }
   entity.properties.short_description = notInQlooNote(standIns, summary?.extract, home);
   cite(provenance, "properties.short_description", {
     source: "notonq",
@@ -240,7 +265,9 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
   });
   if (!summary && !unavailable.some((u) => u.startsWith("properties.short_description"))) unavailable.push("properties.short_description (no Wikipedia summary)");
 
-  const genres = wiki?.genres.length ? wiki.genres : (artist?.tags ?? []);
+  // Wikidata's genres, else MusicBrainz's tags, else the tags Last.fm listeners give the artist (small acts often have
+  // only those).
+  const genres = wiki?.genres.length ? wiki.genres : artist?.tags.length ? artist.tags : (info?.tags ?? []);
   if (genres.length) {
     // Each genre name becomes Qloo's own music genre tag when Qloo has one by that exact name (so apps can send it
     // straight back as signal.interests.tags or filter.tags); otherwise NotOnQ's own, prefixed, never passed off as Qloo's.
@@ -248,8 +275,10 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
     const matched = entity.tags.filter((t) => !t.tag_id.startsWith(NS)).length;
     const from = wiki?.genres.length
       ? { source: "wikidata", record: wiki.record, licence: LICENCES.wikidata }
-      : // MusicBrainz tags are supplementary data (CC BY-NC-SA): fine for this non-commercial tool, labelled as such.
-        { source: "musicbrainz", record: artist!.record, licence: "CC-BY-NC-SA-3.0" };
+      : artist?.tags.length
+        ? // MusicBrainz tags are supplementary data (CC BY-NC-SA): fine for this non-commercial tool, labelled as such.
+          { source: "musicbrainz", record: artist.record, licence: "CC-BY-NC-SA-3.0" }
+        : { source: "lastfm", record: info?.url ?? lastfm.lastfmArtistUrl(lfName), licence: LICENCES.lastfm };
     cite(provenance, "tags", { ...from, method: matched ? "derived" : "copied", note: `${matched} of ${entity.tags.length} genre names matched to Qloo's own tags by exact name (/v2/tags)` });
   } else unavailable.push("tags");
 

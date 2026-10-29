@@ -89,15 +89,15 @@ export default function RestReference() {
             [
               "GET",
               "/search",
-              "With types=urn:entity:artist, or no types. Qloo first, unchanged. When Qloo has no artist (untyped: nothing at all) with that exact name (a leading \"The\" is optional), NotOnQ adds the filled-in artist, or every artist the name could be, after Qloo's results. take caps Qloo's results and NotOnQ's separately.",
+              "With types=urn:entity:artist, or no types. Qloo first, unchanged. When Qloo has no artist (untyped: nothing at all) with that exact name (a leading \"The\" is optional), NotOnQ adds the filled-in artist, or every artist the name could be, after Qloo's results. take caps Qloo's results and NotOnQ's separately. When Qloo's exact match has a thin record, NotOnQ adds the fields it lacks (G5: notonq:home, notonq:languages, MusicBrainz and Wikidata IDs, genres), cited in notonq.facts.",
             ],
-            ["GET", "/entities", "entity_ids=…: Qloo's IDs from Qloo; NotOnQ's (fills, and candidates it offered, filled on first use) from NotOnQ, in one results list. notonq.served_by covers the answer; notonq[\"<entity_id>\"] is each NotOnQ entity's own block."],
+            ["GET", "/entities", "entity_ids=…: Qloo's IDs from Qloo; NotOnQ's (fills, and candidates it offered, filled on first use) from NotOnQ, in one results list. notonq.served_by covers the answer; notonq[\"<entity_id>\"] is each NotOnQ entity's own block. Thin Qloo records (up to 3) get the same G5 fields as /search."],
             [
               "GET",
               "/entities",
               "external.spotify.ids=…: Qloo's matches first. A Spotify ID Qloo lacks is matched through MusicBrainz, else by the name on Spotify's public page (Qloo's record with that exact name, labelled, or NotOnQ's fill when it is one confident artist). Up to 5 such lookups per request.",
             ],
-            ["GET", "/v2/insights", "Any filter.type. NotOnQ IDs, and Qloo IDs Qloo rejects as a signal, become their stand-ins; Qloo answers. No stand-ins: an empty answer."],
+            ["GET", "/v2/insights", "Any filter.type. NotOnQ IDs, and Qloo IDs Qloo rejects as a signal, become their stand-ins; Qloo answers. No stand-ins: an empty answer. filter.type=urn:demographics for an artist Qloo has but has no audience for: Qloo's demographics for the artist's own genres, labelled (G5)."],
             [
               "GET",
               "/v2/insights",
@@ -121,6 +121,7 @@ export default function RestReference() {
           rows={[
             ["notonq.candidate=<key>", "Fill in from this candidate (keys come from notonq.candidates). Sending the candidate's entity_id to /entities does the same."],
             ["notonq.choose=1", "Always list the candidates, even when a fill is cached or one match is confident."],
+            ["notonq.not_qloo=1", "Qloo's artist by this name is a different one: look in NotOnQ's sources anyway. Automatic when Qloo's name matches only without punctuation (\"Anorak\" for \"ANORAK!\") and MusicBrainz has the exact name under another record."],
           ]}
         />
         <P>

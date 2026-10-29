@@ -94,6 +94,10 @@ it NotOnQ uses its own).
 Parameters NotOnQ reads (never sent to Qloo):
 - \`notonq.candidate=<key>\`: fill from this candidate (keys come from notonq.candidates)
 - \`notonq.choose=1\`: always list the candidates
+- \`notonq.not_qloo=1\`: Qloo's artist by this name is a different one; look in NotOnQ's sources anyway (Ask sends it
+  when its judge finds Qloo's artist isn't the one named). NotOnQ does this by itself when Qloo's name matches only
+  once punctuation is ignored ("Anorak" for "ANORAK!") and MusicBrainz has an artist named exactly as asked under
+  another record: Qloo's result stays first, unchanged, and NotOnQ's artist follows (gap G1)
 
 Ambiguous names: \`results\` holds Qloo's results, then one Qloo-shaped entry per candidate (UUID entity_id,
 short_description "Not in Qloo: a possible match … (country, listeners, fans)"); \`notonq.served_by\` is "needs_choice"
@@ -105,7 +109,7 @@ choose from context, then send that entity_id to /entities or as a signal (NotOn
 
 Added beside Qloo's response when NotOnQ took part:
 - served_by: qloo | fallback | mixed (Qloo answered for stand-ins) | needs_choice
-- gap: { kind: G1 (new to Qloo) | G2 (not yet a taste signal) | G4 (a short era list), qloo_status, qloo_message }
+- gap: { kind: G1 (new to Qloo) | G2 (not yet a taste signal) | G4 (a short era list) | G5 (Qloo has the artist; a field is missing), qloo_status, qloo_message }
 - cache: { hit, first_seen }
 - demand: { requests, callers, apps }
 - proxy: { replaced: [ids], stand_ins: [{ entity_id, name, weight, source }] }
@@ -124,15 +128,34 @@ A filled artist has exactly Qloo's keys and types.
 - entity_id: a UUID like Qloo's: the MusicBrainz ID, or a stable name-based UUID of the candidate (Deezer or Last.fm only)
 - properties.short_description: starts "Not in Qloo: filled by NotOnQ from open sources." and names the stand-ins, then
   "From <place> (MusicBrainz)." when known, then the Wikipedia summary when there is one
-- tags[]: Qloo's own music genre tag (\`urn:tag:genre:music:<genre>\`) where Qloo has one by that exact name, else
+- tags[] (genres from Wikidata, else MusicBrainz tags, else Last.fm listener tags without places): Qloo's own music genre tag (\`urn:tag:genre:music:<genre>\`) where Qloo has one by that exact name, else
   \`notonq:urn:tag:genre:<genre>\` (type \`urn:tag:genre\`)
 - properties["notonq:home"]: { name, country, country_code, source: "musicbrainz" } (where the artist is from; Qloo's
   artist records have no such field)
 - properties["notonq:standIns"]: [{ entity_id, name }] (the similar artists Qloo knows that answer taste questions for
   this one, all of them in order; short_description names the first three; absent when there are none)
+- properties["notonq:languages"]: [{ code (ISO 639-3), name, releases }] (the languages of the artist's releases on
+  MusicBrainz, most used first; absent when MusicBrainz records none)
 - properties.external["notonq:deezer"]: { id, fans }
 
 Send a NotOnQ entity ID back as a signal anywhere Qloo takes one; NotOnQ swaps in its stand-ins.
+
+### Field gaps (G5): artists Qloo has
+
+When Qloo has the artist but its record lacks a field, NotOnQ adds it beside Qloo's values (never over them), cited in
+notonq.facts["<entity_id>"].provenance, with notonq.served_by "mixed" and notonq.gap.kind G5. On /search (the exact
+artist match) and /entities (up to 3 artists per request):
+- properties["notonq:home"]: where the artist is from (MusicBrainz)
+- properties["notonq:languages"]: [{ code (ISO 639-3), name, releases }], the languages of the artist's releases on
+  MusicBrainz, most used first
+- properties.external["notonq:musicbrainz"] and ["notonq:wikidata"]: { id }, when Qloo's record has none
+- tags: notonq:urn:tag:genre:<genre> (MusicBrainz genres), only when Qloo's record has no genre tag
+Only a thin Qloo record gets them (one with no MusicBrainz ID); an artist Qloo knows is Qloo's answer alone. NotOnQ must know which artist it is: MusicBrainz's single exact match for the
+name. A name several artists share gets nothing rather than a guess. Lookups are cached as open data (weekly); one
+that takes over 4 seconds finishes after the response, and the next call has it.
+
+GET /q/v2/insights?filter.type=urn:demographics for an artist Qloo has but has no audience for: Qloo's demographics
+for that artist's own Qloo genre tags, each row labelled notonq:basis { stand_ins: [], genres: [<tag>] }.
 
 ### Status codes
 
@@ -170,8 +193,9 @@ Qloo response data is stored publicly).
 
 - Ask ({origin}/, the home page): one question through Qloo's own MCP harness. Qloo answers first, unchanged; Jev, the
   judge, checks that answer against what the question asks for (per constraint and per artist); if it falls short,
-  NotOnQ asks Qloo again, then fills in the rest from open sources, labelled, with sources. It ends with a table of
-  every artist: where it came from, kept or removed and why, and what NotOnQ added.
+  NotOnQ asks Qloo again, then fills in the rest from open sources, labelled, with sources. Last, Jev checks whether
+  NotOnQ's answer says anything Qloo's doesn't; if not, Qloo's answer stands and the run counts as Qloo's. It ends
+  with a table of every artist: where it came from, kept or removed and why, and what NotOnQ added.
 - The Ledger ({origin}/ledger) is the record: every call through /q and every Ask question, grouped into visits (the
   same app and caller under 2 minutes apart, or the same X-NotOnQ-Trace; each Ask question is its own visit). Views:
   where we filled in, Qloo alone, all; filters by app and kind (API or Ask). Live through Neon Realtime (no polling),

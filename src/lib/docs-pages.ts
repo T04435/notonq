@@ -12,6 +12,7 @@ export const DOCS_PAGES: DocsPage[] = [
       { id: "quickstart", label: "Quickstart" },
       { id: "when", label: "When NotOnQ fills in" },
       { id: "shape", label: "Same shape as Qloo" },
+      { id: "field-gaps", label: "Fields Qloo leaves empty" },
       { id: "sources", label: "A source on every value" },
       { id: "ask", label: "Ask" },
       { id: "ledger", label: "The Ledger" },

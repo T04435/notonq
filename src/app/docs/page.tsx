@@ -92,6 +92,14 @@ export default function DocsOverview() {
         <ShapeDiff />
       </DocsSection>
 
+      <DocsSection id="field-gaps" title="Fields Qloo leaves empty">
+        <P>
+          When Qloo has the artist but its record lacks a field, NotOnQ adds it beside Qloo&apos;s values, never over them: where the artist is
+          from (<C>notonq:home</C>), the languages of their releases (<C>notonq:languages</C>), MusicBrainz and Wikidata IDs, and genres when
+          Qloo lists none. An empty audience is answered with Qloo&apos;s audience for the artist&apos;s own genres, labelled. Each value is cited,
+          and a name several artists share gets nothing rather than a guess.
+        </P>
+      </DocsSection>
       <DocsSection id="sources" title="A source on every value">
         <P>
           The <C>notonq.provenance</C> block maps each field to its sources: source, record URL, licence, retrieval time and method. A field with no
@@ -112,7 +120,8 @@ export default function DocsOverview() {
         <P>
           <A href="/">Ask</A> is the home page. A question runs through Qloo&apos;s own MCP harness, and Qloo answers first, unchanged. Jev, the judge,
           checks that answer against what the question asks for, per constraint and per artist. If it falls short, NotOnQ asks Qloo again, then fills
-          in the rest from open sources, labelled, with a source on each value. The answer ends with a table of every artist: where it came from,
+          in the rest from open sources, labelled, with a source on each value. Last, Jev checks whether NotOnQ&apos;s answer adds anything to
+          Qloo&apos;s; if not, Qloo&apos;s answer stands. The answer ends with a table of every artist: where it came from,
           kept or removed and why, and what NotOnQ added.
         </P>
       </DocsSection>

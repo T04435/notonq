@@ -126,3 +126,41 @@ export async function artistForUrl(url: string, { fetch: f }: { fetch?: Fetch } 
   const artists = [...new Map((MbUrlJson.safeParse(res.json).data?.relations ?? []).flatMap((r) => (r.artist ? [[r.artist.id, r.artist] as const] : []))).values()];
   return artists.length === 1 ? { mbid: artists[0].id, name: artists[0].name } : null;
 }
+
+const MbDetailsJson = MbArtistJson.extend({
+  genres: z.array(z.looseObject({ name: z.string(), count: z.number().optional() })).nullish(),
+  relations: z.array(z.looseObject({ type: z.string(), url: z.looseObject({ resource: z.string() }).nullish() })).nullish(),
+});
+
+/** One artist by MBID with what Qloo's records can lack: its Wikidata item (from the URL relations) and genres. */
+export async function artistDetails(mbid: string, { fetch: f }: { fetch?: Fetch } = {}): Promise<(MbArtist & { wikidata?: string; genres: string[] }) | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(mbid)) return null;
+  const res = await call(`https://musicbrainz.org/ws/2/artist/${mbid}?inc=aliases+tags+genres+url-rels&fmt=json`, f);
+  const a = MbDetailsJson.safeParse(res.json);
+  if (!a.success) return null;
+  const wikidata = a.data.relations?.map((r) => /wikidata\.org\/wiki\/(Q\d+)$/.exec(r.url?.resource ?? "")?.[1]).find(Boolean);
+  const genres = (a.data.genres ?? []).toSorted((x, y) => (y.count ?? 0) - (x.count ?? 0)).map((g) => g.name).slice(0, 6);
+  return { ...toArtist(a.data), ...(wikidata ? { wikidata } : {}), genres };
+}
+
+const MbReleasesJson = z.looseObject({ releases: z.array(z.looseObject({ "text-representation": z.looseObject({ language: z.string().nullish() }).nullish() })) });
+
+/** The languages an artist's releases are written in (MusicBrainz's text representation, ISO 639-3), most used first. */
+export async function releaseLanguages(mbid: string, { fetch: f }: { fetch?: Fetch } = {}): Promise<{ code: string; releases: number }[]> {
+  if (!/^[0-9a-f-]{36}$/i.test(mbid)) return [];
+  const res = await call(`https://musicbrainz.org/ws/2/release?artist=${mbid}&limit=100&fmt=json`, f);
+  const counts = new Map<string, number>();
+  for (const r of MbReleasesJson.safeParse(res.json).data?.releases ?? []) {
+    const code = r["text-representation"]?.language;
+    if (code && code !== "zxx" && code !== "mul") counts.set(code, (counts.get(code) ?? 0) + 1);
+  }
+  return [...counts].map(([code, releases]) => ({ code, releases })).toSorted((a, b) => b.releases - a.releases);
+}
+
+// ISO 639-3 (MusicBrainz) to the 639-1 codes Intl names; anything else keeps its own code as its name.
+const ISO1: Record<string, string> = {
+  eng: "en", jpn: "ja", spa: "es", fra: "fr", deu: "de", por: "pt", ita: "it", kor: "ko", zho: "zh", rus: "ru", nld: "nl", swe: "sv",
+  nor: "no", dan: "da", fin: "fi", pol: "pl", tur: "tr", ara: "ar", hin: "hi", ind: "id", tha: "th", vie: "vi", ukr: "uk", ces: "cs",
+  ell: "el", heb: "he", hun: "hu", ron: "ro", cat: "ca", gle: "ga", cym: "cy", isl: "is", est: "et", lav: "lv", lit: "lt", tgl: "tl",
+};
+export const languageName = (code: string) => (ISO1[code] ? (new Intl.DisplayNames(["en"], { type: "language" }).of(ISO1[code]) ?? code) : code);
