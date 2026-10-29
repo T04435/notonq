@@ -31,14 +31,6 @@ const MISS_MS = 24 * 60 * 60 * 1000;
 /** How long a request waits for MusicBrainz (1 call a second) before answering without facts; they finish after it. */
 export const FACTS_BUDGET_MS = 4000;
 
-// ISO 639-3 (MusicBrainz) to the 639-1 codes Intl names; anything else keeps its own code as its name.
-const ISO1: Record<string, string> = {
-  eng: "en", jpn: "ja", spa: "es", fra: "fr", deu: "de", por: "pt", ita: "it", kor: "ko", zho: "zh", rus: "ru", nld: "nl", swe: "sv",
-  nor: "no", dan: "da", fin: "fi", pol: "pl", tur: "tr", ara: "ar", hin: "hi", ind: "id", tha: "th", vie: "vi", ukr: "uk", ces: "cs",
-  ell: "el", heb: "he", hun: "hu", ron: "ro", cat: "ca", gle: "ga", cym: "cy", isl: "is", est: "et", lav: "lv", lit: "lt", tgl: "tl",
-};
-const languageName = (code: string) => (ISO1[code] ? (new Intl.DisplayNames(["en"], { type: "language" }).of(ISO1[code]) ?? code) : code);
-
 /** The MusicBrainz artist this Qloo record is: its own MusicBrainz ID, else the one exact match for its name. */
 async function identify(e: QlooEntity, ctx: Pick<Ctx, "fetch">): Promise<{ mbid: string } | { missing: string }> {
   const own = externalOf(e, "musicbrainz").map((x) => (typeof x.id === "string" ? x.id.toLowerCase() : "")).find(Boolean);
@@ -62,7 +54,7 @@ async function lookup(e: QlooEntity, ctx: Pick<Ctx, "fetch">): Promise<Facts> {
     retrievedAt,
     ...(a.wikidata ? { wikidata: a.wikidata } : {}),
     ...(home ? { home } : {}),
-    ...(langs.length ? { languages: langs.slice(0, 3).map((l) => ({ ...l, name: languageName(l.code) })) } : {}),
+    ...(langs.length ? { languages: langs.slice(0, 3).map((l) => ({ ...l, name: mb.languageName(l.code) })) } : {}),
     ...(a.genres.length || a.tags.length ? { genres: (a.genres.length ? a.genres : a.tags).slice(0, 6) } : {}),
   };
 }

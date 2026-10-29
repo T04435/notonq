@@ -44,6 +44,7 @@ export type FallbackEntity = {
     "notonq:home"?: Home;
     /** The similar artists Qloo knows that answer taste questions for this one (the names short_description lists). */
     "notonq:standIns"?: { entity_id: string; name: string }[];
+    "notonq:languages"?: { code: string; name: string; releases: number }[];
   };
   popularity?: number;
   disambiguation?: string;
@@ -139,7 +140,10 @@ export async function resolveArtist(name: string, deps: ResolveDeps, opts: Resol
 function strictPick(candidates: Candidate[], name: string, search: ReturnType<typeof readSearch>) {
   const qlooId = "found" in search ? search.found.entity_id : undefined;
   const exact = candidates.filter((c) => sameStrictName(c.name, name) && (!c.inQloo || c.inQloo.entityId !== qlooId));
-  return exact.length === 1 ? exact[0] : undefined;
+  if (exact.length === 1) return exact[0];
+  // The same band can arrive twice (MusicBrainz, and Deezer unmerged): the one MusicBrainz record is the identity.
+  const withMb = exact.filter((c) => c.mbid);
+  return withMb.length === 1 ? withMb[0] : undefined;
 }
 
 /** One batch lookup by MusicBrainz ID: flags the candidates Qloo already has, and returns those Qloo entities. */
@@ -177,11 +181,12 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
       return null;
     }
   };
-  const [wiki, info, similar, dz] = await Promise.all([
+  const [wiki, info, similar, dz, langs] = await Promise.all([
     artist ? soft("properties.external.wikidata", () => wd.artistByMbid(artist.mbid, { fetch: f })) : null,
     lastfmKey ? lastfm.artistInfo(lfName, lastfmKey, { fetch: f }) : null,
     lastfmKey ? lastfm.similarArtists(lfName, lastfmKey, { fetch: f }) : [],
     anchor.deezerId ? deezer.getArtist(anchor.deezerId, { fetch: f }) : null,
+    artist ? mb.releaseLanguages(artist.mbid, { fetch: f }).catch(() => []) : [],
   ]);
   const summary = wiki?.enwiki ? await soft("properties.short_description", () => wp.summary(wiki.enwiki!, { fetch: f })) : null;
   const standIns = await findStandIns(lfName, similar, dz, qloo, provenance, f);
@@ -246,6 +251,10 @@ export async function buildFallback(name: string, { qloo, lastfmKey, fetch: f }:
     entity.properties["notonq:home"] = home;
     cite(provenance, "properties.notonq:home", { source: "musicbrainz", record: artist!.record, licence: LICENCES.musicbrainz, method: "copied", note: "MusicBrainz begin area (else area) and country" });
   } else unavailable.push("properties.notonq:home");
+  if (langs.length) {
+    entity.properties["notonq:languages"] = langs.slice(0, 3).map((l) => ({ ...l, name: mb.languageName(l.code) }));
+    cite(provenance, "properties.notonq:languages", { source: "musicbrainz", record: artist!.record, licence: LICENCES.musicbrainz, method: "derived", note: "Counted from the text language MusicBrainz records on each of the artist's releases" });
+  }
   entity.properties.short_description = notInQlooNote(standIns, summary?.extract, home);
   cite(provenance, "properties.short_description", {
     source: "notonq",

@@ -134,6 +134,8 @@ A filled artist has exactly Qloo's keys and types.
   artist records have no such field)
 - properties["notonq:standIns"]: [{ entity_id, name }] (the similar artists Qloo knows that answer taste questions for
   this one, all of them in order; short_description names the first three; absent when there are none)
+- properties["notonq:languages"]: [{ code (ISO 639-3), name, releases }] (the languages of the artist's releases on
+  MusicBrainz, most used first; absent when MusicBrainz records none)
 - properties.external["notonq:deezer"]: { id, fans }
 
 Send a NotOnQ entity ID back as a signal anywhere Qloo takes one; NotOnQ swaps in its stand-ins.

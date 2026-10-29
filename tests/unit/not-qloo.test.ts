@@ -52,6 +52,19 @@ describe("a same-named artist in Qloo that isn't the one asked for", () => {
     expect(body.notonq).toMatchObject({ served_by: "mixed", gap: { kind: "G1" } });
   });
 
+  it("picks the MusicBrainz record when the same band also arrives from Deezer, and fills its release languages", async () => {
+    const { fetch } = fakeFetch([
+      ["api.deezer.com/search/artist", () => json(200, { data: [{ id: 555, name: "Newact!", nb_fan: 3, link: "https://www.deezer.com/artist/555" }] })],
+      ["api.deezer.com/artist/555", () => json(200, { data: [] })],
+      ["musicbrainz.org/ws/2/release?artist=", () => json(200, { releases: [{ "text-representation": { language: "jpn" } }] })],
+      ...routes(qlooHasTheirs),
+    ]);
+    const out = await search(fetch, "Newact!");
+    const ours = (out.body as { results: { entity_id: string; properties: Record<string, unknown> }[] }).results.find((r) => r.entity_id === OURS);
+    expect(ours?.properties["notonq:home"]).toMatchObject({ country_code: "JP" });
+    expect(ours?.properties["notonq:languages"]).toEqual([{ code: "jpn", name: "Japanese", releases: 1 }]);
+  });
+
   it("leaves Qloo's answer alone when the name matches as written", async () => {
     const { fetch } = fakeFetch(routes(qlooHasTheirs));
     expect((await search(fetch, "Newact")).body).not.toHaveProperty("notonq.gap");

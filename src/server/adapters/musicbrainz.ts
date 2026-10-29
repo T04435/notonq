@@ -156,3 +156,11 @@ export async function releaseLanguages(mbid: string, { fetch: f }: { fetch?: Fet
   }
   return [...counts].map(([code, releases]) => ({ code, releases })).toSorted((a, b) => b.releases - a.releases);
 }
+
+// ISO 639-3 (MusicBrainz) to the 639-1 codes Intl names; anything else keeps its own code as its name.
+const ISO1: Record<string, string> = {
+  eng: "en", jpn: "ja", spa: "es", fra: "fr", deu: "de", por: "pt", ita: "it", kor: "ko", zho: "zh", rus: "ru", nld: "nl", swe: "sv",
+  nor: "no", dan: "da", fin: "fi", pol: "pl", tur: "tr", ara: "ar", hin: "hi", ind: "id", tha: "th", vie: "vi", ukr: "uk", ces: "cs",
+  ell: "el", heb: "he", hun: "hu", ron: "ro", cat: "ca", gle: "ga", cym: "cy", isl: "is", est: "et", lav: "lv", lit: "lt", tgl: "tl",
+};
+export const languageName = (code: string) => (ISO1[code] ? (new Intl.DisplayNames(["en"], { type: "language" }).of(ISO1[code]) ?? code) : code);
