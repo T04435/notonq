@@ -105,7 +105,7 @@ choose from context, then send that entity_id to /entities or as a signal (NotOn
 
 Added beside Qloo's response when NotOnQ took part:
 - served_by: qloo | fallback | mixed (Qloo answered for stand-ins) | needs_choice
-- gap: { kind: G1 (new to Qloo) | G2 (not yet a taste signal) | G4 (a short era list), qloo_status, qloo_message }
+- gap: { kind: G1 (new to Qloo) | G2 (not yet a taste signal) | G4 (a short era list) | G5 (Qloo has the artist; a field is missing), qloo_status, qloo_message }
 - cache: { hit, first_seen }
 - demand: { requests, callers, apps }
 - proxy: { replaced: [ids], stand_ins: [{ entity_id, name, weight, source }] }
@@ -133,6 +133,24 @@ A filled artist has exactly Qloo's keys and types.
 - properties.external["notonq:deezer"]: { id, fans }
 
 Send a NotOnQ entity ID back as a signal anywhere Qloo takes one; NotOnQ swaps in its stand-ins.
+
+### Field gaps (G5): artists Qloo has
+
+When Qloo has the artist but its record lacks a field, NotOnQ adds it beside Qloo's values (never over them), cited in
+notonq.facts["<entity_id>"].provenance, with notonq.served_by "mixed" and notonq.gap.kind G5. On /search (the exact
+artist match) and /entities (up to 3 artists per request):
+- properties["notonq:home"]: where the artist is from (MusicBrainz)
+- properties["notonq:languages"]: [{ code (ISO 639-3), name, releases }], the languages of the artist's releases on
+  MusicBrainz, most used first
+- properties.external["notonq:musicbrainz"] and ["notonq:wikidata"]: { id }, when Qloo's record has none
+- tags: notonq:urn:tag:genre:<genre> (MusicBrainz genres), only when Qloo's record has no genre tag
+Only a thin Qloo record gets them (no MusicBrainz ID, no Wikidata ID, or no genre tag); a full one is Qloo's answer
+alone. NotOnQ must know which artist it is: the MusicBrainz ID on Qloo's record, else MusicBrainz's single exact match for the
+name. A name several artists share gets nothing rather than a guess. Lookups are cached as open data (weekly); one
+that takes over 4 seconds finishes after the response, and the next call has it.
+
+GET /q/v2/insights?filter.type=urn:demographics for an artist Qloo has but has no audience for: Qloo's demographics
+for that artist's own Qloo genre tags, each row labelled notonq:basis { stand_ins: [], genres: [<tag>] }.
 
 ### Status codes
 

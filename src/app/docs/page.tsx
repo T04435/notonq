@@ -92,6 +92,14 @@ export default function DocsOverview() {
         <ShapeDiff />
       </DocsSection>
 
+      <DocsSection id="field-gaps" title="Fields Qloo leaves empty">
+        <P>
+          When Qloo has the artist but its record lacks a field, NotOnQ adds it beside Qloo&apos;s values, never over them: where the artist is
+          from (<C>notonq:home</C>), the languages of their releases (<C>notonq:languages</C>), MusicBrainz and Wikidata IDs, and genres when
+          Qloo lists none. An empty audience is answered with Qloo&apos;s audience for the artist&apos;s own genres, labelled. Each value is cited,
+          and a name several artists share gets nothing rather than a guess.
+        </P>
+      </DocsSection>
       <DocsSection id="sources" title="A source on every value">
         <P>
           The <C>notonq.provenance</C> block maps each field to its sources: source, record URL, licence, retrieval time and method. A field with no

@@ -4,8 +4,9 @@
 import type { ResolveOptions } from "@/server/engine/artist";
 import { type Candidate, idForCandidate } from "@/server/engine/candidates";
 import { type EraFill, fillEra, parseMusicTag } from "@/server/engine/era";
+import { type Cite, factsFor, isThin, withFacts } from "@/server/engine/facts";
 import type { Fetch } from "@/server/http";
-import { ARTIST, entitiesOf, qlooClient, qlooMessage } from "@/server/qloo/client";
+import { ARTIST, entitiesOf, qlooClient, qlooMessage, type QlooEntity } from "@/server/qloo/client";
 import { cachedQloo, QlooBudgetExceeded } from "@/server/qloo/cached";
 import { readInsights, readSearch, sameName } from "@/server/qloo/gap";
 import { blockFor, fallbackBlock, standInsOf } from "@/server/respond";
@@ -71,8 +72,12 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
   const qloo = { status: res.status || 502, body: res.json, servedBy: "qloo" as const };
   if (res.status !== 404 && !res.ok) return qloo;
   const qlooResults = res.ok ? entitiesOf(res.json) : [];
-  // Untyped: anything Qloo has under exactly this name (a place, a book) is Qloo's answer. Typed: an exact artist is.
-  if (req.params.types ? "found" in readSearch(query, res) : qlooResults.some((e) => sameName(e.name, query))) return qloo;
+  // Untyped: anything Qloo has under exactly this name (a place, a book) is Qloo's answer. Typed: an exact artist is,
+  // with NotOnQ's facts for the fields its record lacks (G5).
+  if (req.params.types) {
+    const outcome = readSearch(query, res);
+    if ("found" in outcome) return withFactsAnswer(qloo, [outcome.found.entity_id], ctx);
+  } else if (qlooResults.some((e) => sameName(e.name, query))) return qloo;
 
   const l = await lookupArtist(query, ctx, { ...options, untyped: !req.params.types });
   const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : {};
@@ -103,6 +108,53 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
       notonq: { ...blockFor(l), served_by: qlooResults.length ? "mixed" : "fallback" },
     },
     servedBy: qlooResults.length ? "mixed" : "fallback",
+  };
+}
+
+/** How many Qloo artists one request looks up on MusicBrainz for missing fields (1 call a second there). */
+const FACTS_PER_REQUEST = 3;
+
+const isArtist = (e: QlooEntity) => {
+  const types = (e as { types?: unknown }).types;
+  return !Array.isArray(types) || types.includes(ARTIST);
+};
+
+/** Each entity of a Qloo /search or /entities body through `fn`, in whichever shape Qloo sent (a bare `results`
+ * array, or `results.entities`). */
+function mapEntities(json: unknown, fn: (e: QlooEntity) => QlooEntity): unknown {
+  const body = json as { results?: unknown } | null;
+  if (Array.isArray(body?.results)) return { ...body, results: body.results.map((e) => fn(e as QlooEntity)) };
+  const r = body?.results as { entities?: unknown[] } | undefined;
+  if (Array.isArray(r?.entities)) return { ...body, results: { ...r, entities: r.entities.map((e) => fn(e as QlooEntity)) } };
+  return json;
+}
+
+/** Qloo's answer with NotOnQ's facts added to the artists listed, for the fields Qloo's records lack (G5: where
+ * they're from, what language they sing in, their MusicBrainz and Wikidata IDs, genres). Qloo's own values are kept;
+ * when nothing is added the answer is Qloo's, unchanged. */
+async function withFactsAnswer(qloo: RestResponse, ids: string[], ctx: Ctx): Promise<RestResponse> {
+  const wanted = new Set(ids);
+  const added = new Map<string, { entity: QlooEntity; provenance: Record<string, Cite[]> }>();
+  for (const e of entitiesOf(qloo.body).filter((x) => wanted.has(x.entity_id) && isThin(x))) {
+    const f = await factsFor(e, ctx);
+    const out = f ? withFacts(e, f) : null;
+    if (out && Object.keys(out.provenance).length) added.set(e.entity_id, out);
+  }
+  if (!added.size) return qloo;
+  const body = mapEntities(qloo.body, (e) => added.get(e.entity_id)?.entity ?? e) as Record<string, unknown>;
+  return {
+    status: qloo.status,
+    body: {
+      ...body,
+      notonq: {
+        served_by: "mixed",
+        gap: { kind: "G5" },
+        facts: Object.fromEntries([...added].map(([id, a]) => [id, { provenance: a.provenance }])),
+        note: "Qloo's records, unchanged, with NotOnQ's notonq: fields added where Qloo has none (from MusicBrainz, cited per field).",
+        attribution: ["Facts: MusicBrainz (CC0)"],
+      },
+    },
+    servedBy: "mixed",
   };
 }
 
@@ -149,7 +201,8 @@ async function entities(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   const ours = await oursFor(ids, ctx);
   if (!ours.size) {
     const res = await ctx.qloo.get("/entities", req.params);
-    return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+    const qloo = { status: res.status || 502, body: res.json, servedBy: "qloo" as const };
+    return res.ok ? withFactsAnswer(qloo, entitiesOf(res.json).filter(isArtist).slice(0, FACTS_PER_REQUEST).map((e) => e.entity_id), ctx) : qloo;
   }
   const theirs = ids.filter((id) => !ours.has(id));
   const res = theirs.length ? await ctx.qloo.get("/entities", { ...req.params, entity_ids: theirs.join(",") }) : null;
@@ -278,7 +331,27 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   if (eraTag) return eraAnswer(req, params, ctx, res, eraTag, replaced, await placeOf(req.params, ctx));
   if (unranked.size) return unrankedAnswer(res, unranked, replaced, ctx);
 
-  if (!replaced.size) return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+  if (!replaced.size) {
+    // G5: Qloo has the artist but no audience for it. Qloo's demographics for the artist's own Qloo genres, labelled.
+    if (req.params["filter.type"] === "urn:demographics" && signal.length && (res.ok || res.status === 404) && !demographicsOf(res.json).length) {
+      const viaGenres = await genreAudienceFor(signal.slice(0, 5), req.params, ctx);
+      if (viaGenres)
+        return {
+          status: 200,
+          body: {
+            ...basisOnRows(viaGenres.res.json as Record<string, unknown>, { stand_ins: [], genres: viaGenres.tags }),
+            notonq: {
+              served_by: "mixed",
+              gap: { kind: "G5", qloo_status: res.status },
+              proxy: { replaced: [], stand_ins: [], genres: viaGenres.tags },
+              note: `Qloo has no audience data for this artist, so these are Qloo's demographics for its own genres (${viaGenres.tags.map((t) => t.split(":").pop()).join(", ")}).`,
+            },
+          },
+          servedBy: "mixed",
+        };
+    }
+    return { status: res.status || 502, body: res.json, servedBy: "qloo" };
+  }
   for (const f of replaced.values())
     await logRequest(ctx.sql, { nameKey: f.nameKey, entityId: f.id, endpoint: ctx.endpoint, servedBy: "mixed", gapKind: f.gapKind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: true });
   // The stand-ins' own audience may be empty too (Qloo has no ages for El Taiger, 27 Oct). Then Qloo is asked for the
@@ -326,7 +399,11 @@ const demographicsOf = (json: unknown) => {
 /** Qloo's demographics for the music genres of the stand-ins (their own Qloo tags, as urn:tag:genre:music:<genre>,
  * the form Qloo answers for), or null when none gives an answer. */
 async function genreAudience(params: Record<string, string>, replaced: Map<string, StoredFallback>, ctx: Ctx) {
-  const ids = [...replaced.values()].flatMap((f) => f.standIns.map((s) => s.entityId)).slice(0, 5);
+  return genreAudienceFor([...replaced.values()].flatMap((f) => f.standIns.map((s) => s.entityId)).slice(0, 5), params, ctx);
+}
+
+/** Qloo's demographics for the music genres of these Qloo artists (their own tags), or null when none answers. */
+async function genreAudienceFor(ids: string[], params: Record<string, string>, ctx: Ctx) {
   if (!ids.length) return null;
   const rows = entitiesOf((await ctx.qloo.get("/entities", { entity_ids: ids.join(",") })).json);
   const genres = [
