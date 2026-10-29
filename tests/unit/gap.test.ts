@@ -12,6 +12,14 @@ describe("sameName", () => {
     expect(sameName("Florence + the Machine", "florence the machine")).toBe(true);
     expect(sameName("Sombra", "sombr")).toBe(false);
   });
+
+  it("treats a leading The as optional", () => {
+    expect(sameName("Pigram Brothers", "The Pigram Brothers")).toBe(true);
+    expect(sameName("the beatles", "Beatles")).toBe(true);
+    expect(sameName("The", "the")).toBe(true);
+    expect(sameName("Theory", "ory")).toBe(false);
+    expect(sameName("The Band", "Band of Horses")).toBe(false);
+  });
 });
 
 describe("readSearch", () => {
@@ -59,5 +67,12 @@ describe("readTrending", () => {
   it("is G3 when the window has no rows", () => {
     expect(readTrending(res(200, { results: { trending: [] } }))?.kind).toBe("G3");
     expect(readTrending(res(200, { results: { trending: [{ date: "2026-04-13" }] } }))).toBeNull();
+  });
+});
+
+describe("readSearch with a leading The", () => {
+  it("finds Qloo's artist when the query drops The", () => {
+    const out = readSearch("Pigram Brothers", res(200, { results: [{ entity_id: "404334C8-646F-45FF-9F67-2F8ADCBF8E47", name: "The Pigram Brothers", types: ["urn:entity:artist"] }] }));
+    expect(out).toEqual({ found: expect.objectContaining({ name: "The Pigram Brothers" }) });
   });
 });

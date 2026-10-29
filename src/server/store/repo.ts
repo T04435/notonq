@@ -1,5 +1,5 @@
 // Typed queries over the schema. Every function takes the Sql handle so tests run on an in-memory PGlite.
-import type { Confidence, FallbackEntity } from "@/server/engine/artist";
+import { type Confidence, type FallbackEntity, withStandIns } from "@/server/engine/artist";
 import type { PopularityFit } from "@/server/engine/popularity";
 import type { StandIn } from "@/server/engine/standins";
 import type { ProvenanceMap } from "@/server/provenance";
@@ -35,6 +35,8 @@ const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v ? String(v)
 const json = <T>(v: unknown, fallback: T): T => (v === null || v === undefined ? fallback : typeof v === "string" ? JSON.parse(v) : (v as T));
 
 function toFallback(r: Row): StoredFallback {
+  const standIns = json<StandIn[]>(r.stand_ins, []);
+  const entity = json<FallbackEntity | null>(r.entity, null);
   return {
     id: String(r.id),
     nameKey: String(r.name_key),
@@ -49,9 +51,9 @@ function toFallback(r: Row): StoredFallback {
     confidence: (r.confidence as Confidence) ?? undefined,
     researchStatus: (r.research_status as StoredFallback["researchStatus"]) ?? undefined,
     researchAt: iso(r.research_at),
-    entity: json(r.entity, null),
+    entity: entity && withStandIns(entity, standIns),
     provenance: json(r.provenance, {}),
-    standIns: json(r.stand_ins, []),
+    standIns,
     popularity: json(r.popularity, undefined),
     unavailable: json(r.unavailable, []),
     createdAt: iso(r.created_at)!,

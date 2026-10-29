@@ -60,6 +60,16 @@ describe("small artists", () => {
     expect(out.servedBy).toBe("needs_choice");
   });
 
+  it("caps the candidates a search adds at take, after Qloo's own results", async () => {
+    const { fetch } = fakeFetch([...qloo404, ...smallArtist]);
+    const params = { query: "Tiny Act", types: "urn:entity:artist" };
+    const all = await handleRest({ path: "search", params, apiKey: "c3", lastfmKey: "lf" }, { sql, baseUrl: "https://hackathon.api.qloo.com", salt: "t", fetch });
+    expect((all.body as { results: unknown[] }).results.length).toBeGreaterThan(1);
+    const one = await handleRest({ path: "search", params: { ...params, take: "1" }, apiKey: "c3", lastfmKey: "lf" }, { sql, baseUrl: "https://hackathon.api.qloo.com", salt: "t", fetch });
+    expect(one.body).toMatchObject({ notonq: { served_by: "needs_choice" } });
+    expect((one.body as { results: unknown[] }).results).toHaveLength(1);
+  });
+
   it("fills from the chosen Last.fm/Deezer candidate with low confidence and Deezer stand-ins", async () => {
     const { fetch } = fakeFetch([...qloo404, ...smallArtist]);
     const ctx = { sql, qloo: qlooClient({ apiKey: "c2", fetch }), lastfmKey: "lf", callerHash: "h", endpoint: "test", fetch };

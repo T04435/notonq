@@ -81,9 +81,9 @@ it NotOnQ uses its own).
 
 | Endpoint | What NotOnQ does |
 |---|---|
-| GET /q/search (types=urn:entity:artist, or no types) | Qloo's results first, unchanged. When Qloo has no artist (untyped: nothing) with that exact name, NotOnQ adds the filled artist (served_by fallback/mixed), or every candidate as a Qloo-shaped entry (needs_choice) |
-| GET /q/entities?entity_ids=… | Qloo's IDs from Qloo; NotOnQ's (fills, and offered candidates, filled on first use) from NotOnQ |
-| GET /q/entities?external.spotify.ids=… | Qloo's matches first. A Spotify ID Qloo lacks: the artist MusicBrainz links to that Spotify page (Qloo's record, labelled "Matched by NotOnQ", if Qloo has its MusicBrainz ID; else NotOnQ's fill), else the name on Spotify's public page when it is one confident artist. Up to 5 per request; notonq.spotify says how each matched |
+| GET /q/search (types=urn:entity:artist, or no types) | Qloo's results first, unchanged. When Qloo has no artist (untyped: nothing) with that exact name (case, accents, punctuation and a leading "The" ignored), NotOnQ adds the filled artist (served_by fallback/mixed), or every candidate as a Qloo-shaped entry (needs_choice). take caps Qloo's results and NotOnQ's added ones separately |
+| GET /q/entities?entity_ids=… | Qloo's IDs from Qloo; NotOnQ's (fills, and offered candidates, filled on first use) from NotOnQ. notonq.served_by is fallback (all NotOnQ) or mixed, and notonq["<entity_id>"] is each NotOnQ entity's own block (gap, sources) |
+| GET /q/entities?external.spotify.ids=… | Qloo's matches first. A Spotify ID Qloo lacks: the artist MusicBrainz links to that Spotify page (Qloo's record, labelled "Matched by NotOnQ", if Qloo has its MusicBrainz ID; else NotOnQ's fill), else the name on Spotify's public page: Qloo's record with that exact name, labelled (via name_in_qloo), or NotOnQ's fill when it is one confident artist. Up to 5 per request; notonq.spotify says how each matched |
 | GET /q/v2/insights | Any filter.type. NotOnQ IDs, and Qloo IDs Qloo rejects as a signal, in signal.interests.entities become stand-ins. No stand-ins: empty answer |
 | GET /q/v2/insights, filter.type=urn:entity:artist with filter.tags=urn:tag:genre:music:<decade or genre> (and a place: signal.location.query / filter.location.query, or signal.location / filter.location as POINT or a small POLYGON) | When Qloo returns fewer than 5 artists or errs: artists active in that decade, in that genre, from that country (MusicBrainz; a point is placed through OpenStreetMap), after Qloo's own. Ones Qloo knows are Qloo's entities, first, by Qloo popularity; the rest labelled Not in Qloo. With a taste signal (signal.interests.entities or .tags) Qloo ranks its own artists in the fill for that signal (notonq.ranking). notonq.gap.kind G4 |
 | GET /q/v2/insights with filter.results.entities (ranking a list) | NotOnQ artists in the list are kept out of Qloo's call and follow Qloo's ranking, unranked (notonq.unranked) |
@@ -128,6 +128,8 @@ A filled artist has exactly Qloo's keys and types.
   \`notonq:urn:tag:genre:<genre>\` (type \`urn:tag:genre\`)
 - properties["notonq:home"]: { name, country, country_code, source: "musicbrainz" } (where the artist is from; Qloo's
   artist records have no such field)
+- properties["notonq:standIns"]: [{ entity_id, name }] (the similar artists Qloo knows that answer taste questions for
+  this one, all of them in order; short_description names the first three; absent when there are none)
 - properties.external["notonq:deezer"]: { id, fans }
 
 Send a NotOnQ entity ID back as a signal anywhere Qloo takes one; NotOnQ swaps in its stand-ins.

@@ -76,7 +76,9 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
 
   const l = await lookupArtist(query, ctx, { ...options, untyped: !req.params.types });
   const base = res.ok && res.json && typeof res.json === "object" ? (res.json as Record<string, unknown>) : {};
-  const withQloo = (ours: unknown[]) => [...qlooResults, ...ours.filter((o) => !qlooResults.some((q) => q.entity_id === (o as { entity_id: string }).entity_id))];
+  // take caps each part: Qloo's own results (Qloo applies it) and NotOnQ's added after them, so neither hides the other.
+  const take = Number(req.params.take) > 0 ? Number(req.params.take) : Infinity;
+  const withQloo = (ours: unknown[]) => [...qlooResults, ...ours.filter((o) => !qlooResults.some((q) => q.entity_id === (o as { entity_id: string }).entity_id)).slice(0, take)];
 
   // The chosen candidate is an artist Qloo knows under another spelling ("eminim" → Eminem): Qloo's own entity.
   if (l.servedBy === "qloo") return { status: 200, body: { ...base, results: withQloo([l.entity]), notonq: { served_by: "qloo", attribution: [] } }, servedBy: "qloo" };
@@ -155,14 +157,17 @@ async function entities(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   for (const f of found)
     await logRequest(ctx.sql, { nameKey: f.nameKey, entityId: f.id, endpoint: ctx.endpoint, servedBy: "fallback", gapKind: f.gapKind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: true });
   const results = [...(res ? entitiesOf(res.json) : []), ...found.flatMap((f) => (f.entity ? [f.entity] : []))];
-  const notonq = Object.fromEntries(await Promise.all(found.map(async (f) => [f.id, fallbackBlock(f, await demandFor(ctx.sql, f.nameKey), { hit: true })])));
-  return { status: results.length ? 200 : 404, body: { results, notonq }, servedBy: theirs.length ? "mixed" : "fallback" };
+  const servedBy = theirs.length ? "mixed" : "fallback";
+  // served_by for the whole answer (as on every other endpoint), then each NotOnQ entity's own block (gap, sources) by ID.
+  const blocks = await Promise.all(found.map(async (f) => [f.id, fallbackBlock(f, await demandFor(ctx.sql, f.nameKey), { hit: true })]));
+  const notonq = { served_by: servedBy, ...Object.fromEntries(blocks) };
+  return { status: results.length ? 200 : 404, body: { results, notonq }, servedBy };
 }
 
 /** How many Spotify IDs one request may resolve outside Qloo (each can cost a MusicBrainz call at 1 per second). */
 const SPOTIFY_LOOKUPS = 5;
 
-type SpotifyMatch = { spotify_id: string; via: "notonq" | "musicbrainz" | "musicbrainz_in_qloo" | "name" | "none"; entity_id?: string; note?: string };
+type SpotifyMatch = { spotify_id: string; via: "notonq" | "musicbrainz" | "musicbrainz_in_qloo" | "name" | "name_in_qloo" | "none"; entity_id?: string; note?: string };
 
 /** /entities by Spotify ID (apps that pick artists on Spotify, like Busk Map and GhostQ). Qloo's own entities first,
  * unchanged. For each ID Qloo doesn't have: a NotOnQ fill already linked to it; else the artist MusicBrainz links to
@@ -205,6 +210,12 @@ async function matchSpotify(id: string, ctx: Ctx): Promise<{ match: SpotifyMatch
 
   const fillFor = async (name: string, opts: ResolveOptions, via: SpotifyMatch["via"]) => {
     const l = await lookupArtist(name, ctx, opts);
+    // Qloo has an artist by exactly this name, just not under this Spotify ID (Tash Sultana, 29 Oct): Qloo's record, labelled.
+    if (l.servedBy === "qloo" && via === "name") {
+      const d = String(l.entity.properties?.short_description ?? "");
+      const label = `Matched by NotOnQ: Qloo has this artist but not under this Spotify ID; matched by the name on the Spotify page ("${name}").`;
+      return { match: { spotify_id: id, via: "name_in_qloo" as const, entity_id: l.entity.entity_id }, entity: { ...l.entity, properties: { ...l.entity.properties, short_description: d ? `${label} ${d}` : label } } };
+    }
     if (l.servedBy !== "fallback" || !l.fallback.entity) return null;
     await linkSpotify(ctx.sql, l.fallback.id, id);
     const entity = { ...l.fallback.entity, properties: { ...l.fallback.entity.properties, external: { ...l.fallback.entity.properties.external, spotify: { id } } } };

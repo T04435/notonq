@@ -77,6 +77,17 @@ describe("handleRest", () => {
     expect(row).toMatchObject({ name: "Newact", requests: 2, callers: 2, apps: 2 });
   });
 
+  it("labels a NotOnQ entity on /entities: served_by for the answer, its gap under its ID", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const { fetch } = fakeFetch([...qlooRoutes(counter), ...openData]);
+    await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "team-a", lastfmKey: "lf" }, deps(fetch));
+    const out = await handleRest({ path: "entities", params: { entity_ids: NEW }, apiKey: "team-a", lastfmKey: "lf" }, deps(fetch));
+    const body = out.body as { results: { entity_id: string }[]; notonq: Record<string, unknown> };
+    expect(body.results.map((r) => r.entity_id)).toEqual([NEW]);
+    expect(body.notonq.served_by).toBe("fallback");
+    expect(body.notonq[NEW]).toMatchObject({ served_by: "fallback", gap: { kind: "G1" } });
+  });
+
   it("rebuilds a fill made before v0.4.0 (no home, no note) once, on its next use", async () => {
     const counter = { search: 0, insights: [] as string[] };
     const { fetch, calls } = fakeFetch([...qlooRoutes(counter), ...openData]);
@@ -261,6 +272,21 @@ describe("handleRest", () => {
       expect(body.results[0].entity_id).toBe(qid(1));
       expect(body.results[0].properties.short_description).toMatch(/^Matched by NotOnQ: Qloo has this artist but not under this Spotify ID/);
       expect(body.notonq.spotify[0].via).toBe("musicbrainz_in_qloo");
+    });
+
+    it("returns Qloo's own record, labelled, when only the name on the Spotify page matches an artist Qloo has", async () => {
+      const { fetch } = fakeFetch([
+        noSpotifyInQloo,
+        mbUrl(null),
+        ["open.spotify.com/oembed", () => json(200, { title: "Tash Sultana" })],
+        ["hackathon.api.qloo.com/search", () => json(200, { results: [qlooArtist(8, "Tash Sultana")] })],
+        ["hackathon.api.qloo.com/v2/insights", () => json(200, { success: true, results: { entities: [qlooArtist(9, "Rec")] } })],
+      ]);
+      const out = await handleRest({ path: "entities", params: { "external.spotify.ids": SP }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+      const body = out.body as { results: { entity_id: string; properties: { short_description: string } }[]; notonq: { spotify: { via: string; entity_id: string }[] } };
+      expect(body.results[0].entity_id).toBe(qid(8));
+      expect(body.results[0].properties.short_description).toMatch(/^Matched by NotOnQ: .*"Tash Sultana"/);
+      expect(body.notonq.spotify[0]).toMatchObject({ via: "name_in_qloo", entity_id: qid(8) });
     });
 
     it("leaves Qloo's answer alone when Qloo has every Spotify ID", async () => {

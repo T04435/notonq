@@ -13,7 +13,9 @@ async function connect(databaseUrl: string): Promise<Sql> {
   const { neon } = await import("@neondatabase/serverless");
   const client = neon(databaseUrl);
   const sql: Sql = async (text, params = []) => (await client.query(text, params)) as never;
-  await migrate(sql);
+  // One transaction behind an advisory lock: cold starts that arrive together (three parallel searches) each migrate,
+  // and unserialized they raced on DROP VIEW / CREATE VIEW import_queue and answered 500 (29 Oct, Busk Map).
+  await client.transaction(migrationBatch().map((s) => client.query(s)));
   return sql;
 }
 
@@ -34,10 +36,11 @@ export function assertMayConnect(databaseUrl: string, vercelEnv = process.env.VE
     throw new Error("Refusing to use the production database outside Vercel production (VERCEL_ENV=production). Use the dev branch (.env.development.local).");
 }
 
-async function migrate(sql: Sql) {
-  // The Neon HTTP driver runs one statement per call.
-  for (const statement of schemaStatements()) await sql(statement);
-}
+/** Any fixed key: every process takes the same lock, so only one migrates at a time. */
+const MIGRATION_LOCK = 4_242_001;
+
+/** The migration as one batch for a single transaction: the lock first (released at commit), then each statement. */
+export const migrationBatch = (schema = SCHEMA) => [`SELECT pg_advisory_xact_lock(${MIGRATION_LOCK})`, ...schemaStatements(schema)];
 
 export function db(databaseUrl = process.env.DATABASE_URL): Promise<Sql> {
   if (!databaseUrl || databaseUrl === "SET_ME") return Promise.reject(new Error("DATABASE_URL isn't set: locally it comes from .env.development.local (the Neon dev branch)."));

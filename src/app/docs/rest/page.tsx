@@ -89,13 +89,13 @@ export default function RestReference() {
             [
               "GET",
               "/search",
-              "With types=urn:entity:artist, or no types. Qloo first, unchanged. When Qloo has no artist (untyped: nothing at all) with that exact name, NotOnQ adds the filled-in artist, or every artist the name could be, after Qloo's results.",
+              "With types=urn:entity:artist, or no types. Qloo first, unchanged. When Qloo has no artist (untyped: nothing at all) with that exact name (a leading \"The\" is optional), NotOnQ adds the filled-in artist, or every artist the name could be, after Qloo's results. take caps Qloo's results and NotOnQ's separately.",
             ],
-            ["GET", "/entities", "entity_ids=…: Qloo's IDs from Qloo; NotOnQ's (fills, and candidates it offered, filled on first use) from NotOnQ, in one results list."],
+            ["GET", "/entities", "entity_ids=…: Qloo's IDs from Qloo; NotOnQ's (fills, and candidates it offered, filled on first use) from NotOnQ, in one results list. notonq.served_by covers the answer; notonq[\"<entity_id>\"] is each NotOnQ entity's own block."],
             [
               "GET",
               "/entities",
-              "external.spotify.ids=…: Qloo's matches first. A Spotify ID Qloo lacks is matched through MusicBrainz, else by the name on Spotify's public page when it is one confident artist. Up to 5 such lookups per request.",
+              "external.spotify.ids=…: Qloo's matches first. A Spotify ID Qloo lacks is matched through MusicBrainz, else by the name on Spotify's public page (Qloo's record with that exact name, labelled, or NotOnQ's fill when it is one confident artist). Up to 5 such lookups per request.",
             ],
             ["GET", "/v2/insights", "Any filter.type. NotOnQ IDs, and Qloo IDs Qloo rejects as a signal, become their stand-ins; Qloo answers. No stand-ins: an empty answer."],
             [
