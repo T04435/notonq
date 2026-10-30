@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleCheckIcon, CircleXIcon, UserIcon } from "lucide-react";
-import { Code } from "@/components/code";
+import { Code, JsonCode } from "@/components/code";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
 import { CitedValue } from "@/components/cited-value";
@@ -168,7 +168,7 @@ export function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; on
       <div className="flex flex-col gap-2">
         <h2 className="text-sm font-medium">The same, as a drop-in API call</h2>
         <Code code={view.dropIn.request} language="bash" title="Request" />
-        <Code code={JSON.stringify(view.dropIn.response, null, 2)} language="json" title="Response" className="max-h-96 overflow-auto" />
+        <JsonCode value={view.dropIn.response} title="Response (NotOnQ's lines in amber)" className="max-h-96 overflow-auto" />
       </div>
       {view.ms > 0 && <p className="text-xs text-muted-foreground">Looked up in {(view.ms / 1000).toFixed(1)} s.</p>}
     </div>

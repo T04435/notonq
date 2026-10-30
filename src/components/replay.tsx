@@ -3,7 +3,7 @@
 import { PauseIcon, PlayIcon, RotateCcwIcon, SkipForwardIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { RunView } from "@/components/ask";
-import { Code } from "@/components/code";
+import { Code, JsonCode } from "@/components/code";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AskEvent } from "@/server/agent/ask";
@@ -82,12 +82,7 @@ function ApiSteps({ steps }: { steps: RunEvent[] }) {
               </Badge>
               <span className="text-xs text-muted-foreground">after {Math.round(s.t)} ms</span>
             </div>
-            <Code
-              language="json"
-              title="Response (raw Qloo data redacted; long lists cut to 3)"
-              code={JSON.stringify(s.body, null, 2)}
-              className="max-h-[32rem] overflow-auto"
-            />
+            <JsonCode value={s.body} title="Response (NotOnQ's lines in amber; raw Qloo data redacted; long lists cut to 3)" className="max-h-[32rem] overflow-auto" />
           </div>
         ),
       )}

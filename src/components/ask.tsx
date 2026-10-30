@@ -6,13 +6,14 @@ import { useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Mark } from "@/components/brand/mark";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
-import { Code } from "@/components/code";
+import { Code, JsonCode } from "@/components/code";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupTextarea } from "@/components/ui/input-group";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { recordHref } from "@/lib/name-key";
 import type { AskEvent, HttpExchange, Judgement, Origin, ResultItem, Row, Source } from "@/server/agent/ask";
 
 // Home is Ask (Console direction): the question box is the hero; asking turns the page into a chat on the same URL.
@@ -540,6 +541,11 @@ function Filled({ calls }: { calls: Extract<AskEvent, { type: "call" }>[] }) {
         <div key={r.name} className="flex flex-col gap-3 border border-fill p-5">
           <h2 className="eyebrow text-fill">{r.label === "picked" ? "Qloo's own record, picked by NotOnQ from open data" : "Filled in by NotOnQ, from open sources"}</h2>
           <span className="text-2xl font-bold tracking-[-0.03em] text-fill">{r.name}</span>
+          {r.label === "not_in_qloo" ? (
+            <Link href={recordHref(r.name!)} className="w-fit text-xs text-fill underline underline-offset-4">
+              {r.name}&apos;s record in NotOnQ: every value with its source, and who asked
+            </Link>
+          ) : null}
           {r.facts?.length ? (
             <ul className="flex flex-col gap-1.5 text-[13px]">
               {r.facts.map((f) => (
@@ -558,7 +564,7 @@ function Filled({ calls }: { calls: Extract<AskEvent, { type: "call" }>[] }) {
                 {http.map((h, i) => (
                   <Fragment key={i}>
                     <Code code={h.request} language="bash" title="Request (add your X-Api-Key header)" />
-                    <Code code={JSON.stringify(h.json, null, 2)} language="json" title="Response" className="max-h-96 overflow-auto" />
+                    <JsonCode value={h.json} title="Response (NotOnQ's lines in amber)" className="max-h-96 overflow-auto" />
                   </Fragment>
                 ))}
               </CollapsibleContent>
@@ -636,7 +642,11 @@ function Origins({ rows, places }: { rows: Row[]; places: number }) {
             return (
               <TableRow key={`${r.id}-${i}`} className="align-top">
                 <TableCell className={`align-top font-medium whitespace-normal ${f.variant === "notonq" ? "text-fill" : ""}`}>
-                  {r.link ? (
+                  {r.origin === "notonq_added" ? (
+                    <Link href={recordHref(r.name)} className="underline underline-offset-4">
+                      {r.name}
+                    </Link>
+                  ) : r.link ? (
                     <a href={r.link} target="_blank" rel="noreferrer" className="underline underline-offset-4">
                       {r.name}
                     </a>

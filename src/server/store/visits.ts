@@ -1,6 +1,7 @@
 // The Ledger's visits list: visits (calls from one app and caller close together, or one Ask question), filtered as
 // the URL says, with real counts, keyset pages and a live tail. The same filter runs in SQL here and in matchVisit for
 // rows pushed live.
+import { redactQlooIds } from "@/server/redact";
 import { callDetail, callName } from "@/lib/call-label";
 import { type LedgerParams, matchVisit, PAGE, type Visit } from "@/lib/ledger-params";
 import type { Sql } from "@/server/store/db";
@@ -14,7 +15,7 @@ export const toVisit = (r: Row): Visit => ({
   kind: r.kind as Visit["kind"],
   appLabel: (r.app_label as string) ?? undefined,
   subject: (r.subject as string) ?? undefined,
-  title: String(r.title),
+  title: redactQlooIds(String(r.title)),
   calls: Number(r.calls),
   helped: Number(r.helped),
   firstAt: iso(r.first_at),
@@ -95,7 +96,7 @@ export async function visitCalls(sql: Sql, id: string): Promise<VisitCall[]> {
     detail: r.kind === "ask" ? String(r.summary ?? "") : callDetail((r.served_by as string) ?? undefined, r.status === null ? undefined : Number(r.status), (r.note as string) ?? undefined, typeof r.notonq === "string" ? JSON.parse(r.notonq) : (r.notonq as never)),
     id: String(r.id),
     kind: r.kind as Run["kind"],
-    title: String(r.title),
+    title: redactQlooIds(String(r.title)),
     summary: (r.summary as string) ?? undefined,
     servedBy: (r.served_by as string) ?? undefined,
     appLabel: (r.app_label as string) ?? undefined,

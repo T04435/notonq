@@ -2,22 +2,17 @@
 // unknown names give 404 "No results" or no exact match; artists Qloo can find but not use give a 400 on insights;
 // trending has no rows for recent windows.
 import type { HttpResult } from "@/server/http";
+import { nameKey } from "@/lib/name-key";
 import { entitiesOf, qlooMessage, type QlooEntity } from "@/server/qloo/client";
 
 export type GapKind = "G1" | "G2" | "G3" | "G4";
 
 export type Gap = { kind: GapKind; qlooStatus: number; qlooMessage?: string; reason: string };
 
-const norm = (s: string) =>
-  s
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
+const norm = nameKey;
 
-/** The key an artist name is cached and counted under: lowercase, no accents or punctuation. */
-export const nameKey = norm;
+/** The key an artist name is cached and counted under: lowercase, no accents or punctuation (lib/name-key). */
+export { nameKey };
 
 /** The name as written, ignoring only case, accents and spacing: "ANORAK!" and "Anorak" differ here, and are two bands. */
 const strict = (s: string) => s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();

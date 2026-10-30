@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { Mark } from "@/components/brand/mark";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
+import { recordHref } from "@/lib/name-key";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -337,12 +338,19 @@ function VisitRow({ v, today, open, isNew, delay, calls, onOpen }: { v: Visit; t
       </CollapsibleTrigger>
       <CollapsibleContent>
         <ol aria-label="Calls in this visit" className="flex flex-col bg-surface px-3 pt-1 pb-4 md:pl-[108px] md:pr-4">
+          {v.kind === "api" && v.subject && v.helped ? (
+            <li className="py-2 text-xs">
+              <Link href={recordHref(v.subject)} className="text-fill underline-offset-4 hover:underline">
+                {v.subject}&apos;s record in NotOnQ
+              </Link>
+            </li>
+          ) : null}
           {calls ? (
             <>
               {(showAll ? calls : calls.slice(0, FIRST_CALLS)).map((c) => (
                 <li key={c.id} className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t py-2 text-xs animate-in fade-in motion-reduce:animate-none md:grid-cols-[64px_minmax(0,180px)_110px_minmax(0,1fr)_auto]">
                   <span className="text-muted-foreground tabular-nums">{c.createdAt.slice(11, 19)}</span>
-                  <span className="min-w-0 truncate" title={c.title}>
+                  <span className="min-w-0 truncate">
                     {c.name}
                   </span>
                   <span className="col-start-3 row-start-1 md:col-start-auto md:row-start-auto">

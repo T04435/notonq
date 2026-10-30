@@ -1,4 +1,5 @@
 // Typed queries over the schema. Every function takes the Sql handle so tests run on an in-memory PGlite.
+import { redactQlooIds } from "@/server/redact";
 import { type Confidence, type FallbackEntity, withStandIns } from "@/server/engine/artist";
 import type { PopularityFit } from "@/server/engine/popularity";
 import type { StandIn } from "@/server/engine/standins";
@@ -480,16 +481,18 @@ export async function saveRun(sql: Sql, r: Omit<Run, "createdAt"> & { callerHash
   return v.id;
 }
 
+// Qloo entity IDs in a call's request line and params (signal.interests.entities=…) are Qloo's data too: redacted on
+// read, so runs stored before this are covered as well.
 const toRun = (r: Row, withEvents: boolean): Run => ({
   id: String(r.id),
   kind: r.kind as Run["kind"],
-  title: String(r.title),
+  title: redactQlooIds(String(r.title)),
   summary: (r.summary as string) ?? undefined,
   servedBy: (r.served_by as string) ?? undefined,
   appLabel: (r.app_label as string) ?? undefined,
   ms: r.ms === null || r.ms === undefined ? undefined : Number(r.ms),
   createdAt: iso(r.created_at)!,
-  events: withEvents ? json(r.events, []) : [],
+  events: withEvents ? redactQlooIds(json(r.events, [])) : [],
 });
 
 export async function listRuns(sql: Sql, limit = 200): Promise<Run[]> {

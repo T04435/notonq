@@ -11,6 +11,7 @@ import {
   CodeBlockTitle,
 } from "@/components/ui/code-block";
 import { useHighlightedCode } from "@/hooks/use-highlighted-code";
+import { jsonLines } from "@/lib/json-lines";
 
 /** The app's one code box: the core shadcn Code Block, highlighted on the client, with a title and a copy button. */
 export function Code({ code, language, title, className }: { code: string; language: string; title?: string; className?: string }) {
@@ -27,6 +28,35 @@ export function Code({ code, language, title, className }: { code: string; langu
         {lines.map((line, i) => (
           <CodeBlockLine key={i}>{line}</CodeBlockLine>
         ))}
+      </CodeBlockContent>
+    </CodeBlock>
+  );
+}
+
+/** A response as JSON: Qloo's lines in the usual code colours, NotOnQ's in amber, so what NotOnQ added is plain to see
+ * (lib/json-lines decides which is which). */
+export function JsonCode({ value, title, className }: { value: unknown; title: string; className?: string }) {
+  const rows = jsonLines(value);
+  const code = rows.map((r) => r.text).join("\n");
+  const lines = useHighlightedCode(code, "json");
+  return (
+    <CodeBlock size="sm" className={className}>
+      <CodeBlockHeader>
+        <CodeBlockTitle>{title}</CodeBlockTitle>
+        <CodeBlockActions>
+          <CodeBlockCopyButton value={code} />
+        </CodeBlockActions>
+      </CodeBlockHeader>
+      <CodeBlockContent>
+        {rows.map((r, i) =>
+          r.ours ? (
+            <CodeBlockLine key={i} className="text-fill">
+              {r.text}
+            </CodeBlockLine>
+          ) : (
+            <CodeBlockLine key={i}>{lines[i] ?? r.text}</CodeBlockLine>
+          ),
+        )}
       </CodeBlockContent>
     </CodeBlock>
   );
