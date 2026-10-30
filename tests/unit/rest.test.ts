@@ -133,8 +133,15 @@ describe("handleRest", () => {
     const { fetch } = fakeFetch([...qlooRoutes(counter), ...openData.filter(([k]) => k !== "method=artist.getsimilar"), ["method=artist.getsimilar", () => json(200, { similarartists: { artist: [] } })]]);
     await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
     const before = counter.insights.length;
-    const out = await handleRest({ path: "v2/insights", params: { "filter.type": "urn:heatmap", "signal.interests.entities": NEW }, apiKey: "k" }, deps(fetch));
-    expect(out).toMatchObject({ status: 200, servedBy: "fallback", body: { success: true, results: {} } });
+    // Qloo's shape even when empty: the filter type's list key, as an empty array (Busk Map read results:{} as invalid).
+    const cases: [string, string][] = [["urn:entity:artist", "entities"], ["urn:heatmap", "heatmap"], ["urn:demographics", "demographics"], ["urn:tag", "tags"]];
+    for (const [type, key] of cases) {
+      const out = await handleRest({ path: "v2/insights", params: { "filter.type": type, "signal.interests.entities": NEW }, apiKey: "k" }, deps(fetch));
+      expect(out).toMatchObject({ status: 200, servedBy: "fallback", body: { success: true, results: { [key]: [] } } });
+      expect(Object.keys((out.body as { results: object }).results)).toEqual([key]);
+    }
+    const post = await handleRest({ path: "v2/insights", params: {}, body: { "filter.type": "urn:entity:artist", "signal.interests.entities": [NEW] }, apiKey: "k" }, deps(fetch));
+    expect(post.body).toMatchObject({ success: true, results: { entities: [] } });
     expect(counter.insights.length).toBe(before);
   });
 

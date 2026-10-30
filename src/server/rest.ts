@@ -315,7 +315,7 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   // Artists by era, genre and place (v0.3.0), also with a taste signal alongside (v0.4.0): see eraAnswer.
   const eraTag = req.params["filter.type"] === ARTIST ? (req.params["filter.tags"] ?? "").split(",").map((t) => t.trim()).find((t) => parseMusicTag(t)) : undefined;
   if (signal.length && !params["signal.interests.entities"]) {
-    if (!eraTag) return noTasteData(replaced, ctx);
+    if (!eraTag) return noTasteData(replaced, ctx, req.params["filter.type"]);
     // Only NotOnQ artists with no stand-ins: the era and place still stand on their own.
     params = Object.fromEntries(Object.entries(params).filter(([k]) => k !== "signal.interests.entities"));
   }
@@ -651,7 +651,7 @@ async function insightsPost(body: Record<string, unknown>, ctx: Ctx): Promise<Re
     return { ...body, "signal.interests.entities": out };
   };
   const first = rewrite();
-  if (items.length && !(first["signal.interests.entities"] as unknown[]).length) return noTasteData(replaced, ctx);
+  if (items.length && !(first["signal.interests.entities"] as unknown[]).length) return noTasteData(replaced, ctx, typeof body["filter.type"] === "string" ? body["filter.type"] : undefined);
   let res = await ctx.qloo.post("/v2/insights", first);
   if (res.status === 400 && readInsightsSafe(res)) {
     for (const id of items.map(idOf).filter((s) => !ours.has(s) && !replaced.has(s))) {
@@ -680,7 +680,7 @@ async function insightsPost(body: Record<string, unknown>, ctx: Ctx): Promise<Re
 
 /** Every signal is a NotOnQ artist with no similar artist Qloo knows: nothing to ask Qloo. An empty answer (never a
  * Qloo error for an ID Qloo was never sent), with the reason; the entity's own label says the same to the harness. */
-async function noTasteData(replaced: Map<string, StoredFallback>, ctx: Ctx): Promise<RestResponse> {
+async function noTasteData(replaced: Map<string, StoredFallback>, ctx: Ctx, filterType?: string): Promise<RestResponse> {
   for (const f of replaced.values())
     await logRequest(ctx.sql, { nameKey: f.nameKey, entityId: f.id, endpoint: ctx.endpoint, servedBy: "fallback", gapKind: f.gapKind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: true });
   const names = [...replaced.values()].map((f) => f.name).join(", ");
@@ -688,11 +688,20 @@ async function noTasteData(replaced: Map<string, StoredFallback>, ctx: Ctx): Pro
     status: 200,
     body: {
       success: true,
-      results: {},
+      results: emptyResults(filterType),
       notonq: { served_by: "fallback", proxy: { replaced: [...replaced.keys()], stand_ins: [] }, note: `No taste data: ${names} is not in Qloo and has no similar artist Qloo knows yet.` },
     },
     servedBy: "fallback",
   };
+}
+
+/** Qloo's empty answer for the filter type: the list key it always sends, empty (a client written to Qloo's shape reads
+ * results.entities even when there is nothing; Busk Map, 30 Oct 2026). */
+export function emptyResults(filterType?: string): Record<string, unknown[]> {
+  if (filterType === "urn:demographics") return { demographics: [] };
+  if (filterType === "urn:heatmap") return { heatmap: [] };
+  if (filterType === "urn:tag") return { tags: [] };
+  return { entities: [] };
 }
 
 function withSignal(params: Record<string, string>, signal: string[], replaced: Map<string, StoredFallback>) {
