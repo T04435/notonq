@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { DEFAULTS, matchVisit, parseLedgerParams, toLedgerSearch } from "@/lib/ledger-params";
 import { memoryDb, type Sql } from "@/server/store/db";
-import { artistCursor, ledger, logRequest, saveRun } from "@/server/store/repo";
+import { artistCursor, getRun, ledger, logRequest, saveRun } from "@/server/store/repo";
 import { SCHEMA } from "@/server/store/schema";
 import { ledgerApps, ledgerChanges, listVisits, visitCalls, visitsChangedSince } from "@/server/store/visits";
 
@@ -12,6 +12,29 @@ beforeEach(async () => {
 
 const call = (over: Partial<Parameters<typeof saveRun>[1]> = {}) =>
   saveRun(sql, { id: crypto.randomUUID(), kind: "api", title: "GET /q/search?query=Fcukers", servedBy: "fallback", appLabel: "ghostq", callerHash: "c1", events: [], ...over });
+
+describe("Qloo IDs in stored calls", () => {
+  it("redacts Qloo's upper-case entity IDs in titles, params and visit rows, and keeps NotOnQ's lower-case ones", async () => {
+    const id = crypto.randomUUID();
+    const q = "7228ADD5-EE0D-4A75-9316-C3F348D7B188";
+    const ours = "4588e89e-c107-4025-97d2-ac4070a4ecd0";
+    const visit = await saveRun(sql, {
+      id,
+      kind: "api",
+      title: `GET /q/v2/insights?signal.interests.entities=${q},${ours}`,
+      servedBy: "qloo",
+      appLabel: "ghostq",
+      callerHash: "c9",
+      events: [{ t: 0, type: "request", method: "GET", path: "/q/v2/insights", params: { "signal.interests.entities": `${q},${ours}` } }],
+    });
+    const run = await getRun(sql, id);
+    expect(run?.title).toBe(`GET /q/v2/insights?signal.interests.entities=[redacted uuid],${ours}`);
+    expect(JSON.stringify(run?.events)).not.toContain(q);
+    expect(JSON.stringify(run?.events)).toContain(ours);
+    expect((await visitCalls(sql, visit!))[0].title).not.toContain(q);
+    expect((await listVisits(sql, parseLedgerParams({ view: "all" }))).rows.every((v) => !v.title.includes(q))).toBe(true);
+  });
+});
 
 describe("visits", () => {
   it("groups one app's calls from one caller, less than 2 minutes apart, into one visit", async () => {
