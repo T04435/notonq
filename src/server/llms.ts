@@ -119,10 +119,12 @@ Added beside Qloo's response when NotOnQ took part:
 - popularity: { value, n, rmse } (derived from the stand-ins' Qloo popularity against Last.fm listeners)
 - unavailable: fields with no provable source; "(source error: …)" when a source failed
 - confidence: high (MusicBrainz record) | low (Last.fm or Deezer only)
-- candidates, next: for needs_choice (each candidate has the entity_id it has in results)
+- candidates, next: for needs_choice (each candidate has entity_id: the ID it has in results, or Qloo's own ID when
+  Qloo knows it, flagged inQloo)
 - research: { status: pending | done | failed | skipped | none }
 - "<entity_id>": { kind, … }: one block per result NotOnQ touched, keyed by that result's entity_id, on /search,
-  /entities and /v2/insights. A result with no block is Qloo's, unchanged. The flat fields above stay.
+  /entities and /v2/insights. A result with no block is Qloo's, unchanged. Look it up as notonq[result.entity_id]
+  (don't scan for "kind": gap has one too). The flat fields above stay.
   - kind: filled (not in Qloo, filled from open sources; the fill's gap, cache, proxy, provenance, …; only fills carry
     properties["notonq:standIns"]) | candidate (not in Qloo, a possible match not filled yet; key, name, next) | picked
     (Qloo's own record NotOnQ added to an era list; ranked_by_qloo) | matched (Qloo's own record NotOnQ matched to the

@@ -112,7 +112,9 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
         return [candidateId(c), keyed("candidate", { key: c.key, name: c.name, next: "Send this entity_id to /entities, or as a signal, and NotOnQ fills the artist." })];
       }),
     );
-    return { status: 200, body: { ...base, results: withQloo(entries), notonq: { ...blockFor(l), ...Object.fromEntries(blocks) } }, servedBy: "fallback" };
+    const results = withQloo(entries);
+    const shown = new Set(results.map((r) => (r as { entity_id: string }).entity_id));
+    return { status: 200, body: { ...base, results, notonq: { ...blockFor(l), ...Object.fromEntries(blocks.filter(([id]) => shown.has(id as string))) } }, servedBy: "fallback" };
   }
   return {
     status: l.fallback.entity ? 200 : res.status,

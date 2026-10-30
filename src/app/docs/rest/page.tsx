@@ -150,7 +150,7 @@ export default function RestReference() {
             ["popularity", "the derived estimate: value, n stand-ins, rmse"],
             ["unavailable", "fields with no provable source; '(source error: …)' when a source failed"],
             ["confidence", "high (MusicBrainz record) or low (Last.fm or Deezer only)"],
-            ["candidates, next", "for needs_choice: the options (each with the entity_id it has in results) and how to pick one"],
+            ["candidates, next", "for needs_choice: the options and how to pick one. Each has entity_id: the ID it has in results, or Qloo's own ID when Qloo knows it (inQloo)"],
             ["research", "pending · done · failed · skipped · none"],
             ["<entity_id>", "one block per result NotOnQ touched, keyed by that result's entity_id, with kind (below)"],
           ]}
@@ -158,7 +158,8 @@ export default function RestReference() {
         <P>
           Which results are NotOnQ&apos;s is in the data, not only in labels: every result NotOnQ filled, offered, picked or matched has a block
           under its own <C>entity_id</C> in <C>notonq</C>, on <C>/search</C>, <C>/entities</C> and <C>/v2/insights</C> alike. A result with no
-          block is Qloo&apos;s, unchanged. The flat fields above stay as they were.
+          block is Qloo&apos;s, unchanged. Look a result&apos;s block up by its <C>entity_id</C> (<C>notonq[result.entity_id]</C>); don&apos;t scan
+          for <C>kind</C>, since <C>gap</C> has one too. The flat fields above stay as they were.
         </P>
         <RefTable
           head={["kind", "means", "block also has"]}

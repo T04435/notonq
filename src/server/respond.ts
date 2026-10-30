@@ -67,7 +67,8 @@ export function fallbackBlock(
 
 export const ATTRIBUTION_LINES = ATTRIBUTION;
 
-/** The entity_id a candidate has in results: Qloo's own when Qloo knows it, else the ID NotOnQ offers it under. */
+/** The ID to send back for a candidate: the entity_id NotOnQ offers it under in results, or Qloo's own entity_id when
+ * Qloo already knows it (inQloo; that one isn't added to results, since it is Qloo's artist under another spelling). */
 export const candidateId = (c: Candidate) => c.inQloo?.entityId ?? idForCandidate(c);
 const withEntityId = (c: Candidate) => ({ ...c, entity_id: candidateId(c) });
 

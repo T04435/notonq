@@ -162,8 +162,12 @@ describe("search through the Qloo harness", () => {
     const id = idForKey("lf:tiny-act");
     expect(body.notonq.candidates.find((c) => c.key === "lf:tiny-act")?.entity_id).toBe(id);
     expect(body.notonq[id]).toEqual({ kind: "candidate", key: "lf:tiny-act", name: "Tiny Act", next: expect.any(String) });
-    // Qloo's own result has no block of its own.
+    // Qloo's own result has no block of its own, and every keyed block is a result shown (take caps both).
     expect(body.notonq[qid(40)]).toBeUndefined();
+    const one = await handleRest({ path: "search", params: { ...params, take: "1" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const b1 = one.body as { results: { entity_id: string }[]; notonq: Record<string, unknown> };
+    const keyedIds = Object.keys(b1.notonq).filter((k) => /^[0-9a-f-]{36}$/i.test(k));
+    expect(keyedIds.filter((k) => !b1.results.some((r) => r.entity_id === k))).toEqual([]);
     await handleRest({ path: "entities", params: { entity_ids: id }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
     const again = await handleRest({ path: "search", params, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
     expect((again.body as { notonq: Record<string, unknown> }).notonq[id]).toMatchObject({ kind: "filled", served_by: "fallback" });
