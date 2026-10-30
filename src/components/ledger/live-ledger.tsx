@@ -342,7 +342,7 @@ function VisitRow({ v, today, open, isNew, delay, calls, onOpen }: { v: Visit; t
               {(showAll ? calls : calls.slice(0, FIRST_CALLS)).map((c) => (
                 <li key={c.id} className="grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1 border-t py-2 text-xs animate-in fade-in motion-reduce:animate-none md:grid-cols-[64px_minmax(0,180px)_110px_minmax(0,1fr)_auto]">
                   <span className="text-muted-foreground tabular-nums">{c.createdAt.slice(11, 19)}</span>
-                  <span className="min-w-0 truncate" title={c.title}>
+                  <span className="min-w-0 truncate">
                     {c.name}
                   </span>
                   <span className="col-start-3 row-start-1 md:col-start-auto md:row-start-auto">
