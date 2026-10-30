@@ -1,5 +1,6 @@
 // MusicBrainz: identity for an artist (CC0 core data). 1 request per second and a real User-Agent, per their API rules.
 import { z } from "zod";
+import { SourceError } from "@/server/adapters/wikidata";
 import { type Fetch, getJson, pacer } from "@/server/http";
 import { sameName } from "@/server/qloo/gap";
 
@@ -46,6 +47,12 @@ async function call(url: string, f?: Fetch) {
   return first.status === 503 ? once() : first;
 }
 
+/** MusicBrainz didn't answer (still busy after the retry, timeout, 5xx): not the same as "nothing found". */
+const answered = (res: Awaited<ReturnType<typeof call>>) => {
+  if (res.status === 0 || res.status >= 500) throw new SourceError(`MusicBrainz ${res.status || res.error || "no answer"}`);
+  return res;
+};
+
 const toArtist = (a: MbArtistJson): MbArtist => ({
   mbid: a.id,
   name: a.name,
@@ -65,9 +72,10 @@ const toArtist = (a: MbArtistJson): MbArtist => ({
   beginArea: a["begin-area"]?.name ?? undefined,
 });
 
-/** A raw Lucene artist search (fields like tag:, country:, begin:, end:, type:), in MusicBrainz's own order. */
+/** A raw Lucene artist search (fields like tag:, country:, begin:, end:, type:), in MusicBrainz's own order. Throws
+ * SourceError when MusicBrainz didn't answer. */
 export async function searchByQuery(query: string, { fetch: f, limit = 25 }: { fetch?: Fetch; limit?: number } = {}): Promise<MbArtist[]> {
-  const res = await call(`https://musicbrainz.org/ws/2/artist?query=${encodeURIComponent(query)}&fmt=json&limit=${limit}`, f);
+  const res = answered(await call(`https://musicbrainz.org/ws/2/artist?query=${encodeURIComponent(query)}&fmt=json&limit=${limit}`, f));
   const list = z.object({ artists: z.array(MbArtistJson) }).safeParse(res.json);
   return list.success ? list.data.artists.map(toArtist) : [];
 }
@@ -80,12 +88,13 @@ const MbAreaJson = z.looseObject({
   relations: z.array(z.looseObject({ type: z.string(), direction: z.string(), area: z.looseObject({ id: z.string(), name: z.string() }).nullish() })).nullish(),
 });
 
-/** The country a place is in, as MusicBrainz's ISO code and name: climbs "part of" from a city or region (a few hops). */
+/** The country a place is in, as MusicBrainz's ISO code and name: climbs "part of" from a city or region (a few hops).
+ * null when MusicBrainz has no such place; throws SourceError when it didn't answer. */
 export async function countryOf(place: string, { fetch: f }: { fetch?: Fetch } = {}): Promise<{ code: string; name: string } | null> {
-  const found = await call(`https://musicbrainz.org/ws/2/area?query=${encodeURIComponent(place.replace(/"/g, ""))}&fmt=json&limit=1`, f);
+  const found = answered(await call(`https://musicbrainz.org/ws/2/area?query=${encodeURIComponent(place.replace(/"/g, ""))}&fmt=json&limit=1`, f));
   let id = z.object({ areas: z.array(MbAreaJson) }).safeParse(found.json).data?.areas[0]?.id;
   for (let hop = 0; id && hop < 5; hop++) {
-    const res = await call(`https://musicbrainz.org/ws/2/area/${id}?inc=area-rels&fmt=json`, f);
+    const res = answered(await call(`https://musicbrainz.org/ws/2/area/${id}?inc=area-rels&fmt=json`, f));
     const area = MbAreaJson.safeParse(res.json).data;
     if (!area) return null;
     const code = area["iso-3166-1-codes"]?.[0];

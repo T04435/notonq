@@ -22,6 +22,7 @@ export const LICENCES = {
   lastfm: "Last.fm API terms (non-commercial, attribution)",
   deezer: "Deezer API terms (non-commercial)",
   qloo: "Qloo API terms",
+  openstreetmap: "ODbL-1.0",
   notonq: "derived by NotOnQ",
 } as const;
 
