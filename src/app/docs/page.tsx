@@ -89,6 +89,12 @@ export default function DocsOverview() {
           of them are listed as data in <C>properties[&quot;notonq:standIns&quot;]</C> (<C>[{"{ entity_id, name }"}]</C>, absent when there are none), so
           read them from there rather than parsing the text. Genre tag IDs and keys Qloo doesn&apos;t have start with <C>notonq:</C>. Qloo&apos;s own values are never changed.
         </P>
+        <P>
+          To tell NotOnQ&apos;s results from Qloo&apos;s in code, look each one up in <C>notonq[result.entity_id]</C>: no block means it is
+          Qloo&apos;s, unchanged; otherwise <C>kind</C> says what NotOnQ did (filled, candidate, picked, matched or gaps). See{" "}
+          <A href="/docs/rest#notonq-block">the notonq block</A> for an example of each. These blocks are additive: a client that ignores them
+          works as before.
+        </P>
         <ShapeDiff />
       </DocsSection>
 

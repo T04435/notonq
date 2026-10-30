@@ -7,7 +7,7 @@ const notonqBlock = {
   description: "Added beside Qloo's response when NotOnQ took part. Qloo's own fields are never changed.",
   properties: {
     served_by: { type: "string", enum: ["qloo", "fallback", "mixed", "needs_choice"] },
-    gap: { type: "object", properties: { kind: { type: "string", enum: ["G1", "G2", "G4"], description: "G1: new to Qloo. G2: not yet a taste signal. G4: a short era list (artists by a music genre tag and place)." }, qloo_status: { type: "integer" }, qloo_message: { type: "string" } } },
+    gap: { type: "object", properties: { kind: { type: "string", enum: ["G1", "G2", "G4", "G5"], description: "G1: new to Qloo. G2: not yet a taste signal. G4: a short era list (artists by a music genre tag and place). G5: Qloo has the artist; fields its record lacks were added." }, qloo_status: { type: "integer" }, qloo_message: { type: "string" } } },
     cache: { type: "object", properties: { hit: { type: "boolean" }, first_seen: { type: "string", format: "date-time" } } },
     demand: { type: "object", properties: { requests: { type: "integer" }, callers: { type: "integer" }, apps: { type: "integer" } } },
     proxy: {
@@ -47,6 +47,7 @@ const notonqBlock = {
         type: "object",
         properties: {
           key: { type: "string", description: "Send back as notonq.candidate" },
+          entity_id: { type: "string", description: "The ID this candidate has in results, or Qloo's own ID when Qloo knows it (inQloo)" },
           name: { type: "string" },
           exact: { type: "boolean" },
           inQloo: { type: "object", properties: { entityId: { type: "string" }, name: { type: "string" } } },
@@ -54,6 +55,23 @@ const notonqBlock = {
       },
     },
     research: { type: "object", properties: { status: { type: "string", enum: ["pending", "done", "failed", "skipped", "none"] } } },
+  },
+  patternProperties: {
+    "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$": {
+      type: "object",
+      description:
+        "One block per result NotOnQ touched, keyed by that result's entity_id (look it up as notonq[result.entity_id]). A result with no block is Qloo's, unchanged. Additive: a client that ignores these blocks works as before.",
+      required: ["kind"],
+      properties: {
+        kind: {
+          type: "string",
+          enum: ["filled", "candidate", "picked", "matched", "gaps"],
+          description:
+            "filled: not in Qloo, filled from open sources (the fill's served_by, gap, cache, proxy, provenance, …). candidate: a possible match, not filled yet (key, name, next). picked: Qloo's own record NotOnQ added to an era list (ranked_by_qloo). matched: Qloo's own record NotOnQ matched to the name or Spotify ID asked for (query, or spotify_id and via). gaps: Qloo's own record with fields NotOnQ added (fields, provenance).",
+        },
+        fields: { type: "array", items: { type: "string", enum: ["home", "languages", "genres", "musicbrainz_id", "wikidata_id"] } },
+      },
+    },
   },
 } as const;
 

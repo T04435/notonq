@@ -1,0 +1,1888 @@
+{
+ "fill: search, entities, insights GET and POST, compare, rank": [
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "results": [
+     {
+      "name": "Newact",
+      "tags": [],
+      "types": [
+       "urn:entity:artist"
+      ],
+      "entity_id": "00000000-0000-4000-a000-000000000099",
+      "properties": {
+       "akas": [],
+       "external": {
+        "lastfm": {
+         "id": "Newact",
+         "listeners": 1000
+        },
+        "musicbrainz": {
+         "id": "00000000-0000-4000-a000-000000000099"
+        }
+       },
+       "notonq:home": {
+        "name": "United States",
+        "source": "musicbrainz",
+        "country": "United States",
+        "country_code": "US"
+       },
+       "short_description": "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2. From United States (MusicBrainz).",
+       "notonq:standIns": [
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+         "name": "Similar 1"
+        },
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+         "name": "Similar 2"
+        }
+       ]
+      },
+      "disambiguation": "US"
+     }
+    ],
+    "notonq": {
+     "served_by": "fallback",
+     "gap": {
+      "kind": "G1",
+      "qloo_status": 404,
+      "qloo_message": "No results"
+     },
+     "cache": {
+      "hit": false,
+      "first_seen": "<time>"
+     },
+     "demand": {
+      "requests": 1,
+      "callers": 1,
+      "apps": 0
+     },
+     "proxy": {
+      "replaced": [],
+      "stand_ins": [
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+        "name": "Similar 1",
+        "weight": 0.9,
+        "source": "lastfm"
+       },
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+        "name": "Similar 2",
+        "weight": 0.9,
+        "source": "lastfm"
+       }
+      ]
+     },
+     "provenance": {
+      "name": [
+       {
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "disambiguation": [
+       {
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.notonq:home": [
+       {
+        "note": "MusicBrainz begin area (else area) and country",
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.external.lastfm": [
+       {
+        "method": "copied",
+        "record": "https://www.last.fm/music/Newact",
+        "source": "lastfm",
+        "licence": "Last.fm API terms (non-commercial, attribution)",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.short_description": [
+       {
+        "note": "NotOnQ's label (no Wikipedia summary found)",
+        "method": "derived",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "notonq",
+        "licence": "derived by NotOnQ",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.external.musicbrainz": [
+       {
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "standIns.4e4f544f-0000-4000-8000-000000000001": [
+       {
+        "note": "Last.fm match 0.90; resolved in Qloo by MusicBrainz ID 00000000-0000-4000-a000-000000000001",
+        "method": "qloo_proxy",
+        "record": "https://www.last.fm/music/Newact",
+        "source": "lastfm",
+        "licence": "Last.fm API terms (non-commercial, attribution)",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "standIns.4e4f544f-0000-4000-8000-000000000002": [
+       {
+        "note": "Last.fm match 0.90; resolved in Qloo by MusicBrainz ID 00000000-0000-4000-a000-000000000002",
+        "method": "qloo_proxy",
+        "record": "https://www.last.fm/music/Newact",
+        "source": "lastfm",
+        "licence": "Last.fm API terms (non-commercial, attribution)",
+        "retrievedAt": "<time>"
+       }
+      ]
+     },
+     "unavailable": [
+      "properties.external.wikidata",
+      "properties.image",
+      "properties.short_description (no Wikipedia summary)",
+      "tags",
+      "popularity"
+     ],
+     "confidence": "high",
+     "research": {
+      "status": "none"
+     },
+     "attribution": [
+      "Facts: MusicBrainz (CC0), Wikidata (CC0), Wikipedia (CC BY-SA 4.0, linked per value)",
+      "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
+      "Small-artist matches, fan counts and pictures: Deezer",
+      "Taste data: the Qloo API, for the stand-ins listed",
+      "Researched facts: the pages cited per value, each quote checked on the page"
+     ]
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "results": [
+     {
+      "name": "Newact",
+      "tags": [],
+      "types": [
+       "urn:entity:artist"
+      ],
+      "entity_id": "00000000-0000-4000-a000-000000000099",
+      "properties": {
+       "akas": [],
+       "external": {
+        "lastfm": {
+         "id": "Newact",
+         "listeners": 1000
+        },
+        "musicbrainz": {
+         "id": "00000000-0000-4000-a000-000000000099"
+        }
+       },
+       "notonq:home": {
+        "name": "United States",
+        "source": "musicbrainz",
+        "country": "United States",
+        "country_code": "US"
+       },
+       "short_description": "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2. From United States (MusicBrainz).",
+       "notonq:standIns": [
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+         "name": "Similar 1"
+        },
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+         "name": "Similar 2"
+        }
+       ]
+      },
+      "disambiguation": "US"
+     }
+    ],
+    "notonq": {
+     "served_by": "fallback",
+     "gap": {
+      "kind": "G1"
+     },
+     "cache": {
+      "hit": true,
+      "first_seen": "<time>"
+     },
+     "demand": {
+      "requests": 2,
+      "callers": 1,
+      "apps": 0
+     },
+     "proxy": {
+      "replaced": [],
+      "stand_ins": [
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+        "name": "Similar 1",
+        "weight": 0.9,
+        "source": "lastfm"
+       },
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+        "name": "Similar 2",
+        "weight": 0.9,
+        "source": "lastfm"
+       }
+      ]
+     },
+     "provenance": {
+      "name": [
+       {
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "disambiguation": [
+       {
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.notonq:home": [
+       {
+        "note": "MusicBrainz begin area (else area) and country",
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.external.lastfm": [
+       {
+        "method": "copied",
+        "record": "https://www.last.fm/music/Newact",
+        "source": "lastfm",
+        "licence": "Last.fm API terms (non-commercial, attribution)",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.short_description": [
+       {
+        "note": "NotOnQ's label (no Wikipedia summary found)",
+        "method": "derived",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "notonq",
+        "licence": "derived by NotOnQ",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.external.musicbrainz": [
+       {
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "standIns.4e4f544f-0000-4000-8000-000000000001": [
+       {
+        "note": "Last.fm match 0.90; resolved in Qloo by MusicBrainz ID 00000000-0000-4000-a000-000000000001",
+        "method": "qloo_proxy",
+        "record": "https://www.last.fm/music/Newact",
+        "source": "lastfm",
+        "licence": "Last.fm API terms (non-commercial, attribution)",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "standIns.4e4f544f-0000-4000-8000-000000000002": [
+       {
+        "note": "Last.fm match 0.90; resolved in Qloo by MusicBrainz ID 00000000-0000-4000-a000-000000000002",
+        "method": "qloo_proxy",
+        "record": "https://www.last.fm/music/Newact",
+        "source": "lastfm",
+        "licence": "Last.fm API terms (non-commercial, attribution)",
+        "retrievedAt": "<time>"
+       }
+      ]
+     },
+     "unavailable": [
+      "properties.external.wikidata",
+      "properties.image",
+      "properties.short_description (no Wikipedia summary)",
+      "tags",
+      "popularity"
+     ],
+     "confidence": "high",
+     "research": {
+      "status": "none"
+     },
+     "attribution": [
+      "Facts: MusicBrainz (CC0), Wikidata (CC0), Wikipedia (CC BY-SA 4.0, linked per value)",
+      "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
+      "Small-artist matches, fan counts and pictures: Deezer",
+      "Taste data: the Qloo API, for the stand-ins listed",
+      "Researched facts: the pages cited per value, each quote checked on the page"
+     ]
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "results": [
+     {
+      "name": "Newact",
+      "tags": [],
+      "types": [
+       "urn:entity:artist"
+      ],
+      "entity_id": "00000000-0000-4000-a000-000000000099",
+      "properties": {
+       "akas": [],
+       "external": {
+        "lastfm": {
+         "id": "Newact",
+         "listeners": 1000
+        },
+        "musicbrainz": {
+         "id": "00000000-0000-4000-a000-000000000099"
+        }
+       },
+       "notonq:home": {
+        "name": "United States",
+        "source": "musicbrainz",
+        "country": "United States",
+        "country_code": "US"
+       },
+       "short_description": "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2. From United States (MusicBrainz).",
+       "notonq:standIns": [
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+         "name": "Similar 1"
+        },
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+         "name": "Similar 2"
+        }
+       ]
+      },
+      "disambiguation": "US"
+     }
+    ],
+    "notonq": {
+     "served_by": "fallback",
+     "00000000-0000-4000-a000-000000000099": {
+      "served_by": "fallback",
+      "gap": {
+       "kind": "G1"
+      },
+      "cache": {
+       "hit": true,
+       "first_seen": "<time>"
+      },
+      "demand": {
+       "requests": 3,
+       "callers": 1,
+       "apps": 0
+      },
+      "proxy": {
+       "replaced": [],
+       "stand_ins": [
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+         "name": "Similar 1",
+         "weight": 0.9,
+         "source": "lastfm"
+        },
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+         "name": "Similar 2",
+         "weight": 0.9,
+         "source": "lastfm"
+        }
+       ]
+      },
+      "provenance": {
+       "name": [
+        {
+         "method": "copied",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "musicbrainz",
+         "licence": "CC0-1.0",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "disambiguation": [
+        {
+         "method": "copied",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "musicbrainz",
+         "licence": "CC0-1.0",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.notonq:home": [
+        {
+         "note": "MusicBrainz begin area (else area) and country",
+         "method": "copied",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "musicbrainz",
+         "licence": "CC0-1.0",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.external.lastfm": [
+        {
+         "method": "copied",
+         "record": "https://www.last.fm/music/Newact",
+         "source": "lastfm",
+         "licence": "Last.fm API terms (non-commercial, attribution)",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.short_description": [
+        {
+         "note": "NotOnQ's label (no Wikipedia summary found)",
+         "method": "derived",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "notonq",
+         "licence": "derived by NotOnQ",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.external.musicbrainz": [
+        {
+         "method": "copied",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "musicbrainz",
+         "licence": "CC0-1.0",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "standIns.4e4f544f-0000-4000-8000-000000000001": [
+        {
+         "note": "Last.fm match 0.90; resolved in Qloo by MusicBrainz ID 00000000-0000-4000-a000-000000000001",
+         "method": "qloo_proxy",
+         "record": "https://www.last.fm/music/Newact",
+         "source": "lastfm",
+         "licence": "Last.fm API terms (non-commercial, attribution)",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "standIns.4e4f544f-0000-4000-8000-000000000002": [
+        {
+         "note": "Last.fm match 0.90; resolved in Qloo by MusicBrainz ID 00000000-0000-4000-a000-000000000002",
+         "method": "qloo_proxy",
+         "record": "https://www.last.fm/music/Newact",
+         "source": "lastfm",
+         "licence": "Last.fm API terms (non-commercial, attribution)",
+         "retrievedAt": "<time>"
+        }
+       ]
+      },
+      "unavailable": [
+       "properties.external.wikidata",
+       "properties.image",
+       "properties.short_description (no Wikipedia summary)",
+       "tags",
+       "popularity"
+      ],
+      "confidence": "high",
+      "research": {
+       "status": "none"
+      },
+      "attribution": [
+       "Facts: MusicBrainz (CC0), Wikidata (CC0), Wikipedia (CC BY-SA 4.0, linked per value)",
+       "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
+       "Small-artist matches, fan counts and pictures: Deezer",
+       "Taste data: the Qloo API, for the stand-ins listed",
+       "Researched facts: the pages cited per value, each quote checked on the page"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "mixed",
+   "body": {
+    "success": true,
+    "results": {
+     "entities": [
+      {
+       "entity_id": "4e4f544f-0000-4000-8000-000000000070",
+       "name": "Rec",
+       "types": [
+        "urn:entity:artist"
+       ],
+       "properties": {
+        "external": {}
+       }
+      }
+     ]
+    },
+    "notonq": {
+     "served_by": "mixed",
+     "proxy": {
+      "replaced": [
+       "00000000-0000-4000-a000-000000000099"
+      ],
+      "stand_ins": [
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+        "name": "Similar 1",
+        "weight": 0.9,
+        "source": "lastfm"
+       },
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+        "name": "Similar 2",
+        "weight": 0.9,
+        "source": "lastfm"
+       }
+      ]
+     },
+     "note": "Results are Qloo's answer for the stand-ins listed, used in place of artists Qloo has no taste data for."
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "mixed",
+   "body": {
+    "success": true,
+    "results": {
+     "entities": [
+      {
+       "entity_id": "4e4f544f-0000-4000-8000-000000000070",
+       "name": "Rec",
+       "types": [
+        "urn:entity:artist"
+       ],
+       "properties": {
+        "external": {}
+       }
+      }
+     ]
+    },
+    "notonq": {
+     "served_by": "mixed",
+     "proxy": {
+      "replaced": [
+       "00000000-0000-4000-a000-000000000099"
+      ],
+      "stand_ins": [
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+        "name": "Similar 1",
+        "weight": 0.9,
+        "source": "lastfm"
+       },
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+        "name": "Similar 2",
+        "weight": 0.9,
+        "source": "lastfm"
+       }
+      ]
+     },
+     "note": "Results are Qloo's answer for the stand-ins listed, used in place of artists Qloo has no taste data for."
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "mixed",
+   "body": {
+    "success": true,
+    "results": {
+     "entities": [
+      {
+       "entity_id": "4e4f544f-0000-4000-8000-000000000070",
+       "name": "Rec",
+       "types": [
+        "urn:entity:artist"
+       ],
+       "properties": {
+        "external": {}
+       }
+      }
+     ]
+    },
+    "notonq": {
+     "served_by": "mixed",
+     "proxy": {
+      "replaced": [
+       "00000000-0000-4000-a000-000000000099"
+      ],
+      "stand_ins": [
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+        "name": "Similar 1",
+        "weight": 0.9,
+        "source": "lastfm"
+       },
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+        "name": "Similar 2",
+        "weight": 0.9,
+        "source": "lastfm"
+       }
+      ]
+     },
+     "note": "Results are Qloo's answer for the stand-ins listed, used in place of artists Qloo has no taste data for."
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "success": true,
+    "results": {
+     "entities": [
+      {
+       "name": "Newact",
+       "tags": [],
+       "types": [
+        "urn:entity:artist"
+       ],
+       "entity_id": "00000000-0000-4000-a000-000000000099",
+       "properties": {
+        "akas": [],
+        "external": {
+         "lastfm": {
+          "id": "Newact",
+          "listeners": 1000
+         },
+         "musicbrainz": {
+          "id": "00000000-0000-4000-a000-000000000099"
+         }
+        },
+        "notonq:home": {
+         "name": "United States",
+         "source": "musicbrainz",
+         "country": "United States",
+         "country_code": "US"
+        },
+        "short_description": "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2. From United States (MusicBrainz).",
+        "notonq:standIns": [
+         {
+          "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+          "name": "Similar 1"
+         },
+         {
+          "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+          "name": "Similar 2"
+         }
+        ]
+       },
+       "disambiguation": "US"
+      }
+     ]
+    },
+    "notonq": {
+     "served_by": "fallback",
+     "unranked": [
+      "00000000-0000-4000-a000-000000000099"
+     ],
+     "note": "Qloo ranked the options it knows; NotOnQ's artists follow, unranked: Qloo has no taste data to score them with."
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "mixed",
+   "body": {
+    "results": {
+     "entities": [
+      {
+       "name": "Rec",
+       "types": [
+        "urn:entity:artist"
+       ],
+       "entity_id": "4e4f544f-0000-4000-8000-000000000070",
+       "properties": {
+        "external": {}
+       }
+      }
+     ]
+    },
+    "success": true,
+    "notonq": {
+     "served_by": "mixed",
+     "proxy": {
+      "replaced": [
+       "4e4f544f-0000-4000-8000-000000000050"
+      ],
+      "stand_ins": [
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+        "name": "Similar 1",
+        "weight": 0.9,
+        "source": "lastfm"
+       },
+       {
+        "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+        "name": "Similar 2",
+        "weight": 0.9,
+        "source": "lastfm"
+       }
+      ]
+     },
+     "note": "Results are Qloo's answer for the stand-ins listed, used in place of artists Qloo has no taste data for."
+    }
+   }
+  }
+ ],
+ "Spotify ID lookup": [
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "results": [
+     {
+      "name": "Newact",
+      "tags": [],
+      "types": [
+       "urn:entity:artist"
+      ],
+      "entity_id": "00000000-0000-4000-a000-000000000099",
+      "properties": {
+       "akas": [],
+       "external": {
+        "lastfm": {
+         "id": "Newact",
+         "listeners": 1000
+        },
+        "musicbrainz": {
+         "id": "00000000-0000-4000-a000-000000000099"
+        },
+        "spotify": {
+         "id": "1234567890abcdefghijkl"
+        }
+       },
+       "notonq:home": {
+        "name": "United States",
+        "source": "musicbrainz",
+        "country": "United States",
+        "country_code": "US"
+       },
+       "short_description": "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Similar 1, Similar 2. From United States (MusicBrainz).",
+       "notonq:standIns": [
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+         "name": "Similar 1"
+        },
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+         "name": "Similar 2"
+        }
+       ]
+      },
+      "disambiguation": "US"
+     }
+    ],
+    "notonq": {
+     "served_by": "fallback",
+     "spotify": [
+      {
+       "spotify_id": "1234567890abcdefghijkl",
+       "via": "musicbrainz",
+       "entity_id": "00000000-0000-4000-a000-000000000099"
+      }
+     ],
+     "note": "Artists after Qloo's own were matched by NotOnQ to Spotify IDs Qloo has no record for: through MusicBrainz's link to the Spotify page, or by the name on it when that name is one confident artist.",
+     "00000000-0000-4000-a000-000000000099": {
+      "served_by": "fallback",
+      "gap": {
+       "kind": "G1"
+      },
+      "cache": {
+       "hit": true,
+       "first_seen": "<time>"
+      },
+      "demand": {
+       "requests": 1,
+       "callers": 1,
+       "apps": 0
+      },
+      "proxy": {
+       "replaced": [],
+       "stand_ins": [
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000001",
+         "name": "Similar 1",
+         "weight": 0.9,
+         "source": "lastfm"
+        },
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000002",
+         "name": "Similar 2",
+         "weight": 0.9,
+         "source": "lastfm"
+        }
+       ]
+      },
+      "provenance": {
+       "name": [
+        {
+         "method": "copied",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "musicbrainz",
+         "licence": "CC0-1.0",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "disambiguation": [
+        {
+         "method": "copied",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "musicbrainz",
+         "licence": "CC0-1.0",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.notonq:home": [
+        {
+         "note": "MusicBrainz begin area (else area) and country",
+         "method": "copied",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "musicbrainz",
+         "licence": "CC0-1.0",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.external.lastfm": [
+        {
+         "method": "copied",
+         "record": "https://www.last.fm/music/Newact",
+         "source": "lastfm",
+         "licence": "Last.fm API terms (non-commercial, attribution)",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.short_description": [
+        {
+         "note": "NotOnQ's label (no Wikipedia summary found)",
+         "method": "derived",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "notonq",
+         "licence": "derived by NotOnQ",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.external.musicbrainz": [
+        {
+         "method": "copied",
+         "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+         "source": "musicbrainz",
+         "licence": "CC0-1.0",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "standIns.4e4f544f-0000-4000-8000-000000000001": [
+        {
+         "note": "Last.fm match 0.90; resolved in Qloo by MusicBrainz ID 00000000-0000-4000-a000-000000000001",
+         "method": "qloo_proxy",
+         "record": "https://www.last.fm/music/Newact",
+         "source": "lastfm",
+         "licence": "Last.fm API terms (non-commercial, attribution)",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "standIns.4e4f544f-0000-4000-8000-000000000002": [
+        {
+         "note": "Last.fm match 0.90; resolved in Qloo by MusicBrainz ID 00000000-0000-4000-a000-000000000002",
+         "method": "qloo_proxy",
+         "record": "https://www.last.fm/music/Newact",
+         "source": "lastfm",
+         "licence": "Last.fm API terms (non-commercial, attribution)",
+         "retrievedAt": "<time>"
+        }
+       ]
+      },
+      "unavailable": [
+       "properties.external.wikidata",
+       "properties.image",
+       "properties.short_description (no Wikipedia summary)",
+       "tags",
+       "popularity"
+      ],
+      "confidence": "high",
+      "research": {
+       "status": "none"
+      },
+      "attribution": [
+       "Facts: MusicBrainz (CC0), Wikidata (CC0), Wikipedia (CC BY-SA 4.0, linked per value)",
+       "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
+       "Small-artist matches, fan counts and pictures: Deezer",
+       "Taste data: the Qloo API, for the stand-ins listed",
+       "Researched facts: the pages cited per value, each quote checked on the page"
+      ]
+     }
+    }
+   }
+  }
+ ],
+ "no stand-ins: empty taste answers": [
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "results": [
+     {
+      "name": "Newact",
+      "tags": [],
+      "types": [
+       "urn:entity:artist"
+      ],
+      "entity_id": "00000000-0000-4000-a000-000000000099",
+      "properties": {
+       "akas": [],
+       "external": {
+        "lastfm": {
+         "id": "Newact",
+         "listeners": 1000
+        },
+        "musicbrainz": {
+         "id": "00000000-0000-4000-a000-000000000099"
+        }
+       },
+       "notonq:home": {
+        "name": "United States",
+        "source": "musicbrainz",
+        "country": "United States",
+        "country_code": "US"
+       },
+       "short_description": "Not in Qloo: filled by NotOnQ from open sources. No similar artist Qloo knows yet, so taste answers are not available. From United States (MusicBrainz)."
+      },
+      "disambiguation": "US"
+     }
+    ],
+    "notonq": {
+     "served_by": "fallback",
+     "gap": {
+      "kind": "G1",
+      "qloo_status": 404,
+      "qloo_message": "No results"
+     },
+     "cache": {
+      "hit": false,
+      "first_seen": "<time>"
+     },
+     "demand": {
+      "requests": 1,
+      "callers": 1,
+      "apps": 0
+     },
+     "proxy": {
+      "replaced": [],
+      "stand_ins": []
+     },
+     "provenance": {
+      "name": [
+       {
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "disambiguation": [
+       {
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.notonq:home": [
+       {
+        "note": "MusicBrainz begin area (else area) and country",
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.external.lastfm": [
+       {
+        "method": "copied",
+        "record": "https://www.last.fm/music/Newact",
+        "source": "lastfm",
+        "licence": "Last.fm API terms (non-commercial, attribution)",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.short_description": [
+       {
+        "note": "NotOnQ's label (no Wikipedia summary found)",
+        "method": "derived",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "notonq",
+        "licence": "derived by NotOnQ",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "properties.external.musicbrainz": [
+       {
+        "method": "copied",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000099",
+        "source": "musicbrainz",
+        "licence": "CC0-1.0",
+        "retrievedAt": "<time>"
+       }
+      ]
+     },
+     "unavailable": [
+      "standIns (no similar artist known to Qloo; tried Last.fm by MusicBrainz ID and by name, then Deezer related artists)",
+      "properties.external.wikidata",
+      "properties.image",
+      "properties.short_description (no Wikipedia summary)",
+      "tags",
+      "popularity"
+     ],
+     "confidence": "high",
+     "research": {
+      "status": "none"
+     },
+     "attribution": [
+      "Facts: MusicBrainz (CC0), Wikidata (CC0), Wikipedia (CC BY-SA 4.0, linked per value)",
+      "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
+      "Small-artist matches, fan counts and pictures: Deezer",
+      "Taste data: the Qloo API, for the stand-ins listed",
+      "Researched facts: the pages cited per value, each quote checked on the page"
+     ]
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "success": true,
+    "results": {},
+    "notonq": {
+     "served_by": "fallback",
+     "proxy": {
+      "replaced": [
+       "00000000-0000-4000-a000-000000000099"
+      ],
+      "stand_ins": []
+     },
+     "note": "No taste data: Newact is not in Qloo and has no similar artist Qloo knows yet."
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "success": true,
+    "results": {},
+    "notonq": {
+     "served_by": "fallback",
+     "proxy": {
+      "replaced": [
+       "00000000-0000-4000-a000-000000000099"
+      ],
+      "stand_ins": []
+     },
+     "note": "No taste data: Newact is not in Qloo and has no similar artist Qloo knows yet."
+    }
+   }
+  }
+ ],
+ "candidates: offered, chosen, then offered again": [
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "results": [
+     {
+      "entity_id": "4e4f544f-0000-4000-8000-000000000040",
+      "name": "Tiny Acts Club",
+      "properties": {
+       "external": {}
+      },
+      "types": [
+       "urn:entity:artist"
+      ]
+     },
+     {
+      "entity_id": "703412d1-fb6a-5867-b55f-cc33eb44e23d",
+      "name": "Tiny Act",
+      "types": [
+       "urn:entity:artist"
+      ],
+      "properties": {
+       "akas": [],
+       "external": {
+        "notonq:deezer": {
+         "id": 555,
+         "fans": 2
+        }
+       },
+       "short_description": "Not in Qloo: a possible match NotOnQ found on lastfm, deezer (4 Last.fm listeners, 2 Deezer fans). Choose this ID and NotOnQ fills the artist; taste answers then come from similar artists Qloo knows, and are empty if there are none."
+      },
+      "tags": []
+     }
+    ],
+    "notonq": {
+     "served_by": "needs_choice",
+     "gap": {
+      "kind": "G1",
+      "qloo_status": 200
+     },
+     "demand": {
+      "requests": 1,
+      "callers": 1,
+      "apps": 0
+     },
+     "candidates": [
+      {
+       "key": "lf:tiny-act",
+       "name": "Tiny Act",
+       "exact": true,
+       "lastfmName": "Tiny Act",
+       "listeners": 4,
+       "links": [
+        {
+         "source": "lastfm",
+         "url": "https://www.last.fm/music/Tiny+Act"
+        },
+        {
+         "source": "deezer",
+         "url": "https://www.deezer.com/artist/555"
+        }
+       ],
+       "deezerId": 555,
+       "fans": 2
+      }
+     ],
+     "next": "Qloo has no data and no source has one clear match. Repeat the request with notonq.candidate=<key> to fill it from that candidate.",
+     "attribution": [
+      "Facts: MusicBrainz (CC0), Wikidata (CC0), Wikipedia (CC BY-SA 4.0, linked per value)",
+      "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
+      "Small-artist matches, fan counts and pictures: Deezer",
+      "Taste data: the Qloo API, for the stand-ins listed",
+      "Researched facts: the pages cited per value, each quote checked on the page"
+     ]
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "results": [
+     {
+      "entity_id": "4e4f544f-0000-4000-8000-000000000040",
+      "name": "Tiny Acts Club",
+      "properties": {
+       "external": {}
+      },
+      "types": [
+       "urn:entity:artist"
+      ]
+     },
+     {
+      "entity_id": "703412d1-fb6a-5867-b55f-cc33eb44e23d",
+      "name": "Tiny Act",
+      "types": [
+       "urn:entity:artist"
+      ],
+      "properties": {
+       "akas": [],
+       "external": {
+        "notonq:deezer": {
+         "id": 555,
+         "fans": 2
+        }
+       },
+       "short_description": "Not in Qloo: a possible match NotOnQ found on lastfm, deezer (4 Last.fm listeners, 2 Deezer fans). Choose this ID and NotOnQ fills the artist; taste answers then come from similar artists Qloo knows, and are empty if there are none."
+      },
+      "tags": []
+     }
+    ],
+    "notonq": {
+     "served_by": "needs_choice",
+     "gap": {
+      "kind": "G1",
+      "qloo_status": 200
+     },
+     "demand": {
+      "requests": 2,
+      "callers": 1,
+      "apps": 0
+     },
+     "candidates": [
+      {
+       "key": "lf:tiny-act",
+       "name": "Tiny Act",
+       "exact": true,
+       "lastfmName": "Tiny Act",
+       "listeners": 4,
+       "links": [
+        {
+         "source": "lastfm",
+         "url": "https://www.last.fm/music/Tiny+Act"
+        },
+        {
+         "source": "deezer",
+         "url": "https://www.deezer.com/artist/555"
+        }
+       ],
+       "deezerId": 555,
+       "fans": 2
+      },
+      {
+       "key": "mb:00000000-0000-4000-a000-000000000007",
+       "name": "H.M. Tiny Act",
+       "exact": false,
+       "mbid": "00000000-0000-4000-a000-000000000007",
+       "country": "GB",
+       "links": [
+        {
+         "source": "musicbrainz",
+         "url": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000007"
+        }
+       ]
+      }
+     ],
+     "next": "Qloo has no data and no source has one clear match. Repeat the request with notonq.candidate=<key> to fill it from that candidate.",
+     "attribution": [
+      "Facts: MusicBrainz (CC0), Wikidata (CC0), Wikipedia (CC BY-SA 4.0, linked per value)",
+      "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
+      "Small-artist matches, fan counts and pictures: Deezer",
+      "Taste data: the Qloo API, for the stand-ins listed",
+      "Researched facts: the pages cited per value, each quote checked on the page"
+     ]
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "results": [
+     {
+      "name": "Tiny Act",
+      "tags": [],
+      "types": [
+       "urn:entity:artist"
+      ],
+      "entity_id": "703412d1-fb6a-5867-b55f-cc33eb44e23d",
+      "properties": {
+       "akas": [],
+       "external": {
+        "lastfm": {
+         "id": "Tiny Act",
+         "listeners": 4,
+         "scrobbles": 9
+        },
+        "notonq:deezer": {
+         "id": 555,
+         "fans": 2
+        }
+       },
+       "short_description": "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Bigger Act.",
+       "notonq:standIns": [
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000031",
+         "name": "Bigger Act"
+        }
+       ]
+      }
+     }
+    ],
+    "notonq": {
+     "served_by": "fallback",
+     "703412d1-fb6a-5867-b55f-cc33eb44e23d": {
+      "served_by": "fallback",
+      "gap": {
+       "kind": "G1"
+      },
+      "cache": {
+       "hit": true,
+       "first_seen": "<time>"
+      },
+      "demand": {
+       "requests": 4,
+       "callers": 1,
+       "apps": 0
+      },
+      "proxy": {
+       "replaced": [],
+       "stand_ins": [
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000031",
+         "name": "Bigger Act",
+         "weight": 0.9,
+         "source": "deezer"
+        }
+       ]
+      },
+      "provenance": {
+       "name": [
+        {
+         "note": "No MusicBrainz record: low confidence, chosen from candidates",
+         "method": "copied",
+         "record": "https://www.deezer.com/artist/555",
+         "source": "deezer",
+         "licence": "Deezer API terms (non-commercial)",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.external.lastfm": [
+        {
+         "method": "copied",
+         "record": "https://www.last.fm/music/Tiny+Act",
+         "source": "lastfm",
+         "licence": "Last.fm API terms (non-commercial, attribution)",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.short_description": [
+        {
+         "note": "NotOnQ's label (no Wikipedia summary found)",
+         "method": "derived",
+         "record": "https://www.last.fm/music/Tiny+Act",
+         "source": "notonq",
+         "licence": "derived by NotOnQ",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "properties.external.notonq:deezer": [
+        {
+         "method": "copied",
+         "record": "https://www.deezer.com/artist/555",
+         "source": "deezer",
+         "licence": "Deezer API terms (non-commercial)",
+         "retrievedAt": "<time>"
+        }
+       ],
+       "standIns.4e4f544f-0000-4000-8000-000000000031": [
+        {
+         "note": "Deezer related artist #1; resolved in Qloo by exact name",
+         "method": "qloo_proxy",
+         "record": "https://www.deezer.com/artist/555",
+         "source": "deezer",
+         "licence": "Deezer API terms (non-commercial)",
+         "retrievedAt": "<time>"
+        }
+       ]
+      },
+      "unavailable": [
+       "properties.external.musicbrainz",
+       "properties.external.wikidata",
+       "properties.image",
+       "properties.notonq:home",
+       "properties.short_description (no Wikipedia summary)",
+       "tags",
+       "popularity"
+      ],
+      "confidence": "low",
+      "research": {
+       "status": "none"
+      },
+      "attribution": [
+       "Facts: MusicBrainz (CC0), Wikidata (CC0), Wikipedia (CC BY-SA 4.0, linked per value)",
+       "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
+       "Small-artist matches, fan counts and pictures: Deezer",
+       "Taste data: the Qloo API, for the stand-ins listed",
+       "Researched facts: the pages cited per value, each quote checked on the page"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "results": [
+     {
+      "entity_id": "4e4f544f-0000-4000-8000-000000000040",
+      "name": "Tiny Acts Club",
+      "properties": {
+       "external": {}
+      },
+      "types": [
+       "urn:entity:artist"
+      ]
+     },
+     {
+      "name": "Tiny Act",
+      "tags": [],
+      "types": [
+       "urn:entity:artist"
+      ],
+      "entity_id": "703412d1-fb6a-5867-b55f-cc33eb44e23d",
+      "properties": {
+       "akas": [],
+       "external": {
+        "lastfm": {
+         "id": "Tiny Act",
+         "listeners": 4,
+         "scrobbles": 9
+        },
+        "notonq:deezer": {
+         "id": 555,
+         "fans": 2
+        }
+       },
+       "short_description": "Not in Qloo: filled by NotOnQ from open sources. Taste answers (recommendations, maps, audiences) use similar artists Qloo knows: Bigger Act.",
+       "notonq:standIns": [
+        {
+         "entity_id": "4e4f544f-0000-4000-8000-000000000031",
+         "name": "Bigger Act"
+        }
+       ]
+      }
+     }
+    ],
+    "notonq": {
+     "served_by": "needs_choice",
+     "gap": {
+      "kind": "G1",
+      "qloo_status": 200
+     },
+     "demand": {
+      "requests": 5,
+      "callers": 1,
+      "apps": 0
+     },
+     "candidates": [
+      {
+       "key": "lf:tiny-act",
+       "name": "Tiny Act",
+       "exact": true,
+       "lastfmName": "Tiny Act",
+       "listeners": 4,
+       "links": [
+        {
+         "source": "lastfm",
+         "url": "https://www.last.fm/music/Tiny+Act"
+        },
+        {
+         "source": "deezer",
+         "url": "https://www.deezer.com/artist/555"
+        }
+       ],
+       "deezerId": 555,
+       "fans": 2
+      }
+     ],
+     "next": "Qloo has no data and no source has one clear match. Repeat the request with notonq.candidate=<key> to fill it from that candidate.",
+     "attribution": [
+      "Facts: MusicBrainz (CC0), Wikidata (CC0), Wikipedia (CC BY-SA 4.0, linked per value)",
+      "Similar artists and listener counts: Last.fm, powered by AudioScrobbler",
+      "Small-artist matches, fan counts and pictures: Deezer",
+      "Taste data: the Qloo API, for the stand-ins listed",
+      "Researched facts: the pages cited per value, each quote checked on the page"
+     ]
+    }
+   }
+  }
+ ],
+ "a typo for an artist Qloo has": [
+  {
+   "status": 200,
+   "servedBy": "qloo",
+   "body": {
+    "results": [
+     {
+      "entity_id": "4e4f544f-0000-4000-8000-000000000040",
+      "name": "Someone Else",
+      "properties": {
+       "external": {}
+      },
+      "types": [
+       "urn:entity:artist"
+      ]
+     },
+     {
+      "entity_id": "4e4f544f-0000-4000-8000-000000000041",
+      "name": "Famous Act",
+      "properties": {
+       "external": {
+        "musicbrainz": {
+         "id": "00000000-0000-4000-a000-000000000042"
+        }
+       }
+      },
+      "types": [
+       "urn:entity:artist"
+      ]
+     }
+    ],
+    "notonq": {
+     "served_by": "qloo",
+     "attribution": []
+    }
+   }
+  }
+ ],
+ "field gaps on a thin Qloo record (G5)": [
+  {
+   "status": 200,
+   "servedBy": "mixed",
+   "body": {
+    "results": [
+     {
+      "entity_id": "4e4f544f-0000-4000-8000-000000000005",
+      "name": "Kitebird",
+      "properties": {
+       "external": {
+        "notonq:musicbrainz": {
+         "id": "00000000-0000-4000-a000-000000000040"
+        },
+        "notonq:wikidata": {
+         "id": "Q123"
+        }
+       },
+       "notonq:home": {
+        "name": "Osaka",
+        "country": "Japan",
+        "country_code": "JP",
+        "source": "musicbrainz"
+       },
+       "notonq:languages": [
+        {
+         "code": "jpn",
+         "releases": 1,
+         "name": "Japanese"
+        }
+       ]
+      },
+      "types": [
+       "urn:entity:artist"
+      ],
+      "tags": [
+       {
+        "name": "emo",
+        "tag_id": "notonq:urn:tag:genre:emo",
+        "type": "urn:tag:genre",
+        "value": "notonq:urn:tag:genre:emo"
+       }
+      ]
+     }
+    ],
+    "notonq": {
+     "served_by": "mixed",
+     "gap": {
+      "kind": "G5"
+     },
+     "facts": {
+      "4e4f544f-0000-4000-8000-000000000005": {
+       "provenance": {
+        "properties.external.notonq:musicbrainz": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "copied",
+          "retrievedAt": "<time>"
+         }
+        ],
+        "properties.external.notonq:wikidata": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "copied",
+          "retrievedAt": "<time>"
+         }
+        ],
+        "properties.notonq:home": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "copied",
+          "retrievedAt": "<time>"
+         }
+        ],
+        "properties.notonq:languages": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "derived",
+          "retrievedAt": "<time>",
+          "note": "Counted from the text language MusicBrainz records on each of the artist's releases."
+         }
+        ],
+        "tags": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "copied",
+          "retrievedAt": "<time>"
+         }
+        ]
+       }
+      }
+     },
+     "note": "Qloo's records, unchanged, with NotOnQ's notonq: fields added where Qloo has none (from MusicBrainz, cited per field).",
+     "attribution": [
+      "Facts: MusicBrainz (CC0)"
+     ]
+    }
+   }
+  },
+  {
+   "status": 200,
+   "servedBy": "mixed",
+   "body": {
+    "results": [
+     {
+      "entity_id": "4e4f544f-0000-4000-8000-000000000005",
+      "name": "Kitebird",
+      "properties": {
+       "external": {
+        "notonq:musicbrainz": {
+         "id": "00000000-0000-4000-a000-000000000040"
+        },
+        "notonq:wikidata": {
+         "id": "Q123"
+        }
+       },
+       "notonq:home": {
+        "name": "Osaka",
+        "source": "musicbrainz",
+        "country": "Japan",
+        "country_code": "JP"
+       },
+       "notonq:languages": [
+        {
+         "code": "jpn",
+         "name": "Japanese",
+         "releases": 1
+        }
+       ]
+      },
+      "types": [
+       "urn:entity:artist"
+      ],
+      "tags": [
+       {
+        "name": "emo",
+        "tag_id": "notonq:urn:tag:genre:emo",
+        "type": "urn:tag:genre",
+        "value": "notonq:urn:tag:genre:emo"
+       }
+      ]
+     }
+    ],
+    "notonq": {
+     "served_by": "mixed",
+     "gap": {
+      "kind": "G5"
+     },
+     "facts": {
+      "4e4f544f-0000-4000-8000-000000000005": {
+       "provenance": {
+        "properties.external.notonq:musicbrainz": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "copied",
+          "retrievedAt": "<time>"
+         }
+        ],
+        "properties.external.notonq:wikidata": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "copied",
+          "retrievedAt": "<time>"
+         }
+        ],
+        "properties.notonq:home": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "copied",
+          "retrievedAt": "<time>"
+         }
+        ],
+        "properties.notonq:languages": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "derived",
+          "retrievedAt": "<time>",
+          "note": "Counted from the text language MusicBrainz records on each of the artist's releases."
+         }
+        ],
+        "tags": [
+         {
+          "source": "musicbrainz",
+          "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000040",
+          "licence": "CC0",
+          "method": "copied",
+          "retrievedAt": "<time>"
+         }
+        ]
+       }
+      }
+     },
+     "note": "Qloo's records, unchanged, with NotOnQ's notonq: fields added where Qloo has none (from MusicBrainz, cited per field).",
+     "attribution": [
+      "Facts: MusicBrainz (CC0)"
+     ]
+    }
+   }
+  }
+ ],
+ "era, genre and place (G4)": [
+  {
+   "status": 200,
+   "servedBy": "fallback",
+   "body": {
+    "success": true,
+    "results": {
+     "entities": [
+      {
+       "entity_id": "4e4f544f-0000-4000-8000-000000000005",
+       "name": "Known Act",
+       "properties": {
+        "external": {
+         "musicbrainz": {
+          "id": "00000000-0000-4000-a000-000000000002"
+         }
+        },
+        "short_description": "Picked by NotOnQ: Qloo returned 0 artists for this request; this is Qloo's own record (MusicBrainz: Nigeria; active from 1938). Qloo has 1 artists for this tag as a taste signal (signal.interests.tags)."
+       },
+       "types": [
+        "urn:entity:artist"
+       ]
+      },
+      {
+       "entity_id": "00000000-0000-4000-a000-000000000001",
+       "name": "Old Band",
+       "types": [
+        "urn:entity:artist"
+       ],
+       "type": "urn:entity",
+       "subtype": "urn:entity:artist",
+       "properties": {
+        "akas": [],
+        "external": {
+         "musicbrainz": {
+          "id": "00000000-0000-4000-a000-000000000001"
+         },
+         "lastfm": {
+          "id": "Old Band",
+          "listeners": 40
+         }
+        },
+        "short_description": "Not in Qloo: found by NotOnQ for 1960s music from Nigeria (MusicBrainz: Nigeria; active from 1958 to 1975; 40 Last.fm listeners). Qloo has 1 artists for this tag as a taste signal (signal.interests.tags)."
+       },
+       "tags": []
+      }
+     ]
+    },
+    "notonq": {
+     "served_by": "fallback",
+     "gap": {
+      "kind": "G4",
+      "qloo_status": 200,
+      "reason": "Qloo returned 0 artists for urn:tag:genre:music:60s in Lagos",
+      "qloo_as_signal": 1
+     },
+     "request": {
+      "tag": "urn:tag:genre:music:60s",
+      "place": "Lagos",
+      "country": {
+       "code": "NG",
+       "name": "Nigeria"
+      },
+      "query": "country:NG AND ((type:group AND begin:[* TO 1969] AND (end:[1960 TO *] OR ended:false)) OR (type:person AND begin:[* TO 1951] AND (end:[1960 TO *] OR ended:false)))",
+      "taste_signal": false
+     },
+     "cache": {
+      "hit": false
+     },
+     "provenance": {
+      "4e4f544f-0000-4000-8000-000000000005.selection": [
+       {
+        "source": "musicbrainz",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000002",
+        "licence": "CC0-1.0",
+        "method": "copied",
+        "note": "Chosen for urn:tag:genre:music:60s in Lagos: Nigeria; active from 1938",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "00000000-0000-4000-a000-000000000001.name": [
+       {
+        "source": "musicbrainz",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000001",
+        "licence": "CC0-1.0",
+        "method": "copied",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "00000000-0000-4000-a000-000000000001.selection": [
+       {
+        "source": "notonq",
+        "record": "https://musicbrainz.org/artist/00000000-0000-4000-a000-000000000001",
+        "licence": "derived by NotOnQ",
+        "method": "derived",
+        "note": "Chosen for urn:tag:genre:music:60s in Lagos: MusicBrainz search country:NG AND ((type:group AND begin:[* TO 1969] AND (end:[1960 TO *] OR ended:false)) OR (type:person AND begin:[* TO 1951] AND (end:[1960 TO *] OR ended:false))), ranked by Last.fm listeners",
+        "retrievedAt": "<time>"
+       }
+      ],
+      "00000000-0000-4000-a000-000000000001.properties.external.lastfm": [
+       {
+        "source": "lastfm",
+        "record": "https://www.last.fm/music/Old+Band",
+        "licence": "Last.fm API terms (non-commercial, attribution)",
+        "method": "copied",
+        "retrievedAt": "<time>"
+       }
+      ]
+     },
+     "note": "Artists after Qloo's own come from NotOnQ: ones Qloo knows are Qloo's entities; the rest are labelled Not in Qloo, with sources. Qloo does have 1 artists for this tag as a taste signal: send it as signal.interests.tags instead of filter.tags to get Qloo's own answer."
+    }
+   }
+  }
+ ]
+}

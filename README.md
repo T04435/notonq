@@ -25,7 +25,9 @@ Every number on [`/proof`](src/app/proof/page.tsx) is counted from runs in the L
 1. **Ask** (`/`, the home page): a question run through Qloo's own MCP harness, straight to Qloo first; NotOnQ then checks that answer, asks Qloo again if it falls short, and only then fills in the rest from open sources. The page turns into a chat: the run log streams beside what was found, then the answer, a table of every artist (where it came from, kept or removed and why), the sources, a link to the run in the Ledger, and a follow-up box.
 2. **Drop-in REST and MCP** (`/q/*`): the same paths and parameters as the Qloo API, with your own `X-Api-Key`.
    Qloo's results come first, unchanged; NotOnQ's artists are added after them in exactly Qloo's shape, with UUID IDs
-   and a "Not in Qloo" label in `short_description`. For MCP, run the official Qloo harness unchanged:
+   and a "Not in Qloo" label in `short_description`. In code, `notonq["<entity_id>"]` says what NotOnQ did with each
+   result it touched (`kind`: filled, candidate, picked, matched or gaps); a result with no block is Qloo's. These blocks
+   are additive: a client that ignores them works as before. For MCP, run the official Qloo harness unchanged:
    `QLOO_BASE_URL=https://notonq.vercel.app/q/app/my-app QLOO_TRUSTED_BASE_URL=https://notonq.vercel.app/q/app/my-app qloo mcp`.
 
 Docs live at `/docs` (REST and MCP reference), `/openapi.json`, and for agents `/llms.txt` and `/llms-full.txt`.

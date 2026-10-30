@@ -1,5 +1,6 @@
 import { DocsCode } from "@/components/code";
-import { A, C, DocsSection, EndpointTable, H3, Notice, P, RefTable } from "@/components/docs";
+import { A, C, CodeTabs, DocsSection, EndpointTable, H3, Notice, P, RefTable } from "@/components/docs";
+import { KEYED_ADDITIVE, KEYED_EXAMPLES } from "@/lib/keyed-examples";
 
 export const metadata = { title: "REST API · NotOnQ" };
 
@@ -170,6 +171,11 @@ export default function RestReference() {
             ["matched", "Qloo's own record, which NotOnQ matched to the name or Spotify ID asked for.", "query, or spotify_id and via"],
             ["gaps", "Qloo's own record, with fields Qloo leaves empty added by NotOnQ (G5), each notonq:-prefixed.", "fields (home, languages, genres, musicbrainz_id, wikidata_id), provenance"],
           ]}
+        />
+        <P>{KEYED_ADDITIVE}</P>
+        <CodeTabs
+          label="Keyed blocks by kind"
+          tabs={KEYED_EXAMPLES.map((e) => ({ value: e.kind, label: e.kind, code: e.code, language: "json", title: e.when }))}
         />
       </DocsSection>
 

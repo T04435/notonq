@@ -102,6 +102,12 @@ export default function McpReference() {
           Sources for every value are on the REST response (<C>notonq.provenance</C>), on <A href="/">Ask</A> and on each filled-in artist&apos;s record
           page, <C>/ledger/&lt;name&gt;</C>.
         </P>
+        <P>
+          The agent sees NotOnQ&apos;s work through the labels in <C>short_description</C>; the harness passes nothing else on. Over REST, each
+          result NotOnQ touched also has its own block, <C>notonq[&quot;&lt;entity_id&gt;&quot;]</C>, with its kind: filled, candidate, picked,
+          matched or gaps (<A href="/docs/rest#notonq-block">REST: the notonq block</A>). The blocks are additive, so the harness, and any client
+          that ignores them, works as before.
+        </P>
       </DocsSection>
 
       <DocsSection id="exchange" title="A real exchange">
