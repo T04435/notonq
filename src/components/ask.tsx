@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Mark } from "@/components/brand/mark";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
-import { Code } from "@/components/code";
+import { Code, JsonCode } from "@/components/code";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -564,7 +564,7 @@ function Filled({ calls }: { calls: Extract<AskEvent, { type: "call" }>[] }) {
                 {http.map((h, i) => (
                   <Fragment key={i}>
                     <Code code={h.request} language="bash" title="Request (add your X-Api-Key header)" />
-                    <Code code={JSON.stringify(h.json, null, 2)} language="json" title="Response" className="max-h-96 overflow-auto" />
+                    <JsonCode value={h.json} title="Response (NotOnQ's lines in amber)" className="max-h-96 overflow-auto" />
                   </Fragment>
                 ))}
               </CollapsibleContent>

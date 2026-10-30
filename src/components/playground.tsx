@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleCheckIcon, CircleXIcon, UserIcon } from "lucide-react";
-import { Code, DocsCode } from "@/components/code";
+import { Code, JsonCode } from "@/components/code";
 import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
 import { NotOnQBadge } from "@/components/brand/notonq-badge";
 import { CitedValue } from "@/components/cited-value";
@@ -168,20 +168,11 @@ export function Result({ view, onChoose, onShowAll }: { view: PlaygroundView; on
       <div className="flex flex-col gap-2">
         <h2 className="text-sm font-medium">The same, as a drop-in API call</h2>
         <Code code={view.dropIn.request} language="bash" title="Request" />
-        <AddedResponse response={view.dropIn.response} />
+        <JsonCode value={view.dropIn.response} title="Response (NotOnQ's lines in amber)" className="max-h-96 overflow-auto" />
       </div>
       {view.ms > 0 && <p className="text-xs text-muted-foreground">Looked up in {(view.ms / 1000).toFixed(1)} s.</p>}
     </div>
   );
-}
-
-/** The drop-in response in the docs' style: what NotOnQ added (the filled-in artist and the notonq block) in amber, so
- * it reads apart from Qloo's own data. A stored fill's response is all NotOnQ's. */
-function AddedResponse({ response }: { response: unknown }) {
-  const json = JSON.stringify(response, null, 2).split("\n");
-  const code = [json[0], "  // All NotOnQ's: the filled-in artist (after Qloo's own results, when Qloo has any) and the notonq block", ...json.slice(1)].join("\n");
-  const added = Array.from({ length: json.length - 2 }, (_, i) => i + 2);
-  return <DocsCode code={code} language="json" title="Response" added={added} className="max-h-96 overflow-auto" />;
 }
 
 function Candidates({ candidates, onChoose }: { candidates: Candidate[]; onChoose: (key: string) => void }) {
