@@ -1,5 +1,5 @@
 // The `notonq` block added beside Qloo's response (architecture §3.5). Qloo's own fields are never rewritten.
-import type { Candidate } from "@/server/engine/candidates";
+import { type Candidate, idForCandidate } from "@/server/engine/candidates";
 import type { Demand, StoredFallback } from "@/server/store/repo";
 import type { Lookup } from "@/server/service";
 
@@ -13,7 +13,7 @@ export type NotOnQBlock = {
   popularity?: StoredFallback["popularity"];
   unavailable?: string[];
   confidence?: StoredFallback["confidence"];
-  candidates?: Candidate[];
+  candidates?: (Candidate & { entity_id: string })[];
   next?: string;
   research?: { status: "pending" | "done" | "failed" | "skipped" | "none" };
   attribution: string[];
@@ -37,7 +37,7 @@ export function blockFor(l: Lookup): NotOnQBlock {
       served_by: "needs_choice",
       gap: { kind: l.gap.kind, qloo_status: l.gap.qlooStatus, qloo_message: l.gap.qlooMessage },
       demand: l.demand,
-      candidates: l.candidates,
+      candidates: l.candidates.map(withEntityId),
       next: "Qloo has no data and no source has one clear match. Repeat the request with notonq.candidate=<key> to fill it from that candidate.",
       attribution: ATTRIBUTION,
     };
@@ -66,3 +66,14 @@ export function fallbackBlock(
 }
 
 export const ATTRIBUTION_LINES = ATTRIBUTION;
+
+/** The entity_id a candidate has in results: Qloo's own when Qloo knows it, else the ID NotOnQ offers it under. */
+export const candidateId = (c: Candidate) => c.inQloo?.entityId ?? idForCandidate(c);
+const withEntityId = (c: Candidate) => ({ ...c, entity_id: candidateId(c) });
+
+/** What NotOnQ did with one entity in a response. Keyed by its entity_id in the notonq block, so a client can tell
+ * structurally which results are NotOnQ's without reading labels: filled (not in Qloo, filled from open sources),
+ * candidate (a possible match offered, not filled yet), picked (Qloo's own record that NotOnQ added to this answer),
+ * matched (Qloo's own record that NotOnQ matched to the query or ID asked for). Entities with no block are Qloo's. */
+export type EntityKind = "filled" | "candidate" | "picked" | "matched";
+export const keyed = <T extends object>(kind: EntityKind, block: T) => ({ kind, ...block });

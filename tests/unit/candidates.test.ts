@@ -105,6 +105,10 @@ describe("small artists", () => {
     expect(asked.candidates[0]).toMatchObject({ name: "Famous Act", inQloo: { entityId: qid(41), name: "Famous Act" } });
     const picked = await resolveArtist("famus act", deps, { candidateKey: asked.candidates[0].key });
     expect(picked).toEqual({ servedBy: "qloo", entity: expect.objectContaining({ entity_id: qid(41) }) });
+    // Through /search: Qloo's own record, keyed as matched by NotOnQ.
+    const rest = { sql, baseUrl: "https://hackathon.api.qloo.com", salt: "t", fetch };
+    const chosen = await handleRest({ path: "search", params: { query: "famus act", types: "urn:entity:artist", "notonq.candidate": asked.candidates[0].key }, apiKey: "c4" }, rest);
+    expect((chosen.body as { notonq: Record<string, unknown> }).notonq[qid(41)]).toMatchObject({ kind: "matched", query: "famus act" });
   });
 
   it("keeps a name nobody knows in the queue as demand, without an entity", async () => {
@@ -148,6 +152,21 @@ describe("search through the Qloo harness", () => {
     expect(filled).toHaveLength(1);
     expect(filled[0].entity_id).toBe(ours.entity_id);
     expect(filled[0].properties.short_description).toMatch(/^Not in Qloo: filled by NotOnQ/);
+  });
+
+  it("gives each candidate its result entity_id and a keyed block, kind candidate, then kind filled once chosen", async () => {
+    const { fetch } = fakeFetch(routes);
+    const params = { query: "Tiny Act", take: "5" };
+    const out = await handleRest({ path: "search", params, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const body = out.body as { results: { entity_id: string; name: string }[]; notonq: Record<string, unknown> & { candidates: { key: string; entity_id: string }[] } };
+    const id = idForKey("lf:tiny-act");
+    expect(body.notonq.candidates.find((c) => c.key === "lf:tiny-act")?.entity_id).toBe(id);
+    expect(body.notonq[id]).toEqual({ kind: "candidate", key: "lf:tiny-act", name: "Tiny Act", next: expect.any(String) });
+    // Qloo's own result has no block of its own.
+    expect(body.notonq[qid(40)]).toBeUndefined();
+    await handleRest({ path: "entities", params: { entity_ids: id }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const again = await handleRest({ path: "search", params, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    expect((again.body as { notonq: Record<string, unknown> }).notonq[id]).toMatchObject({ kind: "filled", served_by: "fallback" });
   });
 
   it("leaves an untyped search alone when Qloo has something with exactly that name", async () => {

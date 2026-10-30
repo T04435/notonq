@@ -150,8 +150,23 @@ export default function RestReference() {
             ["popularity", "the derived estimate: value, n stand-ins, rmse"],
             ["unavailable", "fields with no provable source; '(source error: …)' when a source failed"],
             ["confidence", "high (MusicBrainz record) or low (Last.fm or Deezer only)"],
-            ["candidates, next", "for needs_choice: the options and how to pick one"],
+            ["candidates, next", "for needs_choice: the options (each with the entity_id it has in results) and how to pick one"],
             ["research", "pending · done · failed · skipped · none"],
+            ["<entity_id>", "one block per result NotOnQ touched, keyed by that result's entity_id, with kind (below)"],
+          ]}
+        />
+        <P>
+          Which results are NotOnQ&apos;s is in the data, not only in labels: every result NotOnQ filled, offered, picked or matched has a block
+          under its own <C>entity_id</C> in <C>notonq</C>, on <C>/search</C>, <C>/entities</C> and <C>/v2/insights</C> alike. A result with no
+          block is Qloo&apos;s, unchanged. The flat fields above stay as they were.
+        </P>
+        <RefTable
+          head={["kind", "means", "block also has"]}
+          rows={[
+            ["filled", "Not in Qloo: filled by NotOnQ from open sources. Only fills carry properties[\"notonq:standIns\"].", "the fill's gap, cache, proxy, provenance, …"],
+            ["candidate", "Not in Qloo: a possible match, not filled yet. Send its entity_id to /entities (or as a signal) to fill it.", "key, name, next"],
+            ["picked", "Qloo's own record, which Qloo didn't return for this request; NotOnQ added it (era lists, G4).", "ranked_by_qloo"],
+            ["matched", "Qloo's own record, which NotOnQ matched to the name or Spotify ID asked for.", "query, or spotify_id and via"],
           ]}
         />
       </DocsSection>
