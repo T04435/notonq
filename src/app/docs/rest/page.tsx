@@ -156,7 +156,7 @@ export default function RestReference() {
           ]}
         />
         <P>
-          Which results are NotOnQ&apos;s is in the data, not only in labels: every result NotOnQ filled, offered, picked or matched has a block
+          Which results are NotOnQ&apos;s is in the data, not only in labels: every result NotOnQ filled, offered, picked, matched or added fields to has a block
           under its own <C>entity_id</C> in <C>notonq</C>, on <C>/search</C>, <C>/entities</C> and <C>/v2/insights</C> alike. A result with no
           block is Qloo&apos;s, unchanged. Look a result&apos;s block up by its <C>entity_id</C> (<C>notonq[result.entity_id]</C>); don&apos;t scan
           for <C>kind</C>, since <C>gap</C> has one too. The flat fields above stay as they were.
@@ -168,6 +168,7 @@ export default function RestReference() {
             ["candidate", "Not in Qloo: a possible match, not filled yet. Send its entity_id to /entities (or as a signal) to fill it.", "key, name, next"],
             ["picked", "Qloo's own record, which Qloo didn't return for this request; NotOnQ added it (era lists, G4).", "ranked_by_qloo"],
             ["matched", "Qloo's own record, which NotOnQ matched to the name or Spotify ID asked for.", "query, or spotify_id and via"],
+            ["gaps", "Qloo's own record, with fields Qloo leaves empty added by NotOnQ (G5), each notonq:-prefixed.", "fields (home, languages, genres, musicbrainz_id, wikidata_id), provenance"],
           ]}
         />
       </DocsSection>

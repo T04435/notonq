@@ -159,6 +159,17 @@ function mapEntities(json: unknown, fn: (e: QlooEntity) => QlooEntity): unknown 
   return json;
 }
 
+/** The fields a G5 answer added, by name, from its provenance paths. */
+const GAP_FIELDS: [RegExp, string][] = [
+  [/notonq:home$/, "home"],
+  [/notonq:languages$/, "languages"],
+  [/^tags$/, "genres"],
+  [/notonq:musicbrainz$/, "musicbrainz_id"],
+  [/notonq:wikidata$/, "wikidata_id"],
+];
+export const gapFields = (provenance: Record<string, unknown>) =>
+  Object.keys(provenance).map((path) => GAP_FIELDS.find(([re]) => re.test(path))?.[1] ?? path);
+
 /** Qloo's answer with NotOnQ's facts added to the artists listed, for the fields Qloo's records lack (G5: where
  * they're from, what language they sing in, their MusicBrainz and Wikidata IDs, genres). Qloo's own values are kept;
  * when nothing is added the answer is Qloo's, unchanged. */
@@ -182,6 +193,8 @@ async function withFactsAnswer(qloo: RestResponse, ids: string[], ctx: Ctx): Pro
         facts: Object.fromEntries([...added].map(([id, a]) => [id, { provenance: a.provenance }])),
         note: "Qloo's records, unchanged, with NotOnQ's notonq: fields added where Qloo has none (from MusicBrainz, cited per field).",
         attribution: ["Facts: MusicBrainz (CC0)"],
+        // Each such record's block by its entity_id: Qloo's own record, with the fields NotOnQ added.
+        ...Object.fromEntries([...added].map(([id, a]) => [id, keyed("gaps", { fields: gapFields(a.provenance), provenance: a.provenance })])),
       },
     },
     servedBy: "mixed",

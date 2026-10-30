@@ -41,6 +41,11 @@ describe("field gaps on an artist Qloo has (G5)", () => {
     expect(e.tags.map((t) => t.tag_id)).toEqual(["notonq:urn:tag:genre:emo", "notonq:urn:tag:genre:indie_rock"]);
     expect(body.notonq).toMatchObject({ served_by: "mixed", gap: { kind: "G5" } });
     expect(Object.keys(body.notonq.facts[qid(5)].provenance)).toContain("properties.notonq:languages");
+    // Keyed like every other NotOnQ result: Qloo's own record, with the fields NotOnQ added.
+    expect((body.notonq as unknown as Record<string, unknown>)[qid(5)]).toMatchObject({
+      kind: "gaps",
+      fields: expect.arrayContaining(["home", "languages", "genres", "musicbrainz_id", "wikidata_id"]),
+    });
   });
 
   it("serves the facts from the cache on the next call", async () => {

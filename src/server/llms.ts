@@ -128,7 +128,8 @@ Added beside Qloo's response when NotOnQ took part:
   - kind: filled (not in Qloo, filled from open sources; the fill's gap, cache, proxy, provenance, …; only fills carry
     properties["notonq:standIns"]) | candidate (not in Qloo, a possible match not filled yet; key, name, next) | picked
     (Qloo's own record NotOnQ added to an era list; ranked_by_qloo) | matched (Qloo's own record NotOnQ matched to the
-    name or Spotify ID asked for; query, or spotify_id and via)
+    name or Spotify ID asked for; query, or spotify_id and via) | gaps (Qloo's own record with fields NotOnQ added, G5;
+    fields: home, languages, genres, musicbrainz_id, wikidata_id; provenance)
 
 ### Shape
 

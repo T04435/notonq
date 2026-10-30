@@ -75,6 +75,7 @@ const withEntityId = (c: Candidate) => ({ ...c, entity_id: candidateId(c) });
 /** What NotOnQ did with one entity in a response. Keyed by its entity_id in the notonq block, so a client can tell
  * structurally which results are NotOnQ's without reading labels: filled (not in Qloo, filled from open sources),
  * candidate (a possible match offered, not filled yet), picked (Qloo's own record that NotOnQ added to this answer),
- * matched (Qloo's own record that NotOnQ matched to the query or ID asked for). Entities with no block are Qloo's. */
-export type EntityKind = "filled" | "candidate" | "picked" | "matched";
+ * matched (Qloo's own record that NotOnQ matched to the query or ID asked for), gaps (Qloo's own record with fields
+ * NotOnQ added where Qloo has none, G5). Entities with no block are Qloo's. */
+export type EntityKind = "filled" | "candidate" | "picked" | "matched" | "gaps";
 export const keyed = <T extends object>(kind: EntityKind, block: T) => ({ kind, ...block });
