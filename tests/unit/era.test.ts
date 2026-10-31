@@ -189,6 +189,83 @@ describe("era, genre and place insights", () => {
     );
     expect((world.body as { notonq: { request: { place?: string } } }).notonq.request.place).toBeUndefined();
   });
+
+  // Front Room, 30 Oct: MusicBrainz busy for "Sevilla, España" left an empty fill cached for a day.
+  const ERA = { "filter.type": "urn:entity:artist", "filter.tags": "urn:tag:genre:music:60s", take: "10" };
+  const empty = () => json(200, { success: true, results: { entities: [] } });
+  const swap = (routes: [string, (u: URL) => Response][], match: string, respond: (u: URL) => Response): [string, (u: URL) => Response][] => [[match, respond], ...routes.filter(([m]) => m !== match)];
+  const age = (ms: number) => sql(`UPDATE shape_fills SET refreshed_at = now() - make_interval(secs => $1)`, [ms / 1000]);
+  const namesOf = (out: { body: unknown }) => (out.body as { results: { entities: { name: string }[] } }).results.entities.map((e) => e.name);
+
+  it("keeps an empty fill from a source that didn't answer for a minute, not a day, then fills", async () => {
+    let busy = true;
+    const routes = swap(openData(empty), "musicbrainz.org/ws/2/area?", () => (busy ? json(503, {}) : json(200, { areas: [{ id: AREA, name: "Lagos", type: "City" }] })));
+    const { fetch, calls } = fakeFetch([["nominatim.openstreetmap.org/search", () => json(503, {})], ...routes]);
+    const ask = () => handleRest({ path: "v2/insights", params: { ...ERA, "signal.location.query": "Lagos" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    expect(namesOf(await ask())).toEqual([]);
+    const placed = calls.filter((c) => c.includes("ws/2/area?")).length;
+    // Within the minute: the failure is cached, so a burst of retries doesn't hammer a busy MusicBrainz.
+    await ask();
+    expect(calls.filter((c) => c.includes("ws/2/area?")).length).toBe(placed);
+    busy = false;
+    await age(61_000);
+    expect(namesOf(await ask())).toEqual(["Known Act", "Old Band"]);
+  });
+
+  it("treats a MusicBrainz artist search that didn't answer as a failure too", async () => {
+    let busy = true;
+    const routes = openData(empty);
+    const search = routes.find(([m]) => m === "musicbrainz.org/ws/2/artist?")![1];
+    const { fetch } = fakeFetch(swap(routes, "musicbrainz.org/ws/2/artist?", (u) => (busy ? json(503, {}) : search(u))));
+    const ask = () => handleRest({ path: "v2/insights", params: { ...ERA, "signal.location.query": "Lagos" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    expect(namesOf(await ask())).toEqual([]);
+    busy = false;
+    await age(61_000);
+    expect(namesOf(await ask())).toEqual(["Known Act", "Old Band"]);
+  });
+
+  it("still keeps a real nothing-found for a day", async () => {
+    const routes = swap(openData(empty), "musicbrainz.org/ws/2/area?", () => json(200, { areas: [] }));
+    const { fetch, calls } = fakeFetch([["nominatim.openstreetmap.org/search", () => json(200, [])], ...routes]);
+    const ask = () => handleRest({ path: "v2/insights", params: { ...ERA, "signal.location.query": "Nowhereville" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    await ask();
+    const placed = calls.length;
+    await age(2 * 3600_000);
+    const out = await ask();
+    expect((out.body as { notonq: { note: string } }).notonq.note).toContain('could not place "Nowhereville"');
+    expect(calls.filter((c) => c.includes("ws/2/area?") || c.includes("nominatim")).length).toBe(calls.slice(0, placed).filter((c) => c.includes("ws/2/area?") || c.includes("nominatim")).length);
+  });
+
+  it("places a name MusicBrainz misses by folding its accents (España → Espana)", async () => {
+    const routes = swap(openData(empty), "musicbrainz.org/ws/2/area?", (u) => json(200, { areas: u.searchParams.get("query")?.includes("Espana") ? [{ id: AREA, name: "Lagos", type: "City" }] : [] }));
+    const { fetch, calls } = fakeFetch(routes);
+    const out = await handleRest({ path: "v2/insights", params: { ...ERA, "signal.location.query": "Sevilla, España" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    expect(namesOf(out)).toEqual(["Known Act", "Old Band"]);
+    expect(calls.some((c) => decodeURIComponent(c).includes("Sevilla, Espana"))).toBe(true);
+    expect(calls.some((c) => c.includes("nominatim"))).toBe(false);
+  });
+
+  it("asks OpenStreetMap for the country when MusicBrainz is busy, and cites it", async () => {
+    const routes = swap(openData(empty), "musicbrainz.org/ws/2/area?", () => json(503, {}));
+    const osm = [{ osm_type: "relation", osm_id: 192787, address: { country: "Nigeria", country_code: "ng" } }];
+    const { fetch, calls } = fakeFetch([["nominatim.openstreetmap.org/search", () => json(200, osm)], ...routes]);
+    const out = await handleRest({ path: "v2/insights", params: { ...ERA, "signal.location.query": "Sevilla, España" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    expect(namesOf(out)).toEqual(["Known Act", "Old Band"]);
+    const body = out.body as { notonq: { request: { country: { code: string } }; provenance: Record<string, { source: string; record: string; licence: string }[]> } };
+    expect(body.notonq.request.country.code).toBe("NG");
+    expect(body.notonq.provenance["request.country"][0]).toMatchObject({ source: "openstreetmap", record: "https://www.openstreetmap.org/relation/192787", licence: "ODbL-1.0" });
+    // MusicBrainz was busy, not empty-handed: asking it again with the accents folded would only wait longer.
+    expect(calls.some((c) => decodeURIComponent(c).includes("Espana"))).toBe(false);
+    expect(decodeURIComponent(calls.find((c) => c.includes("ws/2/artist?"))!)).toContain("country:NG");
+  });
+
+  it("makes one fill for identical requests that arrive together", async () => {
+    const { fetch, calls } = fakeFetch(openData(empty));
+    const ask = () => handleRest({ path: "v2/insights", params: { ...ERA, "signal.location.query": "Lagos" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const outs = await Promise.all([ask(), ask(), ask()]);
+    expect(outs.map(namesOf)).toEqual([["Known Act", "Old Band"], ["Known Act", "Old Band"], ["Known Act", "Old Band"]]);
+    expect(calls.filter((c) => c.includes("ws/2/artist?")).length).toBe(1);
+  });
 });
 
 describe("map shapes", () => {

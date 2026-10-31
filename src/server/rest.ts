@@ -18,6 +18,7 @@ import * as spotify from "@/server/adapters/spotify";
 import { externalOf } from "@/server/engine/standins";
 import { demandFor, findFallback, findOurIds, findShapeFill, linkSpotify, logRequest, saveCandidateRefs, saveShapeFill, type StoredFallback } from "@/server/store/repo";
 import { type Ctx, fallbackForQlooId, hashCaller, isCurrentShape, lookupArtist } from "@/server/service";
+import { singleFlight } from "@/server/single-flight";
 
 export type RestRequest = {
   path: string;
@@ -546,6 +547,9 @@ async function placeOf(params: Record<string, string>, ctx: Ctx): Promise<Place 
 export const THIN = 5;
 const ERA_TTL_MS = 7 * 24 * 3600 * 1000;
 const ERA_EMPTY_TTL_MS = 24 * 3600 * 1000;
+/** An empty fill because a source didn't answer (MusicBrainz busy) is kept a minute, not a day. */
+const ERA_FAILED_TTL_MS = 60 * 1000;
+const eraFlight = singleFlight<EraFill>();
 
 /** Qloo's answer for an era/genre/place artist request, with NotOnQ's artists after Qloo's when Qloo had few or none,
  * or erred. Qloo's own entities stay first and unchanged; the Ledger records the gap by request shape.
@@ -569,13 +573,18 @@ async function eraAnswer(
 
   // The fill searches by the place's name (a point is looked up to its country first); labels show it as asked.
   const place = at?.search;
-  // The version in the key retires fills made by older ranking rules.
-  const key = `era:v4:${tag}|${(place ?? "").toLowerCase()}|${take}`;
+  // The version in the key retires fills made by older rules (v5: empty fills from a source that didn't answer, which
+  // v4 kept for a day).
+  const key = `era:v5:${tag}|${(place ?? "").toLowerCase()}|${take}`;
   let fill = await findShapeFill<EraFill>(ctx.sql, key, ERA_TTL_MS);
-  const cacheHit = !!fill && (fill.entities.length > 0 || !!(await findShapeFill<EraFill>(ctx.sql, key, ERA_EMPTY_TTL_MS)));
+  const cacheHit = !!fill && (fill.entities.length > 0 || !!(await findShapeFill<EraFill>(ctx.sql, key, fill.failed?.length ? ERA_FAILED_TTL_MS : ERA_EMPTY_TTL_MS)));
   if (!cacheHit) {
-    fill = await fillEra(tag, place, take, { qloo: ctx.qloo, lastfmKey: ctx.lastfmKey, fetch: ctx.fetch });
-    await saveShapeFill(ctx.sql, key, fill);
+    // Identical requests at once share one fill.
+    fill = await eraFlight(key, async () => {
+      const made = await fillEra(tag, place, take, { qloo: ctx.qloo, lastfmKey: ctx.lastfmKey, fetch: ctx.fetch });
+      await saveShapeFill(ctx.sql, key, made);
+      return made;
+    });
   }
   const f = fill!;
   const signalIds = new Set([...(sent["signal.interests.entities"] ?? "").split(","), ...replaced.keys()].map((s) => s.trim()).filter(Boolean));
