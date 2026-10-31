@@ -1,10 +1,14 @@
-# NotOnQ
+# NotOnQ: an Entity Preview for Qloo
+
+NotOnQ is built to be a feature of Qloo, not an alternative to it: a preview of artists Qloo doesn't know yet,
+labelled and sourced, so an answer never stops at "no match". Qloo answers first, always.
 
 NotOnQ fills in artists for the [Qloo](https://qloo.com) taste API from open sources, in Qloo's own shape, with a source
 on every value. It caches each answer and counts how often each artist we filled in is asked for, so the artists
 developers actually ask for can be ranked for import.
 
-Built for the Qloo Agentic Hackathon 2026. Works with the Qloo API; not affiliated with or endorsed by Qloo.
+Built for the Qloo Agentic Hackathon 2026. Works with the Qloo API; not affiliated with or endorsed by Qloo. Built as a
+proposed feature for Qloo.
 
 > **Scope: artists only.** For the hackathon, NotOnQ fills in music artists (`urn:entity:artist`), where it is
 > measured. Every other entity type, and every request Qloo can answer, passes straight through to Qloo unchanged.

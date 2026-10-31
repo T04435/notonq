@@ -4,10 +4,11 @@ import { KEYED_EXAMPLES } from "@/lib/keyed-examples";
 
 export const LLMS_TXT = `# NotOnQ
 
-> NotOnQ fills in music artists for the Qloo taste API (hackathon host), in Qloo's own shape, from open sources, with a
+> NotOnQ is an Entity Preview for Qloo: built to be a feature of Qloo, not an alternative to it. It fills in music
+> artists for the Qloo taste API (hackathon host), in Qloo's own shape, from open sources, with a
 > source on every value. Qloo answers first with the caller's own key; an artist new to Qloo is filled in by NotOnQ,
 > and taste answers for it come from Qloo through similar artists Qloo knows ("stand-ins"). Artists only.
-> Works with the Qloo API; not affiliated with or endorsed by Qloo.
+> Works with the Qloo API; not affiliated with or endorsed by Qloo. Built as a proposed feature for Qloo.
 
 Use it two ways: point the official Qloo MCP server at it (its base URL, nothing else changes), or call the REST API
 under \`/q\` with the same paths as Qloo. Qloo's results always come first, unchanged; NotOnQ's artists are added after
@@ -28,15 +29,15 @@ Qloo, the same flow would run on Qloo's own licensed sources and taste graph.
 
 ## Optional
 
-- [Ask]({origin}/): the home page. One question through Qloo's own MCP harness: Qloo answers first, unchanged; Jev the judge checks it; if it falls short, NotOnQ asks Qloo again, then fills in from open sources, labelled (every step shown)
+- [Ask]({origin}/): the home page. One question through Qloo's own MCP harness: Qloo answers first, unchanged; Jev, the fit model, checks it; if it falls short, NotOnQ asks Qloo again, then fills in from open sources, labelled (every step shown)
 - [Ledger]({origin}/ledger): the record of every call through /q and every Ask question, grouped into visits, live; Replay where NotOnQ answered; artist record pages at /ledger/<name>
 - [Proof]({origin}/proof): every number counted from Ledger runs, across all apps or one (the benchmark batch is the app "benchmark")
 `;
 
 export const LLMS_FULL = `# NotOnQ: full reference
 
-> NotOnQ fills in music artists for the Qloo API, in Qloo's own shape, from open sources, with a source on every value.
-> Artists only, for the Qloo Agentic Hackathon 2026. Base: {origin}
+> NotOnQ is an Entity Preview for Qloo: built to be a feature of Qloo, not an alternative to it. It fills in music
+> artists for the Qloo API, in Qloo's own shape, from open sources, with a source on every value. Artists only, for the Qloo Agentic Hackathon 2026. Base: {origin}
 
 ## Scope
 
@@ -98,7 +99,7 @@ Parameters NotOnQ reads (never sent to Qloo):
 - \`notonq.candidate=<key>\`: fill from this candidate (keys come from notonq.candidates)
 - \`notonq.choose=1\`: always list the candidates
 - \`notonq.not_qloo=1\`: Qloo's artist by this name is a different one; look in NotOnQ's sources anyway (Ask sends it
-  when its judge finds Qloo's artist isn't the one named). NotOnQ does this by itself when Qloo's name matches only
+  when its fit model finds Qloo's artist isn't the one named). NotOnQ does this by itself when Qloo's name matches only
   once punctuation is ignored ("Anorak" for "ANORAK!") and MusicBrainz has an artist named exactly as asked under
   another record: Qloo's result stays first, unchanged, and NotOnQ's artist follows (gap G1)
 
@@ -209,7 +210,7 @@ Qloo response data is stored publicly).
 ## Ask, the Ledger and Proof
 
 - Ask ({origin}/, the home page): one question through Qloo's own MCP harness. Qloo answers first, unchanged; Jev, the
-  judge, checks that answer against what the question asks for (per constraint and per artist); if it falls short,
+  fit model, checks that answer against what the question asks for (per constraint and per artist); if it falls short,
   NotOnQ asks Qloo again, then fills in the rest from open sources, labelled, with sources. Last, Jev checks whether
   NotOnQ's answer says anything Qloo's doesn't; if not, Qloo's answer stands and the run counts as Qloo's. It ends
   with a table of every artist: where it came from, kept or removed and why, and what NotOnQ added.

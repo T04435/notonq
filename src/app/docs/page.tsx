@@ -24,6 +24,10 @@ export default function DocsOverview() {
   return (
     <>
       <h1 className="sr-only">NotOnQ docs: overview</h1>
+      <Notice lead="An Entity Preview for Qloo.">
+        NotOnQ is built to be a feature of Qloo, not an alternative to it: a preview of artists Qloo doesn&apos;t know yet, labelled and sourced, so an
+        answer never stops at &ldquo;no match&rdquo;. Qloo answers first, always.
+      </Notice>
       <Notice lead="Artists only.">
         NotOnQ fills in music artists (<C>urn:entity:artist</C>); every other entity type, and every request Qloo answers, goes to Qloo and comes back
         unchanged.
@@ -124,7 +128,7 @@ export default function DocsOverview() {
 
       <DocsSection id="ask" title="Ask">
         <P>
-          <A href="/">Ask</A> is the home page. A question runs through Qloo&apos;s own MCP harness, and Qloo answers first, unchanged. Jev, the judge,
+          <A href="/">Ask</A> is the home page. A question runs through Qloo&apos;s own MCP harness, and Qloo answers first, unchanged. Jev, the fit model,
           checks that answer against what the question asks for, per constraint and per artist. If it falls short, NotOnQ asks Qloo again, then fills
           in the rest from open sources, labelled, with a source on each value. Last, Jev checks whether NotOnQ&apos;s answer adds anything to
           Qloo&apos;s; if not, Qloo&apos;s answer stands. The answer ends with a table of every artist: where it came from,

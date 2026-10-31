@@ -9,6 +9,7 @@ import { NotOnQBadge } from "@/components/brand/notonq-badge";
 import { Code, JsonCode } from "@/components/code";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CodeBlock, CodeBlockContent, CodeBlockHeader, CodeBlockLine, CodeBlockTitle } from "@/components/ui/code-block";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupTextarea } from "@/components/ui/input-group";
 import { Progress } from "@/components/ui/progress";
@@ -109,17 +110,20 @@ function Empty({ prefill, onRun }: { prefill: string; onRun: (q: string) => void
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-12 pt-6 sm:pt-12">
       <div className="flex max-w-[900px] flex-col gap-5">
-        <span className="eyebrow">Qloo&apos;s MCP harness, with the gaps filled</span>
-        <h1 className="text-[40px] leading-[1.04] font-extrabold tracking-[-0.05em] sm:text-[64px]">
-          Ask about any artist. <span className="text-fill">We fill in the rest from open sources.</span>
+        <span className="eyebrow">NotOnQ · a proposed feature for Qloo</span>
+        {/* Written as the pull request NotOnQ would be in Qloo: a conventional-commit title. */}
+        <h1 className="text-[clamp(18px,5.2vw,52px)] leading-[1.04] font-extrabold tracking-[-0.05em] whitespace-nowrap">
+          <span className="text-muted-foreground">feat(entities):</span> <span className="text-fill">Entity Preview</span>
         </h1>
-        <p className="max-w-[62ch] text-[15px] leading-[1.7] text-subtle">
-          Qloo answers first, unchanged. Jev, our judge, checks whether that answered you. If not, we ask Qloo again and fill in the rest from
-          MusicBrainz, Wikidata, Wikipedia, Last.fm and Deezer. Everything we add is shown in <span className="text-fill">amber</span>, with its source.
-        </p>
       </div>
 
+      <PrBody />
+
+      <h2 id="test-plan" className="eyebrow -mb-9 border-t pt-10">
+        Test plan: ask about any artist
+      </h2>
       <form
+        aria-labelledby="test-plan"
         className="border border-strong bg-surface"
         onSubmit={(e) => {
           e.preventDefault();
@@ -185,6 +189,51 @@ function Empty({ prefill, onRun }: { prefill: string; onRun: (q: string) => void
         </div>
       </section>
     </div>
+  );
+}
+
+// The change NotOnQ proposes, as a diff of a Qloo artist lookup: where Qloo has no match, the answer no longer stops.
+const PR_DIFF = [
+  "  // GET /search?types=urn:entity:artist&query=Six Foot Blonde",
+  "  const res = await qloo.search(query);",
+  '- return res; // 0 results: the answer stops at "no match"',
+  "+ if (res.results.length) return res; // Qloo knows them: unchanged",
+  "+ // Qloo's licensed sources (this demo: MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer)",
+  "+ const previews = await notOnQ.entityPreview(query);",
+  '+ return { ...res, results: [...res.results, ...previews] }; // after Qloo\'s, labelled "Not in Qloo", sourced',
+];
+
+/** Under the title, the rest of the pull request it opens: what it does and the change as a diff; the ask box is its test plan. */
+function PrBody() {
+  return (
+    <section aria-labelledby="pr-summary" className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3">
+        <h2 id="pr-summary" className="eyebrow">
+          Summary
+        </h2>
+        <p className="max-w-[62ch] text-[15px] leading-[1.7] text-subtle">
+          Built to be a feature of Qloo, not an alternative to it. Qloo answers first, unchanged. Jev, our fit model, checks whether that answer fits your
+          question. If not, we ask Qloo again and fill in the rest from MusicBrainz, Wikidata, Wikipedia, Last.fm and Deezer. Everything we add is shown in{" "}
+          <span className="text-fill">amber</span>, with its source.
+        </p>
+      </div>
+      <div className="flex flex-col gap-3">
+        <h2 className="eyebrow">Changes</h2>
+        <CodeBlock className="border-border bg-surface dark:bg-surface">
+          <CodeBlockHeader className="gap-3 border-b px-3.5 py-2 pt-2 text-xs">
+            <CodeBlockTitle className="text-xs font-normal text-muted-foreground">artist lookup: when Qloo has no match</CodeBlockTitle>
+            <span className="ms-auto shrink-0 text-muted-foreground">diff</span>
+          </CodeBlockHeader>
+          <CodeBlockContent className="p-3.5 pt-3.5! text-[12.5px] leading-[1.75] text-foreground">
+            {PR_DIFF.map((line) => (
+              <CodeBlockLine key={line} className={line.startsWith("+") ? "text-fill" : line.startsWith("-") ? "text-muted-foreground" : undefined}>
+                {line}
+              </CodeBlockLine>
+            ))}
+          </CodeBlockContent>
+        </CodeBlock>
+      </div>
+    </section>
   );
 }
 
@@ -323,7 +372,7 @@ function logLines(events: AskEvent[], times: number[]): LogLine[] {
       out.push({
         t,
         kind: e.judgement.verdict === "answered" ? "ok" : "miss",
-        head: "Jev, the judge",
+        head: "Jev, the fit model",
         text: `${VERDICT[e.judgement.verdict]}. ${e.judgement.met.map((c) => `${c.kind.replace("_", " ")}: ${c.value} ${pct(c.p)}`).join(", ")}. Met at 60%.`,
       });
     else if (e.type === "answer") out.push({ t, kind: "ok", head: e.column === "qloo" ? "qloo answer" : "answer", text: e.column === "qloo" ? "Qloo's first answer is in" : "written" });
@@ -500,7 +549,7 @@ function JudgeCard({ judgement }: { judgement: Judgement }) {
   return (
     <div className="flex flex-col gap-3.5 border border-strong p-5">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h2 className="eyebrow">Jev, the judge: did Qloo answer the question?</h2>
+        <h2 className="eyebrow">Jev, the fit model: does Qloo&apos;s answer fit the question?</h2>
         <Badge variant="outline" className="border-foreground text-foreground">
           {VERDICT[judgement.verdict]}
         </Badge>
@@ -630,7 +679,7 @@ function Origins({ rows, places }: { rows: Row[]; places: number }) {
           <TableRow>
             <TableHead>artist</TableHead>
             <TableHead>from</TableHead>
-            <TableHead>Jev</TableHead>
+            <TableHead>Jev fit</TableHead>
             <TableHead>in the answer</TableHead>
             <TableHead>why</TableHead>
           </TableRow>
