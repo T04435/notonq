@@ -111,7 +111,7 @@ function Empty({ prefill, onRun }: { prefill: string; onRun: (q: string) => void
       <div className="flex max-w-[900px] flex-col gap-5">
         <span className="eyebrow">NotOnQ · a proposed feature for Qloo</span>
         {/* Written as the pull request NotOnQ would be in Qloo: a conventional-commit title. */}
-        <h1 className="text-[40px] leading-[1.04] font-extrabold tracking-[-0.05em] sm:text-[64px]">
+        <h1 className="text-[clamp(18px,5.2vw,52px)] leading-[1.04] font-extrabold tracking-[-0.05em] whitespace-nowrap">
           <span className="text-muted-foreground">feat(entities):</span> <span className="text-fill">Entity Preview</span>
         </h1>
         <p className="max-w-[62ch] text-[15px] leading-[1.7] text-subtle">
