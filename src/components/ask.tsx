@@ -117,7 +117,13 @@ function Empty({ prefill, onRun }: { prefill: string; onRun: (q: string) => void
         </h1>
       </div>
 
+      <PrBody />
+
+      <h2 id="test-plan" className="eyebrow -mb-9 border-t pt-10">
+        Test plan: ask about any artist
+      </h2>
       <form
+        aria-labelledby="test-plan"
         className="border border-strong bg-surface"
         onSubmit={(e) => {
           e.preventDefault();
@@ -182,8 +188,6 @@ function Empty({ prefill, onRun }: { prefill: string; onRun: (q: string) => void
           ))}
         </div>
       </section>
-
-      <PrBody />
     </div>
   );
 }
@@ -199,10 +203,10 @@ const PR_DIFF = [
   '+ return { ...res, results: [...res.results, ...previews] }; // after Qloo\'s, labelled "Not in Qloo", sourced',
 ];
 
-/** Below the ask box, the rest of the pull request the title opens: what it does, and the change as a diff. */
+/** Under the title, the rest of the pull request it opens: what it does and the change as a diff; the ask box is its test plan. */
 function PrBody() {
   return (
-    <section aria-labelledby="pr-summary" className="flex flex-col gap-8 border-t pt-10">
+    <section aria-labelledby="pr-summary" className="flex flex-col gap-8">
       <div className="flex flex-col gap-3">
         <h2 id="pr-summary" className="eyebrow">
           Summary
