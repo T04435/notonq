@@ -194,14 +194,15 @@ const PR_DIFF = [
   "  const res = await qloo.search(query);",
   '- return res; // 0 results: the answer stops at "no match"',
   "+ if (res.results.length) return res; // Qloo knows them: unchanged",
-  "+ const previews = await notOnQ.entityPreview(query); // Qloo's licensed sources (this demo: MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer)",
+  "+ // Qloo's licensed sources (this demo: MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer)",
+  "+ const previews = await notOnQ.entityPreview(query);",
   '+ return { ...res, results: [...res.results, ...previews] }; // after Qloo\'s, labelled "Not in Qloo", sourced',
 ];
 
 /** Below the ask box, the rest of the pull request the title opens: what it does, and the change as a diff. */
 function PrBody() {
   return (
-    <section aria-labelledby="pr-summary" className="flex max-w-[900px] flex-col gap-8 border-t pt-10">
+    <section aria-labelledby="pr-summary" className="flex flex-col gap-8 border-t pt-10">
       <div className="flex flex-col gap-3">
         <h2 id="pr-summary" className="eyebrow">
           Summary
