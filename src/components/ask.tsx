@@ -109,12 +109,12 @@ function Empty({ prefill, onRun }: { prefill: string; onRun: (q: string) => void
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-12 pt-6 sm:pt-12">
       <div className="flex max-w-[900px] flex-col gap-5">
-        <span className="eyebrow">Qloo&apos;s MCP harness, with the gaps filled</span>
+        <span className="eyebrow">An Entity Preview for Qloo, through Qloo&apos;s own MCP harness</span>
         <h1 className="text-[40px] leading-[1.04] font-extrabold tracking-[-0.05em] sm:text-[64px]">
           Ask about any artist. <span className="text-fill">We fill in the rest from open sources.</span>
         </h1>
         <p className="max-w-[62ch] text-[15px] leading-[1.7] text-subtle">
-          Qloo answers first, unchanged. Jev, our judge, checks whether that answered you. If not, we ask Qloo again and fill in the rest from
+          Qloo answers first, unchanged. Jev, our fit model, checks whether that answer fits your question. If not, we ask Qloo again and fill in the rest from
           MusicBrainz, Wikidata, Wikipedia, Last.fm and Deezer. Everything we add is shown in <span className="text-fill">amber</span>, with its source.
         </p>
       </div>
@@ -323,7 +323,7 @@ function logLines(events: AskEvent[], times: number[]): LogLine[] {
       out.push({
         t,
         kind: e.judgement.verdict === "answered" ? "ok" : "miss",
-        head: "Jev, the judge",
+        head: "Jev, the fit model",
         text: `${VERDICT[e.judgement.verdict]}. ${e.judgement.met.map((c) => `${c.kind.replace("_", " ")}: ${c.value} ${pct(c.p)}`).join(", ")}. Met at 60%.`,
       });
     else if (e.type === "answer") out.push({ t, kind: "ok", head: e.column === "qloo" ? "qloo answer" : "answer", text: e.column === "qloo" ? "Qloo's first answer is in" : "written" });
@@ -500,7 +500,7 @@ function JudgeCard({ judgement }: { judgement: Judgement }) {
   return (
     <div className="flex flex-col gap-3.5 border border-strong p-5">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <h2 className="eyebrow">Jev, the judge: did Qloo answer the question?</h2>
+        <h2 className="eyebrow">Jev, the fit model: does Qloo&apos;s answer fit the question?</h2>
         <Badge variant="outline" className="border-foreground text-foreground">
           {VERDICT[judgement.verdict]}
         </Badge>
@@ -630,7 +630,7 @@ function Origins({ rows, places }: { rows: Row[]; places: number }) {
           <TableRow>
             <TableHead>artist</TableHead>
             <TableHead>from</TableHead>
-            <TableHead>Jev</TableHead>
+            <TableHead>Jev fit</TableHead>
             <TableHead>in the answer</TableHead>
             <TableHead>why</TableHead>
           </TableRow>

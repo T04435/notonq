@@ -92,7 +92,7 @@ export const OPENAPI = {
     title: "NotOnQ",
     version: "0.4.0",
     description:
-      "A drop-in layer in front of the Qloo API (hackathon host). Qloo answers first with your own key; an artist new to Qloo is filled in by NotOnQ from open sources, in Qloo's shape, after Qloo's results, with a source on every value. NotOnQ entity IDs are UUIDs; their properties.short_description starts \"Not in Qloo: filled by NotOnQ from open sources.\" (or \"Not in Qloo: a possible match\" for a candidate). Artists only. Works with the Qloo API; not affiliated with or endorsed by Qloo.",
+      "An Entity Preview for Qloo, built to be a feature of Qloo, not an alternative to it: a drop-in layer in front of the Qloo API (hackathon host). Qloo answers first with your own key; an artist new to Qloo is filled in by NotOnQ from open sources, in Qloo's shape, after Qloo's results, with a source on every value. NotOnQ entity IDs are UUIDs; their properties.short_description starts \"Not in Qloo: filled by NotOnQ from open sources.\" (or \"Not in Qloo: a possible match\" for a candidate). Artists only. Works with the Qloo API; not affiliated with or endorsed by Qloo.",
     license: { name: "MIT" },
   },
   servers: [

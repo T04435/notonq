@@ -12,9 +12,9 @@ import "./globals.css";
 const mono = JetBrains_Mono({ variable: "--font-sans", subsets: ["latin"], weight: ["300", "400", "500", "700", "800"] });
 
 export const metadata: Metadata = {
-  title: "NotOnQ",
+  title: "NotOnQ: an Entity Preview for Qloo",
   description:
-    "NotOnQ fills in artists from open sources, in the Qloo API's own shape, with a source on every value.",
+    "NotOnQ, an Entity Preview for Qloo: artists Qloo doesn't know yet, filled in from open sources in the Qloo API's own shape, with a source on every value. Built to be a feature of Qloo, not an alternative to it.",
   other: { "app-version": versionText() },
 };
 
@@ -36,7 +36,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <footer className="border-t">
           <div className="mx-auto flex max-w-[1280px] flex-wrap items-end justify-between gap-4 px-4 py-6 text-[11px] leading-[1.7] text-muted-foreground sm:px-6">
             <div className="flex max-w-[80ch] flex-col gap-1">
-              <p>Works with the Qloo API. Not affiliated with or endorsed by Qloo.</p>
+              <p>
+                Works with the Qloo API. Not affiliated with or endorsed by Qloo. <span className="text-fill/60">Built as a proposed feature for Qloo.</span>
+              </p>
               <p>
                 Facts from MusicBrainz (CC0), Wikidata (CC0) and Wikipedia (CC BY-SA 4.0). Similar artists and listener counts from{" "}
                 <a className="text-subtle underline" href="https://www.last.fm">
