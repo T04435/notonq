@@ -109,12 +109,12 @@ function Empty({ prefill, onRun }: { prefill: string; onRun: (q: string) => void
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-12 pt-6 sm:pt-12">
       <div className="flex max-w-[900px] flex-col gap-5">
-        <span className="eyebrow">An Entity Preview for Qloo, through Qloo&apos;s own MCP harness</span>
+        <span className="eyebrow">Ask about any artist, through Qloo&apos;s own MCP harness</span>
         <h1 className="text-[40px] leading-[1.04] font-extrabold tracking-[-0.05em] sm:text-[64px]">
-          Ask about any artist. <span className="text-fill">We fill in the rest from open sources.</span>
+          NotOnQ: <span className="text-fill">an Entity Preview for Qloo.</span>
         </h1>
         <p className="max-w-[62ch] text-[15px] leading-[1.7] text-subtle">
-          Qloo answers first, unchanged. Jev, our fit model, checks whether that answer fits your question. If not, we ask Qloo again and fill in the rest from
+          Built to be a feature of Qloo, not an alternative to it. Qloo answers first, unchanged. Jev, our fit model, checks whether that answer fits your question. If not, we ask Qloo again and fill in the rest from
           MusicBrainz, Wikidata, Wikipedia, Last.fm and Deezer. Everything we add is shown in <span className="text-fill">amber</span>, with its source.
         </p>
       </div>
