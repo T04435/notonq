@@ -194,7 +194,7 @@ const PR_DIFF = [
   "  const res = await qloo.search(query);",
   '- return res; // 0 results: the answer stops at "no match"',
   "+ if (res.results.length) return res; // Qloo knows them: unchanged",
-  "+ const previews = await notOnQ.entityPreview(query); // MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer",
+  "+ const previews = await notOnQ.entityPreview(query); // Qloo's licensed sources (this demo: MusicBrainz, Wikidata, Wikipedia, Last.fm, Deezer)",
   '+ return { ...res, results: [...res.results, ...previews] }; // after Qloo\'s, labelled "Not in Qloo", sourced',
 ];
 
