@@ -12,7 +12,7 @@ import "./globals.css";
 const mono = JetBrains_Mono({ variable: "--font-sans", subsets: ["latin"], weight: ["300", "400", "500", "700", "800"] });
 
 export const metadata: Metadata = {
-  title: "NotOnQ: an Entity Preview for Qloo",
+  title: "NotOnQ: a Qloo Entity Preview",
   description:
     "NotOnQ, an Entity Preview for Qloo: artists Qloo doesn't know yet, filled in from open sources in the Qloo API's own shape, with a source on every value. Built to be a feature of Qloo, not an alternative to it.",
   other: { "app-version": versionText() },

@@ -111,7 +111,7 @@ function Empty({ prefill, onRun }: { prefill: string; onRun: (q: string) => void
       <div className="flex max-w-[900px] flex-col gap-5">
         <span className="eyebrow">Ask about any artist, through Qloo&apos;s own MCP harness</span>
         <h1 className="text-[40px] leading-[1.04] font-extrabold tracking-[-0.05em] sm:text-[64px]">
-          NotOnQ: <span className="text-fill">an Entity Preview for Qloo.</span>
+          NotOnQ: <span className="text-fill">a Qloo Entity Preview.</span>
         </h1>
         <p className="max-w-[62ch] text-[15px] leading-[1.7] text-subtle">
           Built to be a feature of Qloo, not an alternative to it. Qloo answers first, unchanged. Jev, our fit model, checks whether that answer fits your question. If not, we ask Qloo again and fill in the rest from
