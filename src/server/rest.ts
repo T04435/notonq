@@ -9,7 +9,7 @@ import type { Fetch } from "@/server/http";
 import { ARTIST, entitiesOf, qlooClient, qlooMessage, type QlooEntity } from "@/server/qloo/client";
 import { cachedQloo, QlooBudgetExceeded } from "@/server/qloo/cached";
 import { readInsights, readSearch, sameName, sameStrictName } from "@/server/qloo/gap";
-import { blockFor, fallbackBlock, standInsOf } from "@/server/respond";
+import { blockFor, candidateId, fallbackBlock, keyed, standInsOf } from "@/server/respond";
 import type { Sql } from "@/server/store/db";
 import * as mb from "@/server/adapters/musicbrainz";
 import * as nominatim from "@/server/adapters/nominatim";
@@ -89,7 +89,10 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
   const withQloo = (ours: unknown[]) => [...qlooResults, ...ours.filter((o) => !qlooResults.some((q) => q.entity_id === (o as { entity_id: string }).entity_id)).slice(0, take)];
 
   // The chosen candidate is an artist Qloo knows under another spelling ("eminim" → Eminem): Qloo's own entity.
-  if (l.servedBy === "qloo") return { status: 200, body: { ...base, results: withQloo([l.entity]), notonq: { served_by: "qloo", attribution: [] } }, servedBy: "qloo" };
+  if (l.servedBy === "qloo") {
+    const matched = keyed("matched", { query, note: `Qloo's own record, matched by NotOnQ to the name asked for ("${query}").` });
+    return { status: 200, body: { ...base, results: withQloo([l.entity]), notonq: { served_by: "qloo", attribution: [], [l.entity.entity_id]: matched } }, servedBy: "qloo" };
+  }
   // Ambiguous: every possible artist as a Qloo-shaped entry; sending one's ID back (to /entities or as a signal) fills it.
   if (l.servedBy === "needs_choice") {
     const offered = l.candidates.filter((c) => !c.inQloo);
@@ -101,14 +104,29 @@ async function search(req: RestRequest, ctx: Ctx, options: ResolveOptions): Prom
       const hit = filled.get(idForCandidate(c));
       return hit && "fill" in hit && hit.fill.entity ? hit.fill.entity : candidateEntity(c);
     });
-    return { status: 200, body: { ...base, results: withQloo(entries), notonq: blockFor(l) }, servedBy: "fallback" };
+    // Each offered entry's own block, by its entity_id: a fill already made, or a candidate still to choose.
+    const blocks = await Promise.all(
+      offered.map(async (c) => {
+        const hit = filled.get(idForCandidate(c));
+        if (hit && "fill" in hit && hit.fill.entity) return [hit.fill.id, keyed("filled", fallbackBlock(hit.fill, await demandFor(ctx.sql, hit.fill.nameKey), { hit: true }))];
+        return [candidateId(c), keyed("candidate", { key: c.key, name: c.name, next: "Send this entity_id to /entities, or as a signal, and NotOnQ fills the artist." })];
+      }),
+    );
+    const results = withQloo(entries);
+    const shown = new Set(results.map((r) => (r as { entity_id: string }).entity_id));
+    return { status: 200, body: { ...base, results, notonq: { ...blockFor(l), ...Object.fromEntries(blocks.filter(([id]) => shown.has(id as string))) } }, servedBy: "fallback" };
   }
   return {
     status: l.fallback.entity ? 200 : res.status,
     body: {
       ...base,
       results: withQloo(l.fallback.entity ? [l.fallback.entity] : []),
-      notonq: { ...blockFor(l), served_by: qlooResults.length ? "mixed" : "fallback" },
+      notonq: {
+        ...blockFor(l),
+        served_by: qlooResults.length ? "mixed" : "fallback",
+        // The fill's block again, keyed by its entity_id as on /entities (the flat fields above stay for older clients).
+        ...(l.fallback.entity ? { [l.fallback.id]: keyed("filled", blockFor(l)) } : {}),
+      },
     },
     servedBy: qlooResults.length ? "mixed" : "fallback",
   };
@@ -141,6 +159,17 @@ function mapEntities(json: unknown, fn: (e: QlooEntity) => QlooEntity): unknown 
   return json;
 }
 
+/** The fields a G5 answer added, by name, from its provenance paths. */
+const GAP_FIELDS: [RegExp, string][] = [
+  [/notonq:home$/, "home"],
+  [/notonq:languages$/, "languages"],
+  [/^tags$/, "genres"],
+  [/notonq:musicbrainz$/, "musicbrainz_id"],
+  [/notonq:wikidata$/, "wikidata_id"],
+];
+export const gapFields = (provenance: Record<string, unknown>) =>
+  Object.keys(provenance).map((path) => GAP_FIELDS.find(([re]) => re.test(path))?.[1] ?? path);
+
 /** Qloo's answer with NotOnQ's facts added to the artists listed, for the fields Qloo's records lack (G5: where
  * they're from, what language they sing in, their MusicBrainz and Wikidata IDs, genres). Qloo's own values are kept;
  * when nothing is added the answer is Qloo's, unchanged. */
@@ -164,6 +193,8 @@ async function withFactsAnswer(qloo: RestResponse, ids: string[], ctx: Ctx): Pro
         facts: Object.fromEntries([...added].map(([id, a]) => [id, { provenance: a.provenance }])),
         note: "Qloo's records, unchanged, with NotOnQ's notonq: fields added where Qloo has none (from MusicBrainz, cited per field).",
         attribution: ["Facts: MusicBrainz (CC0)"],
+        // Each such record's block by its entity_id: Qloo's own record, with the fields NotOnQ added.
+        ...Object.fromEntries([...added].map(([id, a]) => [id, keyed("gaps", { fields: gapFields(a.provenance), provenance: a.provenance })])),
       },
     },
     servedBy: "mixed",
@@ -224,7 +255,7 @@ async function entities(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   const results = [...(res ? entitiesOf(res.json) : []), ...found.flatMap((f) => (f.entity ? [f.entity] : []))];
   const servedBy = theirs.length ? "mixed" : "fallback";
   // served_by for the whole answer (as on every other endpoint), then each NotOnQ entity's own block (gap, sources) by ID.
-  const blocks = await Promise.all(found.map(async (f) => [f.id, fallbackBlock(f, await demandFor(ctx.sql, f.nameKey), { hit: true })]));
+  const blocks = await Promise.all(found.map(async (f) => [f.id, keyed("filled", fallbackBlock(f, await demandFor(ctx.sql, f.nameKey), { hit: true }))]));
   const notonq = { served_by: servedBy, ...Object.fromEntries(blocks) };
   return { status: results.length ? 200 : 404, body: { results, notonq }, servedBy };
 }
@@ -265,7 +296,8 @@ async function spotifyEntities(req: RestRequest, ctx: Ctx): Promise<RestResponse
     spotify: matches,
     note: "Artists after Qloo's own were matched by NotOnQ to Spotify IDs Qloo has no record for: through MusicBrainz's link to the Spotify page, or by the name on it when that name is one confident artist.",
   };
-  for (const f of found) notonq[f.id] = fallbackBlock(f, await demandFor(ctx.sql, f.nameKey), { hit: true });
+  for (const f of found) notonq[f.id] = keyed("filled", fallbackBlock(f, await demandFor(ctx.sql, f.nameKey), { hit: true }));
+  for (const m of matches) if (m.entity_id && (m.via === "name_in_qloo" || m.via === "musicbrainz_in_qloo")) notonq[m.entity_id] = keyed("matched", { spotify_id: m.spotify_id, via: m.via });
   return { status: ours.length || qloo.length ? 200 : res.status, body: { ...base, results: [...qloo, ...ours], notonq }, servedBy };
 }
 
@@ -315,7 +347,7 @@ async function insights(req: RestRequest, ctx: Ctx): Promise<RestResponse> {
   // Artists by era, genre and place (v0.3.0), also with a taste signal alongside (v0.4.0): see eraAnswer.
   const eraTag = req.params["filter.type"] === ARTIST ? (req.params["filter.tags"] ?? "").split(",").map((t) => t.trim()).find((t) => parseMusicTag(t)) : undefined;
   if (signal.length && !params["signal.interests.entities"]) {
-    if (!eraTag) return noTasteData(replaced, ctx);
+    if (!eraTag) return noTasteData(replaced, ctx, req.params["filter.type"]);
     // Only NotOnQ artists with no stand-ins: the era and place still stand on their own.
     params = Object.fromEntries(Object.entries(params).filter(([k]) => k !== "signal.interests.entities"));
   }
@@ -613,6 +645,10 @@ async function eraAnswer(
         ...(replaced.size ? { proxy: { replaced: [...replaced.keys()], stand_ins: [...replaced.values()].flatMap(standInsOf) } } : {}),
         cache: { hit: cacheHit },
         provenance: f.provenance,
+        // Each added entity's block by its entity_id: filled (not in Qloo) or picked (Qloo's own record NotOnQ added).
+        ...Object.fromEntries(
+          ours.map((e) => [idOf(e), notInQloo(e) ? keyed("filled", { served_by: "fallback", gap: { kind: "G4" } }) : keyed("picked", { ranked_by_qloo: rankedIds.has(idOf(e)) })]),
+        ),
         note: [
           f.unresolvedPlace ? `NotOnQ could not place "${f.unresolvedPlace}" in a country, so it added nothing rather than artists from anywhere.` : "",
           ours.length
@@ -651,7 +687,7 @@ async function insightsPost(body: Record<string, unknown>, ctx: Ctx): Promise<Re
     return { ...body, "signal.interests.entities": out };
   };
   const first = rewrite();
-  if (items.length && !(first["signal.interests.entities"] as unknown[]).length) return noTasteData(replaced, ctx);
+  if (items.length && !(first["signal.interests.entities"] as unknown[]).length) return noTasteData(replaced, ctx, typeof body["filter.type"] === "string" ? body["filter.type"] : undefined);
   let res = await ctx.qloo.post("/v2/insights", first);
   if (res.status === 400 && readInsightsSafe(res)) {
     for (const id of items.map(idOf).filter((s) => !ours.has(s) && !replaced.has(s))) {
@@ -680,7 +716,7 @@ async function insightsPost(body: Record<string, unknown>, ctx: Ctx): Promise<Re
 
 /** Every signal is a NotOnQ artist with no similar artist Qloo knows: nothing to ask Qloo. An empty answer (never a
  * Qloo error for an ID Qloo was never sent), with the reason; the entity's own label says the same to the harness. */
-async function noTasteData(replaced: Map<string, StoredFallback>, ctx: Ctx): Promise<RestResponse> {
+async function noTasteData(replaced: Map<string, StoredFallback>, ctx: Ctx, filterType?: string): Promise<RestResponse> {
   for (const f of replaced.values())
     await logRequest(ctx.sql, { nameKey: f.nameKey, entityId: f.id, endpoint: ctx.endpoint, servedBy: "fallback", gapKind: f.gapKind, callerHash: ctx.callerHash, appLabel: ctx.appLabel, cacheHit: true });
   const names = [...replaced.values()].map((f) => f.name).join(", ");
@@ -688,11 +724,20 @@ async function noTasteData(replaced: Map<string, StoredFallback>, ctx: Ctx): Pro
     status: 200,
     body: {
       success: true,
-      results: {},
+      results: emptyResults(filterType),
       notonq: { served_by: "fallback", proxy: { replaced: [...replaced.keys()], stand_ins: [] }, note: `No taste data: ${names} is not in Qloo and has no similar artist Qloo knows yet.` },
     },
     servedBy: "fallback",
   };
+}
+
+/** Qloo's empty answer for the filter type: the list key it always sends, empty (a client written to Qloo's shape reads
+ * results.entities even when there is nothing; Busk Map, 30 Oct 2026). */
+export function emptyResults(filterType?: string): Record<string, unknown[]> {
+  if (filterType === "urn:demographics") return { demographics: [] };
+  if (filterType === "urn:heatmap") return { heatmap: [] };
+  if (filterType === "urn:tag") return { tags: [] };
+  return { entities: [] };
 }
 
 function withSignal(params: Record<string, string>, signal: string[], replaced: Map<string, StoredFallback>) {

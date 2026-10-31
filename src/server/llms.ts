@@ -1,5 +1,6 @@
 // llms.txt (llmstxt.org: an index for agents) and llms-full.txt (the whole reference in one markdown file, as Next.js
 // publishes it). {origin} is replaced with the host serving them. Keep in step with the /docs pages and openapi.ts.
+import { KEYED_EXAMPLES } from "@/lib/keyed-examples";
 
 export const LLMS_TXT = `# NotOnQ
 
@@ -10,7 +11,9 @@ export const LLMS_TXT = `# NotOnQ
 
 Use it two ways: point the official Qloo MCP server at it (its base URL, nothing else changes), or call the REST API
 under \`/q\` with the same paths as Qloo. Qloo's results always come first, unchanged; NotOnQ's artists are added after
-them, labelled in properties.short_description ("Not in Qloo: filled by NotOnQ from open sources.").
+them, labelled in properties.short_description ("Not in Qloo: filled by NotOnQ from open sources."), and each one
+NotOnQ touched has a block of its own, notonq["<entity_id>"], with its kind (filled, candidate, picked, matched, gaps).
+The blocks are additive; a client that ignores them works as before.
 
 NotOnQ shows the behaviour, not the data pipeline: its open sources stand in for whatever Qloo would use. Built into
 Qloo, the same flow would run on Qloo's own licensed sources and taste graph.
@@ -119,9 +122,23 @@ Added beside Qloo's response when NotOnQ took part:
 - popularity: { value, n, rmse } (derived from the stand-ins' Qloo popularity against Last.fm listeners)
 - unavailable: fields with no provable source; "(source error: …)" when a source failed
 - confidence: high (MusicBrainz record) | low (Last.fm or Deezer only)
-- candidates, next: for needs_choice
+- candidates, next: for needs_choice (each candidate has entity_id: the ID it has in results, or Qloo's own ID when
+  Qloo knows it, flagged inQloo)
 - research: { status: pending | done | failed | skipped | none }
+- "<entity_id>": { kind, … }: one block per result NotOnQ touched, keyed by that result's entity_id, on /search,
+  /entities and /v2/insights. A result with no block is Qloo's, unchanged. Look it up as notonq[result.entity_id]
+  (don't scan for "kind": gap has one too). The flat fields above stay.
+  - kind: filled (not in Qloo, filled from open sources; the fill's gap, cache, proxy, provenance, …; only fills carry
+    properties["notonq:standIns"]) | candidate (not in Qloo, a possible match not filled yet; key, name, next) | picked
+    (Qloo's own record NotOnQ added to an era list; ranked_by_qloo) | matched (Qloo's own record NotOnQ matched to the
+    name or Spotify ID asked for; query, or spotify_id and via) | gaps (Qloo's own record with fields NotOnQ added, G5;
+    fields: home, languages, genres, musicbrainz_id, wikidata_id; provenance)
+  These blocks are additive: nothing that was in a response before was removed, renamed or changed, and a client
+  that ignores them works exactly as it did. One example per kind: see "Keyed blocks, by example" below.
 
+### Keyed blocks, by example
+
+${KEYED_EXAMPLES.map((e) => `#### ${e.kind}\n\n${e.when}\n\n\`\`\`json\n${e.code}\n\`\`\`\n`).join("\n")}
 ### Shape
 
 A filled artist has exactly Qloo's keys and types.

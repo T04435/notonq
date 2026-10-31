@@ -51,6 +51,19 @@ beforeEach(async () => {
 const deps = (fetch: typeof globalThis.fetch) => ({ sql, baseUrl: "https://hackathon.api.qloo.com", salt: "t", fetch });
 
 describe("handleRest", () => {
+  it("keys a search fill's block by its entity_id, kind filled, beside the flat fields", async () => {
+    const counter = { search: 0, insights: [] as string[] };
+    const { fetch } = fakeFetch([...qlooRoutes(counter), ...openData]);
+    const out = await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
+    const body = out.body as { results: { entity_id: string; properties: Record<string, unknown> }[]; notonq: Record<string, unknown> };
+    const id = body.results[0].entity_id;
+    expect(body.notonq).toMatchObject({ served_by: "fallback", gap: { kind: "G1" } });
+    expect(body.notonq[id]).toMatchObject({ kind: "filled", served_by: "fallback", gap: { kind: "G1" }, proxy: { stand_ins: [{ name: "Similar 1" }, { name: "Similar 2" }] } });
+    expect(body.results[0].properties["notonq:standIns"]).toHaveLength(2);
+    const looked = await handleRest({ path: "entities", params: { entity_ids: id }, apiKey: "k" }, deps(fetch));
+    expect((looked.body as { notonq: Record<string, unknown> }).notonq[id]).toMatchObject({ kind: "filled" });
+  });
+
   it("needs the caller's own key", async () => {
     const { fetch } = fakeFetch([]);
     expect((await handleRest({ path: "search", params: {} }, deps(fetch))).status).toBe(401);
@@ -133,8 +146,15 @@ describe("handleRest", () => {
     const { fetch } = fakeFetch([...qlooRoutes(counter), ...openData.filter(([k]) => k !== "method=artist.getsimilar"), ["method=artist.getsimilar", () => json(200, { similarartists: { artist: [] } })]]);
     await handleRest({ path: "search", params: { query: "Newact", types: "urn:entity:artist" }, apiKey: "k", lastfmKey: "lf" }, deps(fetch));
     const before = counter.insights.length;
-    const out = await handleRest({ path: "v2/insights", params: { "filter.type": "urn:heatmap", "signal.interests.entities": NEW }, apiKey: "k" }, deps(fetch));
-    expect(out).toMatchObject({ status: 200, servedBy: "fallback", body: { success: true, results: {} } });
+    // Qloo's shape even when empty: the filter type's list key, as an empty array (Busk Map read results:{} as invalid).
+    const cases: [string, string][] = [["urn:entity:artist", "entities"], ["urn:heatmap", "heatmap"], ["urn:demographics", "demographics"], ["urn:tag", "tags"]];
+    for (const [type, key] of cases) {
+      const out = await handleRest({ path: "v2/insights", params: { "filter.type": type, "signal.interests.entities": NEW }, apiKey: "k" }, deps(fetch));
+      expect(out).toMatchObject({ status: 200, servedBy: "fallback", body: { success: true, results: { [key]: [] } } });
+      expect(Object.keys((out.body as { results: object }).results)).toEqual([key]);
+    }
+    const post = await handleRest({ path: "v2/insights", params: {}, body: { "filter.type": "urn:entity:artist", "signal.interests.entities": [NEW] }, apiKey: "k" }, deps(fetch));
+    expect(post.body).toMatchObject({ success: true, results: { entities: [] } });
     expect(counter.insights.length).toBe(before);
   });
 
